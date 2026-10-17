@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is(.dark *));
+
 /* Design tokens. Colour is reserved for meaning: blue / amber / brick encode a claim's
    direction (validated for colour-vision deficiency); everything else is ink on paper. */
 :root {
@@ -30,6 +32,9 @@
   --focus: #1b1a17;
   --shadow-sm: 0 1px 0 rgba(27, 26, 23, 0.04), 0 1px 2px rgba(27, 26, 23, 0.06);
   --shadow-md: 0 1px 0 rgba(27, 26, 23, 0.04), 0 6px 18px -6px rgba(27, 26, 23, 0.14);
+  --selection: #dfe9f5;
+  --hatch: rgba(27, 26, 23, 0.07);
+  --grid-dot: #dcd8ce;
 
   /* shadcn/ui semantic tokens, mapped onto the paper-and-ink palette */
   --background: var(--bg);
@@ -56,6 +61,43 @@
   --chart-4: var(--ink-2);
   --chart-5: var(--ink-4);
   --radius: 0.5rem;
+  color-scheme: light;
+}
+
+/* Same roles, inverted: warm charcoal paper, light ink. Stance hues are lifted so they keep
+   their contrast on a dark surface; "soft" fills become deep tints of the same hue. */
+.dark {
+  --bg: #121210;
+  --surface: #1b1a18;
+  --surface-2: #171614;
+  --surface-3: #24231f;
+  --ink: #ecebe6;
+  --ink-2: #bdbab1;
+  --ink-3: #8f8b81;
+  --ink-4: #625f58;
+  --line: #2b2a26;
+  --line-2: #3b3934;
+
+  --pos: #5a9be2;
+  --pos-soft: #15253a;
+  --pos-ink: #93c0f2;
+  --neu: #d8a52b;
+  --neu-soft: #2d2410;
+  --neu-ink: #ebc66f;
+  --neg: #e2654f;
+  --neg-soft: #35180f;
+  --neg-ink: #f29a89;
+
+  --ok: #4fb07a;
+  --focus: #ecebe6;
+  --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px -6px rgba(0, 0, 0, 0.6);
+  --selection: #24405f;
+  --hatch: rgba(236, 235, 230, 0.07);
+  --grid-dot: #2e2c28;
+
+  --primary-foreground: #121210;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -125,7 +167,7 @@ body {
 }
 
 ::selection {
-  background: #dfe9f5;
+  background: var(--selection);
 }
 
 :focus-visible {
@@ -225,7 +267,7 @@ body {
 }
 
 .tg-hatch {
-  background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(27, 26, 23, 0.07) 4px 5px);
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--hatch) 4px 5px);
 }
 
 .tg-spin {

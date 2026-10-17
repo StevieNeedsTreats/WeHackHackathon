@@ -99,11 +99,11 @@ export const OtherHypNode = memo(function OtherHypNode({ id, data }: NodeProps &
 
 export const QuestionNode = memo(function QuestionNode({ id, data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
-  const cls = useNodeClass(id, "rounded-lg bg-primary px-4 py-3 text-white shadow-[var(--shadow-md)]");
+  const cls = useNodeClass(id, "rounded-lg bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-md)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }}>
       <Handles />
-      <div className="mono text-[10px] uppercase tracking-[0.14em] text-white/55">Question</div>
+      <div className="mono text-[10px] uppercase tracking-[0.14em] text-primary-foreground/60">Question</div>
       <div className="line-clamp-2 text-[14px] font-medium leading-tight">{ctx.state.question?.text}</div>
     </div>
   );

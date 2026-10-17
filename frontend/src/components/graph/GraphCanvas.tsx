@@ -258,7 +258,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
             if (ev) setFollow(false);
           }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#dcd8ce" />
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--grid-dot)" />
         </ReactFlow>
 
         {isEmpty && <div className="pointer-events-none absolute inset-0 flex items-center justify-center">{empty}</div>}
@@ -311,7 +311,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px] text-ink-2">
         {(["supports", "mixed", "refutes"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">
-            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-white" style={{ background: STANCE[d].color }}>
+            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-card" style={{ background: STANCE[d].color }}>
               {STANCE[d].glyph}
             </span>
             {STANCE[d].label}

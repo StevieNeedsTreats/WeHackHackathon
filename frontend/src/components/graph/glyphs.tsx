@@ -27,7 +27,7 @@ export function StanceGlyph({ stance, size = 18 }: { stance: Stance; size?: numb
     <span
       aria-label={d.label}
       className="mono inline-flex shrink-0 items-center justify-center rounded-full font-medium"
-      style={{ width: size, height: size, fontSize: size * 0.68, color: "#fff", background: d.color, lineHeight: 1 }}
+      style={{ width: size, height: size, fontSize: size * 0.68, color: "var(--card)", background: d.color, lineHeight: 1 }}
     >
       {d.glyph}
     </span>

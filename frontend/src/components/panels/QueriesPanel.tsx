@@ -58,7 +58,7 @@ function Schema() {
   const N = ({ x, y, label, dark }: { x: number; y: number; label: string; dark?: boolean }) => (
     <g>
       <rect x={x - 40} y={y - 11} width="80" height="22" rx="5" fill={dark ? "var(--ink)" : "var(--surface)"} stroke={dark ? "var(--ink)" : "var(--line-2)"} />
-      <text x={x} y={y + 4} textAnchor="middle" fontSize="10.5" fill={dark ? "#fff" : "var(--ink)"} fontWeight="500">
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="10.5" fill={dark ? "var(--primary-foreground)" : "var(--ink)"} fontWeight="500">
         {label}
       </text>
     </g>
