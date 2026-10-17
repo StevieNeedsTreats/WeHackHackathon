@@ -72,32 +72,29 @@ class GraphStore:
         self.settings = s
 
     async def init(self) -> None:
-        """Indexes and constraints. Each is idempotent: 'already exists' is fine."""
+        """Create the indexes and constraints that don't exist yet. Any failure stops startup:
+        running without them would be silently slow, or let MERGE create duplicates."""
         await self.graph.query("RETURN 1")  # creates the graph key if missing
+        indexed = {(label, prop, kind) for label, props, types, *_ in (await self.graph.ro_query("CALL db.indexes()")).result_set
+                   for prop in props for kind in types.get(prop, [])}
+        constrained = {(label, tuple(props)) for _, label, props, *_ in
+                       (await self.graph.ro_query("CALL db.constraints()")).result_set}
         for label, prop in UNIQUE + RANGE:
-            try:
+            if (label, prop, "RANGE") not in indexed:
                 await self.graph.create_node_range_index(label, prop)
-            except Exception:
-                pass
         for label, prop in UNIQUE:
-            try:
+            if (label, (prop,)) not in constrained:
                 await self.graph.create_node_unique_constraint(label, prop)
-            except Exception:
-                pass
         for rel in ("CONTRADICTS", "MEASURES"):  # relationship range indexes: both are scoped by hypothesis
-            try:
+            if (rel, "hypothesis", "RANGE") not in indexed:
                 await self.graph.query(f"CREATE INDEX FOR ()-[r:{rel}]-() ON (r.hypothesis)")
-            except Exception:
-                pass
         # Findings written before paper_id existed get it from their study's paper.
         await self.graph.query(
             "MATCH (p:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(f:Finding) WHERE f.paper_id IS NULL SET f.paper_id = p.id"
         )
         for label, prop in FULLTEXT:
-            try:
+            if (label, prop, "FULLTEXT") not in indexed:
                 await self.graph.create_node_fulltext_index(label, prop)
-            except Exception:
-                pass
 
     async def ping(self) -> bool:
         try:
