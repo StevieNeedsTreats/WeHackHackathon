@@ -1,17 +1,19 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Consensus } from "@/lib/types";
+import type { State } from "@/lib/store";
 
 export interface GraphCtx {
+  state: State;
+  focus: string | null; // hypothesis key, or null in All mode
   active: Set<string> | null; // highlighted ids (nodes + edges); null = nothing focused
   selected: string | null;
-  consensus: Record<string, Consensus>; // keyed by outcome node id
   fresh: Set<string>; // ids that should play their entry animation
+  hNum: Record<string, number>; // hypothesis key → 1-based number
 }
 
-export const GraphContext = createContext<GraphCtx>({ active: null, selected: null, consensus: {}, fresh: new Set() });
-export const useGraph = () => useContext(GraphContext);
+export const GraphContext = createContext<GraphCtx | null>(null);
+export const useGraph = () => useContext(GraphContext)!;
 
 export function dimClass(ctx: GraphCtx, id: string) {
   return ctx.active && !ctx.active.has(id) ? "tg-dim" : "";

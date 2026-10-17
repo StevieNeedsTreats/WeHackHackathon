@@ -1,14 +1,28 @@
 import { Building2, Check, Coins, ExternalLink, FileText, Flag, TriangleAlert, User } from "lucide-react";
-import type { Direction } from "@/lib/types";
+import type { Direction, Stance } from "@/lib/types";
 
-export const DIR = {
-  positive: { label: "Positive", glyph: "+", color: "var(--pos)", soft: "var(--pos-soft)", ink: "var(--pos-ink)" },
-  neutral: { label: "Mixed", glyph: "~", color: "var(--neu)", soft: "var(--neu-soft)", ink: "var(--neu-ink)" },
-  null: { label: "Negative / null", glyph: "−", color: "var(--neg)", soft: "var(--neg-soft)", ink: "var(--neg-ink)" },
+export const STANCE = {
+  supports: { label: "Supports", glyph: "+", color: "var(--pos)", soft: "var(--pos-soft)", ink: "var(--pos-ink)" },
+  mixed: { label: "Mixed", glyph: "~", color: "var(--neu)", soft: "var(--neu-soft)", ink: "var(--neu-ink)" },
+  refutes: { label: "Refutes", glyph: "−", color: "var(--neg)", soft: "var(--neg-soft)", ink: "var(--neg-ink)" },
 } as const;
 
-export function DirGlyph({ dir, size = 18 }: { dir: Direction; size?: number }) {
-  const d = DIR[dir];
+export const TONE = {
+  support: STANCE.supports,
+  mixed: STANCE.mixed,
+  refute: STANCE.refutes,
+  neutral: { label: "Neutral", glyph: "·", color: "var(--ink-3)", soft: "var(--surface-3)", ink: "var(--ink-2)" },
+} as const;
+
+export const DIRECTION: Record<Direction, { arrow: string; label: string }> = {
+  increase: { arrow: "↑", label: "increased" },
+  decrease: { arrow: "↓", label: "decreased" },
+  no_change: { arrow: "→", label: "no change" },
+  mixed: { arrow: "↕", label: "mixed" },
+};
+
+export function StanceGlyph({ stance, size = 18 }: { stance: Stance; size?: number }) {
+  const d = STANCE[stance];
   return (
     <span
       aria-label={d.label}
@@ -41,8 +55,28 @@ export const DESIGN_SHORT: Record<string, string> = {
   "Systematic review": "SYS REV",
   RCT: "RCT",
   "Clinical trial": "TRIAL",
+  "Registered trial": "REGISTRY",
+  Cohort: "COHORT",
+  "Case-control": "CASE-CTRL",
+  "Cross-sectional": "X-SECT",
+  "Case series": "SERIES",
+  "Case report": "CASE",
+  "Animal or lab study": "ANIMAL",
+  "Field experiment": "FIELD EXP",
+  "Natural experiment": "NAT EXP",
+  "Regression discontinuity": "RDD",
+  "Difference-in-differences": "DID",
+  "Synthetic control": "SYNTH",
+  "Instrumental variables": "IV",
+  "Panel / observational": "PANEL",
+  "Controlled experiment": "EXPERIMENT",
+  "Quasi-experiment": "QUASI",
   Observational: "OBS",
   Review: "REVIEW",
-  "Case report": "CASE",
+  "Theory or simulation": "THEORY",
+  "Case study": "CASE",
+  "Opinion or commentary": "OPINION",
   Other: "OTHER",
 };
+
+export const designShort = (d?: string | null) => (d ? DESIGN_SHORT[d] ?? d.slice(0, 10).toUpperCase() : "…");
