@@ -157,13 +157,14 @@ export function focusLayout(s: State, key: string): Layout {
     ppos.forEach((p) => nodes.push({ id: `p:${p.id}`, kind: "paper", x: p.x, y: p.y, w: PAPER_W, h: PAPER_H, data: { id: p.id, side: "mixed" } }));
   }
 
-  // Waiting papers queue above; other hypotheses sit dimmed above that.
+  // Papers without a judged finding queue above (still being read, or nothing usable once the
+  // verdict is in); other hypotheses sit dimmed above that.
   let top = Math.min(0, ...nodes.filter((n) => n.kind === "label").map((n) => n.y)) - 40;
   if (pending.length) {
     const cols = Math.min(6, Math.max(3, Math.ceil(Math.sqrt(pending.length * 2))));
     const rows = Math.ceil(pending.length / cols);
     top -= rows * (PAPER_H + GAP);
-    nodes.push({ id: "label:pending", kind: "label", x: -HYP_W / 2, y: top - 40, w: HYP_W, h: 30, data: { stance: "pending", count: pending.length, align: "center" } });
+    nodes.push({ id: "label:pending", kind: "label", x: -HYP_W / 2, y: top - 40, w: HYP_W, h: 30, data: { stance: s.verdicts[key] || hyp.verdict ? "unused" : "pending", count: pending.length, align: "center" } });
     grid(pending.map((p) => p.id), 0, top, cols, PAPER_W, PAPER_H).forEach((p) =>
       nodes.push({ id: `p:${p.id}`, kind: "paper", x: p.x, y: p.y, w: PAPER_W, h: PAPER_H, data: { id: p.id, side: null } }),
     );
