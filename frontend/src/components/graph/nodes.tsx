@@ -128,7 +128,7 @@ export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: D
   const also = ctx.focus ? Object.keys(p.considered).filter((k) => k !== ctx.focus && ctx.hNum[k]) : [];
   const sample = p.n ? `n=${p.n.toLocaleString()}` : p.kind === "registry" ? "registry" : "n=?";
   return (
-    <div className={`${cls} ${industry ? "tg-hatch" : ""}`} style={{ width: data.w, height: data.h }} title={p.title}>
+    <div className={`${cls} ${industry ? "tg-hatch" : ""}`} style={{ width: data.w, height: data.h }}>
       <Handles />
       {(also.length > 0 || data.shared) && (
         <span className="mono absolute -top-2 right-2 rounded-full border border-ink-3 bg-surface px-1.5 text-[9px] text-ink-2">
