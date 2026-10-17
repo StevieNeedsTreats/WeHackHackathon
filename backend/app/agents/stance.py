@@ -16,7 +16,7 @@ from .base import Agent, AgentContext
 
 
 class StanceOut(BaseModel):
-    ref: str
+    ref: str = Field(description="The finding's ref exactly as given, e.g. 'F3'; never the paper name")
     stance: Literal["supports", "refutes", "mixed", "irrelevant"]
     population_match: float = Field(ge=0, le=1, description="1 = studied exactly the hypothesis population")
     rationale: str = Field(description="At most 20 words")
@@ -25,7 +25,7 @@ class StanceOut(BaseModel):
 class ClusterOut(BaseModel):
     label: str = Field(description="At most 5 words, e.g. 'Women, 5% foam'")
     context: str = Field(description="At most 15 words: what these findings share")
-    refs: list[str]
+    refs: list[str] = Field(description="Finding refs exactly as given, e.g. ['F1', 'F4']")
 
 
 class StanceResult(BaseModel):
@@ -61,6 +61,16 @@ class StanceAgent(Agent):
         prompt = (
             f"Hypothesis: {hyp['statement']}\nHypothesis population: {pop}\n{domain.stance_notes}\n\n"
             f"Findings ({len(rows)}):\n" + "\n".join(lines) +
-            "\n\nReturn a stance for every ref, and clusters over the relevant refs."
+            "\n\nReturn a stance for every ref, and clusters over the relevant refs. "
+            "Identify findings by their ref (F1, F2, …), not by paper name."
         )
-        return await self.ask(ctx, prompt, StanceResult, trace=f"stance:{hyp['key']}")
+        out = await self.ask(ctx, prompt, StanceResult, trace=f"stance:{hyp['key']}")
+        # Smaller models sometimes answer with paper names instead of refs, which matches
+        # nothing and silently drops every finding. Ask once more when most refs are unknown.
+        valid = {r["ref"] for r in rows}
+        if sum(s.ref in valid for s in out.stances) < len(rows) / 2:
+            bad = ", ".join(sorted({s.ref for s in out.stances if s.ref not in valid})[:4])
+            retry = (prompt + f"\n\nYour previous answer used refs that don't exist ({bad}). "
+                     f"Use exactly these refs, one stance each: {', '.join(r['ref'] for r in rows)}.")
+            out = await self.ask(ctx, retry, StanceResult, trace=f"stance:{hyp['key']}:retry")
+        return out
