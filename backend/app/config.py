@@ -72,6 +72,13 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3100", "http://127.0.0.1:3100"]
 
+    # "production" hides the interactive API docs and refuses to start without a password.
+    env: str = "development"
+
+    @property
+    def production(self) -> bool:
+        return self.env.lower() in ("production", "prod")
+
     # Shared-password sign-in (see auth.py). Empty password = auth off, for local development only.
     app_password: str = ""
     auth_secret: str = ""  # optional token-signing key; derived from the password when empty

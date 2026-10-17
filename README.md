@@ -54,6 +54,20 @@ Set `TG_APP_PASSWORD` in `backend/.env` to require a password. The frontend show
 | `TG_AUTH_REFRESH_DAYS` | Lifetime of the refresh token (default 30). Each refresh issues a new one, so you stay signed in while you keep using it. |
 | `TG_AUTH_SECRET` | Optional signing key for tokens. By default it is derived from the password, so changing the password signs everyone out. |
 
+### Deploying
+
+Set `TG_ENV=production` and `TG_APP_PASSWORD` on the backend. Production mode turns off the interactive docs (`/docs`, `/redoc`, `/openapi.json`), and the API refuses to start without a password. Then run, from `backend/`:
+
+```bash
+pip install -r requirements.txt
+FORWARDED_ALLOW_IPS="*" python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+- **One worker:** keep a single worker. Live runs and rate limits are held in that process's memory.
+- **`FORWARDED_ALLOW_IPS`:** lets the rate limiter see each visitor's address behind the host's proxy. Without it, every visitor shares one limit.
+- **Frontend:** set `NEXT_PUBLIC_API_URL` to the API's URL before `npm run build && npm start`.
+- **Backend:** add the frontend's URL to `TG_CORS_ORIGINS`.
+
 ### Swapping the LLM
 
 Every agent talks to one `LLMClient` interface (`backend/app/llm/`).

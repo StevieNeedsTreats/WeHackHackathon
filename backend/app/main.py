@@ -49,7 +49,12 @@ async def lifespan(app: FastAPI):
     await state["sources"].close()
 
 
-app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan, dependencies=[Depends(auth.require)])
+if settings.production and not auth.enabled():
+    raise RuntimeError("TG_ENV=production needs TG_APP_PASSWORD; refusing to serve an open API")
+
+# The docs routes sit outside the auth dependency, so they're switched off in production.
+_docs = {} if not settings.production else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan, dependencies=[Depends(auth.require)], **_docs)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
