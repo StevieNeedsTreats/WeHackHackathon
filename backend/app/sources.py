@@ -24,6 +24,7 @@ from redis.asyncio import Redis
 from .config import get_settings
 from .graph import slug
 from .guardrails import ALLOWED_HOSTS, MAX_RESPONSE_BYTES
+from .kv import GraphKV
 
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 OPENALEX = "https://api.openalex.org/works"
@@ -38,7 +39,9 @@ class Sources:
     def __init__(self) -> None:
         s = get_settings()
         self.settings = s
-        self.redis = Redis(host=s.falkor_host, port=s.falkor_port)
+        # Side storage (caches, abstracts, verdicts, run logs). Locally that's plain Redis next to
+        # the graph; FalkorDB Cloud users can only run graph commands, so there it's a graph.
+        self.redis = GraphKV(s.db_conn(), f"{s.graph_name}_kv") if s.db_instance else Redis(**s.db_conn())
         self.http = httpx.AsyncClient(
             timeout=s.http_timeout_s,
             headers={"User-Agent": "TruthGraph/2.0 (evidence-graph research tool)"},

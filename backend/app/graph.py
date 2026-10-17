@@ -16,7 +16,8 @@ Efficiency rules (FalkorDB docs):
     plan cache (CACHE_SIZE) is hit and round trips stay few;
   * every MERGE key has a unique constraint (backed by its exact-match index);
   * repeated low-cardinality strings are stored with intern();
-  * big text (abstracts, insights, run logs) lives in Redis next to the graph, not in it.
+  * big text (abstracts, insights, run logs) lives beside the graph, not in it: plain Redis
+    locally, or a separate key-value graph on FalkorDB Cloud (see kv.py).
 """
 
 from __future__ import annotations
@@ -54,7 +55,7 @@ def title_norm(title: str) -> str:
 class GraphStore:
     def __init__(self) -> None:
         s = get_settings()
-        self.db = FalkorDB(host=s.falkor_host, port=s.falkor_port)
+        self.db = FalkorDB(**s.db_conn())
         self.graph = self.db.select_graph(s.graph_name)
         self.settings = s
 
