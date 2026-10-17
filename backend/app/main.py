@@ -36,8 +36,10 @@ async def lifespan(app: FastAPI):
     state["sources"] = Sources()
     state["limiter"] = RateLimiter(settings.rate_limit_per_min)
     state["runs"] = asyncio.Semaphore(settings.max_concurrent_runs)
-    state["active"] = set()
+    state["live"] = {}  # qid -> LiveRun
     yield
+    for live in list(state["live"].values()):
+        live.task.cancel()
     await state["sources"].close()
 
 
@@ -166,37 +168,101 @@ async def research(request: Request, q: str = Query(..., max_length=400),
     if bundle:
         question["fresh"] = True
     qid = question["id"]
-    if qid in state["active"]:
-        raise HTTPException(409, "That question is already being researched. Open it from the sidebar when it finishes.")
+    if qid in state["live"]:
+        # Already running (another tab, or asked twice): watch that run instead of starting a second.
+        return EventSourceResponse(state["live"][qid].follow(request), ping=10)
 
     run = Run(state["store"], state["sources"], router, question, mode,
               search=bundle.search if bundle else None, fulltext=bundle.fulltext if bundle else None,
               cites=bundle.cites if bundle else None, pace=1.0 if bundle else 0.0)
+    live = LiveRun(qid, run, [
+        {"event": "guardrail", "data": json.dumps({"ok": True, "checks": interp["checks"]})},
+        {"event": "interpretation", "data": json.dumps({k: interp[k] for k in ("question", "notice", "disclaimer",
+                                                                                "domain")}, default=str)},
+    ])
+    return EventSourceResponse(live.follow(request), ping=10)
 
-    async def stream():
-        yield {"event": "guardrail", "data": json.dumps({"ok": True, "checks": interp["checks"]})}
-        yield {"event": "interpretation", "data": json.dumps({k: interp[k] for k in ("question", "notice", "disclaimer",
-                                                                                       "domain")}, default=str)}
-        async with state["runs"]:
-            state["active"].add(qid)
-            task = asyncio.create_task(run.execute())
+
+class LiveRun:
+    """A research run owned by the server, not by the browser that started it.
+
+    Closing the tab or opening another question only detaches that viewer; the run keeps
+    going. Every event is kept, so a viewer that attaches later replays the run so far and
+    then follows it live. Only an explicit stop cancels it.
+    """
+
+    def __init__(self, qid: str, run: Run, preamble: list[dict]):
+        self.qid, self.run = qid, run
+        self.events: list[dict] = list(preamble)
+        self.done = False
+        self._changed = asyncio.Event()
+        state["live"][qid] = self
+        self.task = asyncio.create_task(self._main())
+
+    async def _main(self) -> None:
+        try:
+            async with state["runs"]:
+                work = asyncio.create_task(self.run.execute())
+                try:
+                    while (msg := await self.run.queue.get()) is not None:
+                        data = msg["data"] if isinstance(msg["data"], dict) else {"items": msg["data"]}
+                        self._push({"event": msg["event"], "data": json.dumps({"_t": msg["t"], **data}, default=str)})
+                finally:
+                    if not work.done():
+                        work.cancel()
+        finally:
+            self.done = True
+            state["live"].pop(self.qid, None)
+            self._wake()
+
+    def _push(self, ev: dict) -> None:
+        self.events.append(ev)
+        self._wake()
+
+    def _wake(self) -> None:
+        self._changed.set()
+        self._changed = asyncio.Event()
+
+    def stop(self) -> None:
+        self._push({"event": "error", "data": json.dumps({"code": "stopped",
+                                                          "message": "Research stopped. Partial results are saved."})})
+        self.task.cancel()
+
+    async def follow(self, request: Request):
+        """Replay everything so far, then stream new events until the run ends or the viewer leaves."""
+        i = 0
+        while True:
+            while i < len(self.events):
+                yield self.events[i]
+                i += 1
+            if self.done:
+                break
+            changed = self._changed
             try:
-                while True:
-                    msg = await run.queue.get()
-                    if msg is None:
-                        break
-                    if await request.is_disconnected():
-                        task.cancel()
-                        break
-                    data = msg["data"] if isinstance(msg["data"], dict) else {"items": msg["data"]}
-                    yield {"event": msg["event"], "data": json.dumps({"_t": msg["t"], **data}, default=str)}
-            finally:
-                state["active"].discard(qid)
-                if not task.done():
-                    task.cancel()
+                await asyncio.wait_for(changed.wait(), 15)
+            except TimeoutError:
+                pass
+            if await request.is_disconnected():
+                return  # the viewer left; the run carries on
         yield {"event": "end", "data": "{}"}
 
-    return EventSourceResponse(stream(), ping=10)
+
+@app.get("/api/research/attach")
+async def attach(request: Request, qid: str = Query(..., max_length=64)):
+    """Watch a run that is already going: replays what happened so far, then follows it live."""
+    live = state["live"].get(_check_id(qid))
+    if not live:
+        raise HTTPException(404, "That question isn't being researched right now.")
+    return EventSourceResponse(live.follow(request), ping=10)
+
+
+@app.post("/api/research/stop")
+async def stop(qid: str = Query(..., max_length=64)):
+    live = state["live"].get(_check_id(qid))
+    if not live:
+        raise HTTPException(404, "That question isn't being researched right now.")
+    live.stop()
+    return {"stopped": qid}
 
 
 # ====================================================================== reads
@@ -215,7 +281,10 @@ async def _json(key: str):
 
 @app.get("/api/questions")
 async def questions():
-    return await state["store"].questions(30)
+    qs = await state["store"].questions(30)
+    for q in qs:
+        q["running"] = q["id"] in state["live"]
+    return qs
 
 
 @app.get("/api/question/{qid}")
@@ -229,14 +298,14 @@ async def question(qid: str):
         verdicts[h["key"]] = await _json(f"tg:hyp:{h['key']}:verdict")
     run = await _json(f"tg:q:{qid}:run") or {}
     return {**snap, "verdicts": verdicts, "metrics": await _json(f"tg:q:{qid}:metrics"),
-            "stats": run.get("stats"), "flags": run.get("flags", []),
+            "stats": run.get("stats"), "flags": run.get("flags", []), "running": qid in state["live"],
             "disclaimer": get_domain(snap["question"].get("domain", "general")).disclaimer}
 
 
 @app.delete("/api/question/{qid}")
 async def delete_question(qid: str, request: Request):
     _limit(request, ":d")
-    if _check_id(qid) in state["active"]:
+    if _check_id(qid) in state["live"]:
         raise HTTPException(409, "That question is still being researched. Stop it first.")
     store: GraphStore = state["store"]
     exists = await store.ro("MATCH (q:Question {id:$id}) RETURN q.id", {"id": qid})
