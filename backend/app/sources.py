@@ -115,7 +115,7 @@ class Sources:
             except (httpx.HTTPError, ValueError) as e:
                 last = e
             await asyncio.sleep(0.6 * (2**attempt))
-        raise SourceError(str(last))
+        raise SourceError(str(last) or type(last).__name__)
 
     # ------------------------------------------------------------------ abstracts (Redis, not the graph)
 

@@ -106,6 +106,7 @@ class Run:
         self.papers: dict[str, dict] = {}
         self.extractions: dict[str, dict] = {}
         self.extract_failed: set[str] = set()
+        self.search_failed: set[tuple[str, str, str]] = set()
         self.cred: dict[str, dict] = {}
         self.findings: dict[str, dict] = {}
         self.evidence: dict[str, list[dict]] = {}
@@ -367,7 +368,7 @@ class Run:
 
         async def one(sl):
             try:
-                return sl, await agent.run(self.ctx, h, self.domain, sl, per, self.search_tool(sl.id))
+                return sl, await agent.run(self.ctx, h, self.domain, sl, per, self.search_tool(key, sl.id))
             except (LLMError, SourceError) as e:
                 await self.flag(f"h:{key}", "discovery-error", f"{sl.label}: {e}"[:200])
                 return sl, None
@@ -419,11 +420,19 @@ class Run:
         return {"hypothesis": key, "new_papers": len(kept), "papers": len(self.state[key]["papers"]),
                 "by_slice": {sl.id: sum(1 for p in kept if p["slice"] == sl.id) for sl in todo}, "notes": notes}
 
-    def search_tool(self, slice_id: str) -> SearchFn:
+    def search_tool(self, key: str, slice_id: str) -> SearchFn:
         async def run(source: str, query: str, limit: int) -> list[dict]:
             await self.emit("agent_step", {"agent": "discovery", "kind": "search", "tool": source, "args": query,
                                            "slice": slice_id})
-            return await self.search(source, query, limit)
+            try:
+                return await self.search(source, query, limit)
+            except SourceError as e:
+                # The agent sees the error as a tool result and carries on, so record here that
+                # this hypothesis's search came up short. One warning per source and slice.
+                if (key, slice_id, source) not in self.search_failed:
+                    self.search_failed.add((key, slice_id, source))
+                    await self.flag(f"h:{key}", "discovery-error", f"{source} search failed: {e}"[:200])
+                raise
         return run
 
     def _same_in_run(self, p: dict) -> str | None:
@@ -452,7 +461,8 @@ class Run:
     async def link_citations(self) -> None:
         try:
             pairs = await self.cites_fn(list(self.papers.values()))
-        except SourceError:
+        except SourceError as e:  # citations only feed the citation-reach query, not verdicts
+            await self.flag(f"q:{self.qid}", "citations-error", f"Citation links unavailable: {e}"[:200])
             return
         pairs = [(a, b) for a, b in pairs if a in self.papers and b in self.papers]
         if pairs:
