@@ -30,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function Home() {
-  const { state, run, resume, load, stop, reset } = useResearch();
+  const { state, run, load, stop, reset } = useResearch();
   const [health, setHealth] = useState<Health | null>(null);
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
   const [interp, setInterp] = useState<Interpretation | null>(null);
@@ -125,18 +125,6 @@ export default function Home() {
     load(id);
   };
 
-  /** Continue an unfinished run; work already saved (papers, extractions, verdicts) is reused. */
-  const qidNow = state.question?.id;
-  const canResume = !!qidNow && !qidNow.startsWith("demo-") && state.complete === false && state.status !== "streaming" && !asking;
-  const resumeRun = () => {
-    if (!qidNow) return;
-    setRefusal(null);
-    setSelected(null);
-    setTab("verdict");
-    setPendingFocus(focus !== "all" && focus !== "compare" ? focus : null);
-    resume(qidNow);
-  };
-
   const demos = health?.demos ?? [];
   const empty = interp ? (
     <InterpretationCard interp={interp} onRun={research} onCancel={() => setInterp(null)} />
@@ -175,7 +163,7 @@ export default function Home() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <Header state={state} health={health} busy={asking} onAsk={ask} onDemo={demo} onStop={stop} onResume={canResume ? resumeRun : undefined} />
+      <Header state={state} health={health} busy={asking} onAsk={ask} onDemo={demo} onStop={stop} />
       <HypothesisBar
         state={state}
         focus={focus}
@@ -194,11 +182,6 @@ export default function Home() {
                 {guard ? "guardrail" : "error"}
               </Badge>
               {guard ? guard.message : state.error}
-              {!guard && canResume && (
-                <Button size="xs" variant="outline" className="ml-auto bg-card" onClick={resumeRun}>
-                  Resume run
-                </Button>
-              )}
             </AlertTitle>
             {guard?.checks && (
               <AlertDescription className="mono flex flex-wrap gap-x-3 text-[11px] text-ink-2">
