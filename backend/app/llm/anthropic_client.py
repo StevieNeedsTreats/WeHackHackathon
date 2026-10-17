@@ -97,6 +97,33 @@ class AnthropicClient:
         raw = [b.to_dict() for b in resp.content]
         return Turn(text, calls, resp.stop_reason or "", self._usage(resp.usage), raw)
 
+    async def stream_chat(self, *, system: str, messages: list[Message], tools: list[ToolSpec], trace: str,
+                          max_tokens: int = 4000, effort: str | None = None,
+                          cache_system: bool = False) -> AsyncIterator[tuple[str, Any]]:
+        """One assistant step that may call tools, streamed: yields ("text", delta) as text arrives,
+        then ("turn", Turn). cache_system marks the system prompt for prompt caching, for long
+        prompts that repeat across the steps and turns of a conversation."""
+        sys_block: dict[str, Any] = {"type": "text", "text": system}
+        if cache_system:
+            sys_block["cache_control"] = {"type": "ephemeral"}
+        try:
+            async with self.client.messages.stream(
+                model=self.model, max_tokens=max_tokens, system=[sys_block], messages=self._messages(messages),
+                tools=[{"name": t.name, "description": t.description, "input_schema": t.parameters} for t in tools],
+                **self._config(effort),
+            ) as stream:
+                async for delta in stream.text_stream:
+                    yield "text", delta
+                final = await stream.get_final_message()
+        except anthropic.APIStatusError as e:
+            raise LLMError(f"anthropic {e.status_code}: {e.message}") from e
+        except anthropic.APIConnectionError as e:
+            raise LLMError(f"anthropic connection error: {e}") from e
+        self._check(final)
+        text = "".join(b.text for b in final.content if b.type == "text")
+        calls = [ToolCall(b.id, b.name, dict(b.input or {})) for b in final.content if b.type == "tool_use"]
+        yield "turn", Turn(text, calls, final.stop_reason or "", self._usage(final.usage), [b.to_dict() for b in final.content])
+
     async def stream_text(self, *, system: str, messages: list[Message], trace: str,
                           max_tokens: int = 2000, effort: str | None = None,
                           on_usage: Callable[[Usage], None] | None = None) -> AsyncIterator[str]:

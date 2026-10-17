@@ -27,7 +27,8 @@ __all__ = [
 ]
 
 AGENTS = ("orchestrator", "intake", "discovery", "extractor", "credibility", "stance", "contradictions", "verdict")
-STRONG_DEFAULTS = {"anthropic": {"orchestrator": "claude-sonnet-5-5"}}
+# The orchestrator plans the run; chat reasons over the graph and writes its own queries.
+STRONG_DEFAULTS = {"anthropic": {"orchestrator": "claude-sonnet-5-5", "chat": "claude-opus-5-5"}}
 
 
 def _api_key() -> str | None:
@@ -44,7 +45,12 @@ def model_for(agent: str) -> str:
     override = getattr(s, f"model_{agent}", None)
     if override:
         return override
-    return STRONG_DEFAULTS.get(s.llm_provider, {}).get(agent, s.llm_model)
+    strong = STRONG_DEFAULTS.get(s.llm_provider, {}).get(agent)
+    if strong:
+        return strong
+    # Chat reasons over the graph and writes its own queries: give it the orchestrator's model
+    # (the strongest one configured) unless it has its own.
+    return model_for("orchestrator") if agent == "chat" else s.llm_model
 
 
 def llm_status() -> dict[str, Any]:
@@ -57,7 +63,19 @@ def llm_status() -> dict[str, Any]:
         ok = bool(_api_key() or s.llm_base_url)
     else:
         ok = False
-    return {"available": ok, "provider": s.llm_provider, "models": {a: model_for(a) for a in AGENTS}}
+    return {"available": ok, "provider": s.llm_provider, "models": {a: model_for(a) for a in (*AGENTS, "chat")}}
+
+
+def chat_client() -> Any:
+    """The client for graph chat. Built once and shared, so its HTTP connections are reused."""
+    global _chat
+    model = model_for("chat")
+    if _chat is None or _chat.model != model:
+        _chat = _make(model)
+    return _chat
+
+
+_chat: Any = None
 
 
 def _make(model: str) -> Any:

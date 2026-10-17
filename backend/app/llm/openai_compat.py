@@ -156,6 +156,74 @@ class OpenAICompatClient:
         stop = "tool_use" if calls else (c.get("finish_reason") or "stop")
         return Turn(msg.get("content") or "", calls, stop, self._usage(data))
 
+    async def stream_chat(self, *, system: str, messages: list[Message], tools: list[ToolSpec], trace: str,
+                          max_tokens: int = 4000, effort: str | None = None,
+                          cache_system: bool = False) -> AsyncIterator[tuple[str, Any]]:
+        """chat(), streamed: yields ("text", delta) as text arrives, then ("turn", Turn). Tool calls
+        arrive in fragments and are put back together. A rate limit or server error before the
+        first token falls back to the retrying non-streamed call."""
+        body = {
+            "model": self.model, "max_tokens": max_tokens, "messages": self._messages(system, messages),
+            "tools": [{"type": "function", "function": {"name": t.name, "description": t.description,
+                                                        "parameters": t.parameters}} for t in tools],
+            "tool_choice": "auto", "stream": True, "stream_options": {"include_usage": True},
+        }
+        text, parts, usage, finish = [], {}, Usage(), "stop"
+        try:
+            async with self.http.stream("POST", "/chat/completions", json=body) as r:
+                if r.status_code == 429 or r.status_code >= 500:
+                    fallback = True
+                elif r.status_code >= 400:
+                    raise ToolsUnsupported(f"{r.status_code}: {(await r.aread())[:300]!r}")
+                else:
+                    fallback = False
+                    async for line in r.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        payload = line[5:].strip()
+                        if payload == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                        except ValueError:
+                            continue
+                        if chunk.get("usage"):
+                            usage = self._usage(chunk)
+                        for ch in chunk.get("choices") or []:
+                            d = ch.get("delta") or {}
+                            if d.get("content"):
+                                text.append(d["content"])
+                                yield "text", d["content"]
+                            for tc in d.get("tool_calls") or []:
+                                p = parts.setdefault(tc.get("index", len(parts)), {"id": None, "name": "", "args": ""})
+                                fn = tc.get("function") or {}
+                                p["id"] = tc.get("id") or p["id"]
+                                p["name"] += fn.get("name") or ""
+                                p["args"] += fn.get("arguments") or ""
+                            if ch.get("finish_reason"):
+                                finish = ch["finish_reason"]
+        except httpx.HTTPError as e:
+            if text or parts:
+                raise LLMError(f"stream failed: {e}") from e
+            fallback = True
+        if fallback:
+            turn = await self.chat(system=system, messages=messages, tools=tools, trace=trace, max_tokens=max_tokens)
+            if turn.text:
+                yield "text", turn.text
+            yield "turn", turn
+            return
+        if finish == "content_filter":
+            raise LLMRefusal("model declined")
+        calls = []
+        for i in sorted(parts):
+            p = parts[i]
+            try:
+                args = json.loads(p["args"] or "{}")
+            except ValueError:
+                args = {"_invalid_json": p["args"]}
+            calls.append(ToolCall(p["id"] or f"call_{i}", p["name"], args if isinstance(args, dict) else {}))
+        yield "turn", Turn("".join(text), calls, "tool_use" if calls else finish, usage)
+
     async def stream_text(self, *, system: str, messages: list[Message], trace: str,
                           max_tokens: int = 2000, effort: str | None = None,
                           on_usage: Callable[[Usage], None] | None = None) -> AsyncIterator[str]:

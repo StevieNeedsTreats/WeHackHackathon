@@ -541,6 +541,40 @@ class GraphStore:
             "cites": [list(r) for r in cites.result_set], "ms": round((time.perf_counter() - t0) * 1000, 1),
         }
 
+    async def find(self, text: str, limit: int = 8) -> dict:
+        """Papers and concepts whose title / name matches, through the full-text indexes, with the
+        hypotheses (and their questions) each is part of."""
+        words = re.findall(r"[A-Za-z0-9]{2,}", text)[:12]
+        if not words:
+            return {"papers": [], "concepts": []}
+        term = " | ".join(words)
+        papers, concepts = await asyncio.gather(
+            self.ro(
+                """
+                CALL db.idx.fulltext.queryNodes('Paper', $t) YIELD node, score
+                WITH node AS p, score ORDER BY score DESC LIMIT $n
+                OPTIONAL MATCH (h:Hypothesis)-[:CONSIDERED]->(p)
+                RETURN p.id, p.label, p.title, p.year, p.design, p.credibility, collect(DISTINCT h.key)[..4]
+                """,
+                {"t": term, "n": limit},
+            ),
+            self.ro(
+                """
+                CALL db.idx.fulltext.queryNodes('Concept', $t) YIELD node, score
+                WITH node AS c, score ORDER BY score DESC LIMIT $n
+                OPTIONAL MATCH (q:Question)-[:ASKS]->(h:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(c)
+                RETURN c.id, c.name, collect(DISTINCT [h.key, h.statement, q.id])[..4]
+                """,
+                {"t": term, "n": limit},
+            ),
+        )
+        return {
+            "papers": [{"id": r[0], "label": r[1], "title": r[2], "year": r[3], "design": r[4], "credibility": r[5],
+                        "hypotheses": r[6]} for r in papers.result_set],
+            "concepts": [{"id": r[0], "name": r[1], "hypotheses": [{"key": k, "statement": s, "question": q}
+                                                                    for k, s, q in r[2] if k]} for r in concepts.result_set],
+        }
+
     async def counts(self) -> dict:
         res = await self.ro("MATCH (n) RETURN count(n)")
         rel = await self.ro("MATCH ()-[r]->() RETURN count(r)")

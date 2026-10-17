@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     model_stance: str | None = None
     model_contradictions: str | None = None
     model_verdict: str | None = None
+    model_chat: str | None = None  # graph chat; defaults to the strongest model on Anthropic
 
     # Run budgets.
     max_hypotheses: int = 3
