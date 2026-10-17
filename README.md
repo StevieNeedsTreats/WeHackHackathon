@@ -19,7 +19,7 @@ It is tuned for medicine (Europe PMC, ClinicalTrials.gov), but the agents are do
 ## Run it
 
 ```bash
-docker compose up -d                      # FalkorDB on :6380
+docker compose up -d                      # FalkorDB on :6380, Redis cache on :6381
 export ANTHROPIC_API_KEY=...              # or see "Swapping the LLM"
 cd backend && ./run.sh                    # API on :8100
 cd frontend && npm install && npm run dev -- -p 3100
@@ -27,7 +27,7 @@ cd frontend && npm install && npm run dev -- -p 3100
 
 Open http://localhost:3100.
 
-To use FalkorDB Cloud instead of the local container, set these in `backend/.env` and skip `docker compose`:
+To use hosted services instead of the local containers, set these in `backend/.env` and skip `docker compose`:
 
 ```bash
 TG_DB_INSTANCE=<public host>:<port>       # from the instance's connection details
@@ -36,7 +36,7 @@ TG_DB_PASS=...
 TG_REDIS_URL=rediss://<user>:<pass>@<host>:<port>   # any Redis, for the side storage
 ```
 
-Cloud users may only run graph commands, so the side storage (abstracts, verdicts, run logs, LLM and HTTP caches) needs its own Redis. Locally, the FalkorDB container doubles as that Redis.
+FalkorDB holds only the evidence graph. The side storage (abstracts, verdicts, run logs, LLM and HTTP caches) lives in a separate Redis.
 
 - **Asking a question:** the question is interpreted first. You can drop a hypothesis or change its population before the research starts.
 - **Demo:** "Watch demo" replays a recorded run through the real agents, so it works without an API key.

@@ -10,5 +10,15 @@ services:
     volumes:
       - truthgraph-data:/var/lib/falkordb/data
     restart: unless-stopped
+  redis:
+    # Caches, abstracts, verdicts and run logs; the graph holds only what is traversed.
+    image: redis:7-alpine
+    container_name: truthgraph-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - truthgraph-cache:/data
+    restart: unless-stopped
 volumes:
   truthgraph-data:
+  truthgraph-cache:

@@ -15,13 +15,12 @@ class Settings(BaseSettings):
     db_user: str | None = None
     db_pass: str | None = None
     db_tls: bool = False
-    # Redis for side storage (caches, abstracts, verdicts, run logs), e.g. "rediss://user:pass@host:port".
-    # Unset, the local FalkorDB container doubles as Redis. FalkorDB Cloud only runs graph
-    # commands, so with it this must be set.
-    redis_url: str | None = None
+    # Redis for side storage (caches, abstracts, verdicts, run logs), kept apart from the graph.
+    # Defaults to the docker compose service; use "rediss://user:pass@host:port" for a hosted one.
+    redis_url: str = "redis://localhost:6381"
 
     def db_conn(self) -> dict:
-        """Connection kwargs for the graph client (and for Redis when redis_url is unset)."""
+        """Connection kwargs for the graph client."""
         host, port = self.falkor_host, self.falkor_port
         if self.db_instance:
             host, _, p = self.db_instance.removeprefix("redis://").removeprefix("rediss://").rpartition(":")

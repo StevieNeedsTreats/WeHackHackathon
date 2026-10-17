@@ -38,14 +38,8 @@ class Sources:
     def __init__(self) -> None:
         s = get_settings()
         self.settings = s
-        # Side storage (caches, abstracts, verdicts, run logs): its own Redis when configured,
-        # else the local FalkorDB container, which is also a Redis server.
-        if s.redis_url:
-            self.redis = Redis.from_url(s.redis_url, socket_keepalive=True, health_check_interval=30)
-        elif s.db_instance:
-            raise RuntimeError("FalkorDB Cloud only runs graph commands: set TG_REDIS_URL for the cache.")
-        else:
-            self.redis = Redis(**s.db_conn())
+        # Side storage (caches, abstracts, verdicts, run logs) lives in Redis, not in FalkorDB.
+        self.redis = Redis.from_url(s.redis_url, socket_keepalive=True, health_check_interval=30)
         self.http = httpx.AsyncClient(
             timeout=s.http_timeout_s,
             headers={"User-Agent": "TruthGraph/2.0 (evidence-graph research tool)"},
