@@ -187,7 +187,9 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
         measured: measured.current[n.id],
         draggable: false,
         selectable: n.kind !== "label",
-        zIndex: n.kind === "finding" ? 2 : n.kind === "hypothesis" ? 3 : 1,
+        // The hypothesis sits above everything, contradiction lines included: they span the
+        // canvas between findings and must never cover its title or verdict.
+        zIndex: n.kind === "finding" ? 2 : n.kind === "hypothesis" ? 5 : 1,
       };
     });
   const edges: Edge[] = layout.edges
