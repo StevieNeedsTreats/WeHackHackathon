@@ -50,6 +50,21 @@ AGENTS = [
 SearchFn = Callable[[str, str, int], Awaitable[list[dict]]]
 
 
+# Run notes that mean a hypothesis's research was cut short and should be resumed.
+_FAILED_HYP = {"discovery-error", "verdict-error", "incomplete"}
+_FAILED_RUN = {"timeout", "budget"}
+
+
+def finished(key: str, verdict: Any, flags: list[dict] | None) -> bool:
+    """A hypothesis is done when it has a verdict and its last run recorded no failure for it."""
+    if not verdict:
+        return False
+    for f in flags or []:
+        if f.get("code") in _FAILED_RUN or (f.get("target") == f"h:{key}" and f.get("code") in _FAILED_HYP):
+            return False
+    return True
+
+
 class FinishOut(BaseModel):
     summary: str = Field(description="One or two sentences on what the run found and any gaps")
 
@@ -95,6 +110,7 @@ class Run:
         self.fulltext = fulltext or sources.fulltext
         self.cites_fn = cites or sources.citation_links
         self.pace = pace
+        self.resume = bool(question.get("resume"))
 
         self.state: dict[str, dict] = {k: {"slices": [], "papers": {}, "stance": False, "contradictions": False,
                                            "verdict": None, "reused": False, "note": ""} for k in self.hyps}
@@ -152,9 +168,12 @@ class Run:
             await self.agent("orchestrator", "running", "Preparing workspace")
             await self.store.upsert_question(self.qid, self.question["text"], self.domain.id)
             await self.store.upsert_hypotheses(self.qid, list(self.hyps.values()))
-            await self.check_reuse()
             for h in self.hyps.values():
                 await self.emit("hypothesis", self.hyp_view(h["key"]))
+            if self.resume:
+                await self.hydrate()
+            else:
+                await self.check_reuse()
 
             todo = [k for k in self.hyps if not self.state[k]["reused"]]
             if todo:
@@ -189,6 +208,66 @@ class Run:
                 self.state[key]["verdict"] = existing.get("verdict")
                 await self.agent("orchestrator", "running", f"Reusing earlier research for “{self.hyps[key]['statement']}”",
                                  hypothesis=key)
+
+    async def hydrate(self) -> None:
+        """Resume an unfinished run: load what it already saved so only the missing work runs.
+
+        Papers, their credibility and finished verdicts come from the graph; extractions come
+        from the per-paper cache, so re-reading them costs no LLM calls. Hypotheses without a
+        verdict redo stance, contradictions and verdict, which are one call each.
+        """
+        await self.agent("orchestrator", "running", "Resuming: loading saved progress")
+        snap = await self.store.snapshot(self.qid)
+        stored = {h["key"]: h for h in snap["hypotheses"]}
+        for raw in snap["papers"]:
+            p = dict(raw)
+            considered = p.pop("considered", {}) or {}
+            p["sample_size"] = p.get("n")
+            p["abstract"] = await self.sources.get_abstract(p["id"])
+            self.papers[p["id"]] = p
+            for hk, c in considered.items():
+                st = self.state.get(hk)
+                if st is None:
+                    continue
+                st["papers"][p["id"]] = {"relevance": c.get("relevance") or 0, "slice": c.get("slice") or ""}
+                if c.get("slice") and c["slice"] not in st["slices"]:
+                    st["slices"].append(c["slice"])
+            if p.get("credibility") is not None:
+                self.cred[p["id"]] = {"score": p["credibility"], "reasons": p.get("cred_reasons") or [],
+                                      "flags": list(p.get("flags") or [])}
+            await self.emit("paper", {"paper": self.paper_view(p["id"])})
+            if p["id"] in self.cred:
+                await self.emit("credibility", {"paper_id": p["id"], **self.cred[p["id"]]})
+
+        # Findings come back through the extraction cache (and are extracted now if they never were).
+        done_extracting = [pid for pid, p in self.papers.items() if p.get("extracted")]
+        if done_extracting:
+            await self.extract(done_extracting)
+
+        raw_run = await self.sources.redis.get(f"tg:q:{self.qid}:run")
+        last_flags = json.loads(raw_run).get("flags", []) if raw_run else None
+        for key in self.hyps:
+            verdict = None
+            if stored.get(key, {}).get("verdict"):
+                raw = await self.sources.redis.get(f"tg:hyp:{key}:verdict")
+                verdict = json.loads(raw) if raw else None
+            # No run record means the last run never reached the end (closed tab, server restart).
+            if last_flags is None or not finished(key, verdict, last_flags):
+                continue
+            st = self.state[key]
+            st.update(stance=True, contradictions=True, verdict=verdict["verdict"], reused=True)
+            evidence = [{"finding_id": f["id"], **f["evidence"][key]} for f in snap["findings"] if key in f["evidence"]]
+            self.evidence[key] = evidence
+            self.contradictions[key] = [c for c in snap["contradictions"] if c["hypothesis"] == key]
+            await self.emit("stances", {"hypothesis": key, "evidence": evidence,
+                                        "clusters": [c for c in snap["clusters"] if c["hypothesis"] == key]})
+            await self.emit("contradictions", {"hypothesis": key, "items": self.contradictions[key]})
+            await self.emit("verdict", verdict)
+            await self.emit("hypothesis", self.hyp_view(key))
+
+        left = [k for k in self.hyps if not self.state[k]["reused"]]
+        await self.agent("orchestrator", "running",
+                         f"Resumed with {len(self.papers)} papers; {len(left)} hypothes{'is' if len(left) == 1 else 'es'} left")
 
     def hyp_view(self, key: str) -> dict:
         h, st = self.hyps[key], self.state[key]
@@ -673,7 +752,10 @@ class Run:
             if self.state[key]["reused"]:
                 continue
             try:
-                if not self.state[key]["slices"]:
+                st = self.state[key]
+                # On resume, also finish slices an interrupted run never got to.
+                unfinished = self.resume and len(st["papers"]) < self.settings.max_papers and set(slices) - set(st["slices"])
+                if not st["slices"] or unfinished:
                     await self.discover(key, slices)
             except BudgetExceeded:
                 break
