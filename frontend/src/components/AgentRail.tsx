@@ -135,11 +135,19 @@ export function AgentRail({
                   className="h-auto w-full justify-start py-1 text-left font-normal text-ink-2 data-active:bg-muted data-active:font-medium data-active:text-foreground"
                 >
                   <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
-                  {q.id.startsWith("demo-") && (
+                  {q.id.startsWith("demo-") ? (
                     <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
                       demo
                     </Badge>
-                  )}
+                  ) : q.running ? (
+                    <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
+                      running
+                    </Badge>
+                  ) : q.complete === false ? (
+                    <Badge variant="outline" className="ml-auto h-4 shrink-0 rounded-sm border-neu px-1 text-[9.5px] font-normal text-neu-ink" title="Didn't finish; open it to resume">
+                      incomplete
+                    </Badge>
+                  ) : null}
                 </Button>
                 <ul className="ml-3 border-l border-line pl-2">
                   {q.hypotheses.map((h) => (
