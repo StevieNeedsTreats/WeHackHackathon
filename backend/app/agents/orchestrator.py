@@ -602,7 +602,8 @@ class Run:
                     continue
                 weight = (r["cred"] / 100) * max(0.25, s.population_match) * (1.0 if r["verified"] else 0.5)
                 evidence.append({"finding_id": r["id"], "stance": s.stance, "weight": round(weight, 3),
-                                 "rationale": s.rationale[:200], "cluster": cluster_of.get(r["id"])})
+                                 "rationale": s.rationale[:200], "cluster": cluster_of.get(r["id"]),
+                                 "same_outcome": s.same_outcome})
         await self.store.write_stances(key, evidence, clusters)
         self.evidence[key] = evidence
         self.state[key]["stance"] = True

@@ -19,6 +19,8 @@ class StanceOut(BaseModel):
     ref: str = Field(description="The finding's ref exactly as given, e.g. 'F3'; never the paper name")
     stance: Literal["supports", "refutes", "mixed", "irrelevant"]
     population_match: float = Field(ge=0, le=1, description="1 = studied exactly the hypothesis population")
+    same_outcome: bool = Field(default=False, description="True when the finding measures the hypothesis outcome, "
+                                                          "even under another name (e.g. 'lean body mass' for 'muscle mass')")
     rationale: str = Field(description="At most 20 words")
 
 
@@ -59,7 +61,8 @@ class StanceAgent(Agent):
                 f"\"{r['summary']}\" | quote: {r['quote'][:240]}"
             )
         prompt = (
-            f"Hypothesis: {hyp['statement']}\nHypothesis population: {pop}\n{domain.stance_notes}\n\n"
+            f"Hypothesis: {hyp['statement']}\nHypothesis outcome: {hyp['outcome']['name']}\n"
+            f"Hypothesis population: {pop}\n{domain.stance_notes}\n\n"
             f"Findings ({len(rows)}):\n" + "\n".join(lines) +
             "\n\nReturn a stance for every ref, and clusters over the relevant refs. "
             "Identify findings by their ref (F1, F2, …), not by paper name."

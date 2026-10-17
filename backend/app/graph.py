@@ -5,7 +5,9 @@ Data model (one shared graph, so papers, findings and people are reused across q
   (:Question)-[:ASKS]->(:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(:Concept)
   (:Hypothesis)-[:CONSIDERED {relevance, slice}]->(:Paper)
   (:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(:Finding)-[:MEASURES]->(:Concept)
+  (:Finding)-[:MEASURES {hypothesis}]->(:Concept)   the hypothesis's outcome, when Stance judges it the same
   (:Finding {paper_id})                              shortcut to its Paper, skipping the Study
+  (:Concept {synonyms})                              other names that resolve to this concept
   (:Finding)-[:EVIDENCE_FOR {stance, weight, rationale}]->(:Hypothesis)
   (:Finding)-[:IN_CLUSTER]->(:Cluster)-[:OF]->(:Hypothesis)
   (:Finding)-[:CONTRADICTS {hypothesis, reason, severity, explained_by}]->(:Finding)
@@ -49,6 +51,16 @@ def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:80]
 
 
+def _synonyms(names: list[str]) -> list[str]:
+    """Lower-cased, de-duplicated synonyms, as stored on Concept and matched by resolve_concepts."""
+    out: list[str] = []
+    for n in names:
+        n = n.strip().lower()[:80]
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
 def title_norm(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", unicodedata.normalize("NFKD", title or "").lower()).strip()[:200]
 
@@ -73,10 +85,11 @@ class GraphStore:
                 await self.graph.create_node_unique_constraint(label, prop)
             except Exception:
                 pass
-        try:  # relationship range index: contradictions are scoped by hypothesis
-            await self.graph.query("CREATE INDEX FOR ()-[r:CONTRADICTS]-() ON (r.hypothesis)")
-        except Exception:
-            pass
+        for rel in ("CONTRADICTS", "MEASURES"):  # relationship range indexes: both are scoped by hypothesis
+            try:
+                await self.graph.query(f"CREATE INDEX FOR ()-[r:{rel}]-() ON (r.hypothesis)")
+            except Exception:
+                pass
         # Findings written before paper_id existed get it from their study's paper.
         await self.graph.query(
             "MATCH (p:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(f:Finding) WHERE f.paper_id IS NULL SET f.paper_id = p.id"
@@ -122,7 +135,8 @@ class GraphStore:
             {"qid": qid, "hs": hyps},
         )
         roles = [
-            {"key": h["key"], "id": h[role]["id"], "name": h[role]["name"], "kind": role}
+            {"key": h["key"], "id": h[role]["id"], "name": h[role]["name"], "kind": role,
+             "syn": _synonyms(h[role].get("synonyms") or [])}
             for h in hyps for role in ("subject", "outcome", "population") if h.get(role)
         ]
         for rel in ("SUBJECT", "OUTCOME", "POPULATION"):
@@ -134,10 +148,33 @@ class GraphStore:
                 UNWIND $rows AS r
                 MATCH (h:Hypothesis {{key:r.key}})
                 MERGE (c:Concept {{id:r.id}}) ON CREATE SET c.name=r.name, c.kind=intern(r.kind)
+                SET c.synonyms = (coalesce(c.synonyms, []) + [s IN r.syn WHERE NOT s IN coalesce(c.synonyms, [])])[..20]
                 MERGE (h)-[:{rel}]->(c)
                 """,
                 {"rows": rows},
             )
+
+    async def resolve_concepts(self, concepts: list[dict]) -> dict[str, dict]:
+        """Map new concept ids to concepts already in the graph under another name.
+
+        A concept with the same id is kept as is. Otherwise an existing concept matches when
+        the new name is one of its synonyms, or one of the new synonyms is its id. Returns
+        {new id: {id, name}} for the matches only.
+        """
+        rows = [{"id": c["id"], "name": c["name"].strip().lower(),
+                 "syn_ids": [slug(s) for s in c.get("synonyms") or [] if slug(s)]} for c in concepts]
+        res = await self.ro(
+            """
+            UNWIND $rows AS r
+            OPTIONAL MATCH (same:Concept {id:r.id})
+            WITH r WHERE same IS NULL
+            MATCH (c:Concept) WHERE r.name IN c.synonyms OR c.id IN r.syn_ids
+            WITH r, c ORDER BY c.id
+            RETURN r.id, collect([c.id, c.name])[0]
+            """,
+            {"rows": rows},
+        )
+        return {rid: {"id": m[0], "name": m[1]} for rid, m in res.result_set}
 
     async def find_hypothesis(self, key: str) -> dict | None:
         res = await self.ro("MATCH (h:Hypothesis {key:$k}) RETURN h", {"k": key})
@@ -272,6 +309,7 @@ class GraphStore:
         await self.q("MATCH (:Hypothesis {key:$k})<-[e:EVIDENCE_FOR]-() DELETE e", {"k": key})
         await self.q("MATCH (c:Cluster {hypothesis:$k}) DETACH DELETE c", {"k": key})
         await self.q("MATCH ()-[r:CONTRADICTS {hypothesis:$k}]->() DELETE r", {"k": key})
+        await self.q("MATCH ()-[m:MEASURES {hypothesis:$k}]->() DELETE m", {"k": key})
         await self.q("MATCH (h:Hypothesis {key:$k})-[c:CONSIDERED]->() DELETE c", {"k": key})
         await self.q("MATCH (h:Hypothesis {key:$k}) REMOVE h.verdict, h.grade, h.share_support, h.share_refute, h.share_mixed",
                      {"k": key})
@@ -298,9 +336,10 @@ class GraphStore:
         return keys
 
     async def write_stances(self, key: str, stances: list[dict], clusters: list[dict]) -> None:
-        """stances: {finding_id, stance, weight, rationale}; clusters: {id, label, context, findings[]}."""
+        """stances: {finding_id, stance, weight, rationale, same_outcome}; clusters: {id, label, context, findings[]}."""
         await self.q("MATCH (:Hypothesis {key:$k})<-[e:EVIDENCE_FOR]-() DELETE e", {"k": key})
         await self.q("MATCH (c:Cluster {hypothesis:$k}) DETACH DELETE c", {"k": key})
+        await self.q("MATCH ()-[m:MEASURES {hypothesis:$k}]->() DELETE m", {"k": key})
         if stances:
             await self.q(
                 """
@@ -308,9 +347,35 @@ class GraphStore:
                 UNWIND $rows AS r
                 MATCH (f:Finding {id:r.finding_id})
                 MERGE (f)-[e:EVIDENCE_FOR]->(h)
-                SET e.stance=intern(r.stance), e.weight=r.weight, e.rationale=r.rationale
+                SET e.stance=intern(r.stance), e.weight=r.weight, e.rationale=r.rationale,
+                    e.same_outcome=coalesce(r.same_outcome, false)
                 """,
                 {"k": key, "rows": stances},
+            )
+        same = [s["finding_id"] for s in stances if s.get("same_outcome")]
+        if same:
+            # Findings that measure the hypothesis's outcome under another name point at the
+            # hypothesis's own Concept, and their wording becomes one of its synonyms.
+            await self.q(
+                """
+                MATCH (:Hypothesis {key:$k})-[:OUTCOME]->(c:Concept)
+                UNWIND $ids AS fid
+                MATCH (f:Finding {id:fid})
+                WHERE NOT (f)-[:MEASURES]->(c)
+                CREATE (f)-[:MEASURES {hypothesis:$k}]->(c)
+                """,
+                {"k": key, "ids": same},
+            )
+            await self.q(
+                """
+                MATCH (:Hypothesis {key:$k})-[:OUTCOME]->(c:Concept)
+                UNWIND $ids AS fid
+                MATCH (:Finding {id:fid})-[m:MEASURES]->(o:Concept)
+                WHERE m.hypothesis IS NULL AND o <> c
+                WITH c, collect(DISTINCT toLower(o.name)) AS names
+                SET c.synonyms = (coalesce(c.synonyms, []) + [n IN names WHERE NOT n IN coalesce(c.synonyms, [])])[..20]
+                """,
+                {"k": key, "ids": same},
             )
         if clusters:
             await self.q(
@@ -416,22 +481,24 @@ class GraphStore:
         fres = await self.ro(
             """
             MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(f:Finding)<-[:FOUND]-(s:Study)<-[:DESCRIBES]-(p:Paper)
-            OPTIONAL MATCH (f)-[:MEASURES]->(o:Concept)
+            OPTIONAL MATCH (f)-[m:MEASURES]->(o:Concept) WHERE m.hypothesis IS NULL
             OPTIONAL MATCH (f)-[:IN_CLUSTER]->(cl:Cluster {hypothesis:h.key})
-            RETURN h.key, e.stance, e.weight, e.rationale, f, s, p.id, o.id, o.name, cl.id, cl.label, cl.context
+            RETURN h.key, e.stance, e.weight, e.rationale, f, s, p.id, o.id, o.name, cl.id, cl.label, cl.context,
+                   e.same_outcome
             """,
             {"id": qid},
         )
         findings: dict[str, dict] = {}
         studies: dict[str, dict] = {}
         clusters: dict[str, dict] = {}
-        for hk, stance, weight, rationale, f, s, pid, oid, oname, clid, cllabel, clctx in fres.result_set:
+        for hk, stance, weight, rationale, f, s, pid, oid, oname, clid, cllabel, clctx, same in fres.result_set:
             fd = findings.get(f.properties["id"])
             if fd is None:
                 fd = {**f.properties, "paper_id": pid, "study_id": s.properties["id"],
                       "outcome": {"id": oid, "name": oname}, "evidence": {}}
                 findings[fd["id"]] = fd
-            fd["evidence"][hk] = {"stance": stance, "weight": weight, "rationale": rationale, "cluster": clid}
+            fd["evidence"][hk] = {"stance": stance, "weight": weight, "rationale": rationale, "cluster": clid,
+                                  "same_outcome": bool(same)}
             studies[s.properties["id"]] = {**s.properties, "paper_id": pid}
             if clid:
                 cl = clusters.setdefault(clid, {"id": clid, "label": cllabel, "context": clctx, "hypothesis": hk, "findings": []})

@@ -84,6 +84,34 @@ class InterpretIn(BaseModel):
     mode: str = Field(default="live", pattern="^(live|demo)$")
 
 
+def _question_id(q: dict) -> str:
+    return hashlib.sha1((q["domain"] + "|" + "|".join(sorted(h["key"] for h in q["hypotheses"]))).encode()).hexdigest()[:10]
+
+
+async def _known_concepts(q: dict) -> dict:
+    """Swap each concept for one already in the graph under another name (matched through
+    synonyms), so a reworded hypothesis gets the same key and reuses earlier research."""
+    roles = ("subject", "outcome", "population")
+    try:
+        found = await state["store"].resolve_concepts([h[r] for h in q["hypotheses"] for r in roles if h.get(r)])
+    except Exception:
+        return q
+    if not found:
+        return q
+    seen, hyps = set(), []
+    for h in q["hypotheses"]:
+        for r in roles:
+            if h.get(r) and h[r]["id"] in found:
+                h[r] = {**h[r], **found[h[r]["id"]]}
+        h["key"] = hypothesis_key(q["domain"], h["subject"], h["outcome"], h["population"])
+        if h["key"] not in seen:
+            seen.add(h["key"])
+            hyps.append(h)
+    q["hypotheses"] = hyps
+    q["id"] = _question_id(q)
+    return q
+
+
 async def interpret(text: str, mode: str, redis) -> tuple[dict, LLMRouter, DemoBundle | None]:
     """Guardrails, then the Intake agent. Returns the interpretation the user can edit."""
     guard = screen_question(text)
@@ -103,6 +131,8 @@ async def interpret(text: str, mode: str, redis) -> tuple[dict, LLMRouter, DemoB
         return {"ok": False, "code": out.intent, "message": out.message or INTENT_MESSAGES.get(out.intent, ""),
                 "checks": guard.checks}, None, None
     q = build_question(guard.value, out, demo=bundle is not None)
+    if not bundle:  # demo bundles replay answers recorded under the original keys
+        q = await _known_concepts(q)
     domain = get_domain(q["domain"])
     notice = VULNERABLE_NOTE if mentions_vulnerable(guard.value, *[
         (h["population"] or {}).get("name") for h in q["hypotheses"]]) else None
@@ -142,7 +172,7 @@ def _merge_edits(q: dict, edits: str | None) -> dict:
             name = (e["population"][h["key"]] or "").strip()[:80]
             h["population"] = {"id": slug(name), "name": name, "synonyms": []} if slug(name) else None
             h["key"] = hypothesis_key(q["domain"], h["subject"], h["outcome"], h["population"])
-    q["id"] = hashlib.sha1((q["domain"] + "|" + "|".join(sorted(h["key"] for h in q["hypotheses"]))).encode()).hexdigest()[:10]
+    q["id"] = _question_id(q)
     if e.get("fresh"):
         q["fresh"] = True
     return q
