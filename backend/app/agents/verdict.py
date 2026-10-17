@@ -15,7 +15,7 @@ from typing import Any, Awaitable, Callable, Literal
 from pydantic import BaseModel, Field
 
 from ..domains import DomainPack
-from ..llm import LLMError, ToolSpec
+from ..llm import ToolSpec, ToolsUnsupported
 from .base import Agent, AgentContext
 
 GRAPH_SCHEMA = """(:Hypothesis {key})<-[:EVIDENCE_FOR {stance, weight}]-(:Finding {text, direction, effect_value, harm})
@@ -110,7 +110,7 @@ class VerdictAgent(Agent):
         )
         try:
             return await self.loop(ctx, prompt, VerdictOut, [tool], trace=f"verdict:{hyp['key']}", tag=hyp["key"])
-        except LLMError:
+        except ToolsUnsupported:
             # Providers without tool calls still get a verdict page, just without graph queries.
             return await self.ask(ctx, prompt.rsplit("\n\n", 1)[0] + "\n\nWrite the verdict page.", VerdictOut,
                                   trace=f"verdict:{hyp['key']}:plain")

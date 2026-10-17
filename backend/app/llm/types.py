@@ -22,6 +22,10 @@ class LLMUnavailable(LLMError):
     """No credentials or endpoint are configured for the selected provider."""
 
 
+class ToolsUnsupported(LLMError):
+    """The endpoint rejected a request because it has tools; agents fall back to structured calls."""
+
+
 @dataclass
 class ToolCall:
     id: str

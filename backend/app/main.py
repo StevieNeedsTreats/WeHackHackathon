@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from redis.exceptions import RedisError
 from sse_starlette.sse import EventSourceResponse
 
 from .agents.base import AgentContext
@@ -90,10 +91,7 @@ async def _known_concepts(q: dict) -> dict:
     """Swap each concept for one already in the graph under another name (matched through
     synonyms), so a reworded hypothesis gets the same key and reuses earlier research."""
     roles = ("subject", "outcome", "population")
-    try:
-        found = await state["store"].resolve_concepts([h[r] for h in q["hypotheses"] for r in roles if h.get(r)])
-    except Exception:
-        return q
+    found = await state["store"].resolve_concepts([h[r] for h in q["hypotheses"] for r in roles if h.get(r)])
     if not found:
         return q
     seen, hyps = set(), []
@@ -148,6 +146,8 @@ async def interpret_endpoint(body: InterpretIn, request: Request):
         raise HTTPException(503, str(e))
     except LLMError as e:
         raise HTTPException(502, f"The intake agent failed: {e}"[:300])
+    except RedisError as e:  # FalkorDB is a Redis server; its client raises Redis errors
+        raise HTTPException(503, f"The evidence graph is unavailable: {e}"[:300])
     return res
 
 
@@ -191,6 +191,9 @@ async def research(request: Request, q: str = Query(..., max_length=400),
         return EventSourceResponse(refused({"ok": False, "code": "no-llm", "message": str(e)}))
     except LLMError as e:
         return EventSourceResponse(refused({"ok": False, "code": "intake-error", "message": str(e)[:300]}))
+    except RedisError as e:
+        return EventSourceResponse(refused({"ok": False, "code": "graph-unavailable",
+                                            "message": f"The evidence graph is unavailable: {e}"[:300]}))
     if not interp["ok"]:
         return EventSourceResponse(refused(interp))
 

@@ -17,13 +17,13 @@ from typing import Any
 
 from ..config import get_settings
 from .base import LLMClient, schema_of
-from .types import (LLMError, LLMRefusal, LLMUnavailable, Message, ToolCall, ToolResult, ToolSpec, Turn,
-                    Usage, UsageMeter)
+from .types import (LLMError, LLMRefusal, LLMUnavailable, Message, ToolCall, ToolResult, ToolSpec, ToolsUnsupported,
+                    Turn, Usage, UsageMeter)
 from .wrappers import CachedClient, Fixtures, LimitedClient, RecordingClient, ReplayClient
 
 __all__ = [
     "LLMClient", "LLMError", "LLMRefusal", "LLMRouter", "LLMUnavailable", "Message", "ToolCall", "ToolResult",
-    "ToolSpec", "Turn", "Usage", "UsageMeter", "Fixtures", "schema_of", "llm_status",
+    "ToolSpec", "ToolsUnsupported", "Turn", "Usage", "UsageMeter", "Fixtures", "schema_of", "llm_status",
 ]
 
 AGENTS = ("orchestrator", "intake", "discovery", "extractor", "credibility", "stance", "contradictions", "verdict")

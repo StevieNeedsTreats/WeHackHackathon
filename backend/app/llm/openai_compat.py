@@ -16,7 +16,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from .base import schema_of
-from .types import LLMError, LLMRefusal, Message, ToolCall, ToolSpec, Turn, Usage, price
+from .types import LLMError, LLMRefusal, Message, ToolCall, ToolSpec, ToolsUnsupported, Turn, Usage, price
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -141,7 +141,8 @@ class OpenAICompatClient:
         try:
             data = await self._post(body)
         except _BadRequest as e:
-            raise LLMError(str(e)) from e
+            # A 400 on a request with tools: the endpoint (or this model on it) can't take them.
+            raise ToolsUnsupported(str(e)) from e
         c = self._choice(data)
         msg = c.get("message") or {}
         calls = []

@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable
 from pydantic import BaseModel, Field
 
 from ..domains import DomainPack, Slice
-from ..llm import LLMError, ToolSpec
+from ..llm import ToolSpec, ToolsUnsupported
 from .base import Agent, AgentContext
 
 SOURCE_HELP = {
@@ -96,7 +96,7 @@ class DiscoveryAgent(Agent):
         trace = f"discovery:{hyp['key']}:{sl.id}"
         try:
             out = await self.loop(ctx, prompt, DiscoveryOut, [tool], trace=trace, tag=hyp["key"])
-        except LLMError:
+        except ToolsUnsupported:
             # Some providers can't do tool calls. Same job in two structured calls: plan, then pick.
             plan = await self.ask(ctx, prompt + "\n\nWrite the 1–3 searches you would run.", QueryPlan, trace=trace + ":plan")
             results = await asyncio.gather(*(search_tool({"source": q.source, "query": q.query}) for q in plan.queries))
