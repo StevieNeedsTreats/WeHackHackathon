@@ -1,0 +1,16 @@
+[project]
+name = "truthgraph-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=1.15.0",
+    "falkordb>=1.8.0",
+    "fastapi>=0.143.3",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
+    "sse-starlette>=3.5.0",
+    "uvicorn[standard]>=0.54.0",
+]
