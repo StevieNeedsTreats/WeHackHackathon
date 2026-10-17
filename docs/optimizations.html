@@ -202,11 +202,11 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
   <!-- FIX 2 -->
   <section class="fix" id="fix2">
     <div class="copy">
-      <div class="num">Optimization 2 <span class="pill">Faster canvas load</span></div>
+      <div class="num">Optimization 2 <span class="pill">18× fewer rows</span></div>
       <h2>The canvas now fetches each paper once</h2>
       <p>When the canvas loads, one query fetches each paper together with its <strong>authors</strong>, <strong>funders</strong> and <strong>labs</strong>. Before, it asked for all three in one go, so FalkorDB returned every combination of them, one row each.</p>
       <p>A paper with 3 authors, 3 funders and 2 labs came back as <strong>3 × 3 × 2 = 18 rows</strong>, and the code threw 17 of them away.</p>
-      <p><strong>What changed:</strong> the query now asks for each list separately, using pattern comprehensions. Each paper comes back as one row with three short lists, and the canvas gets exactly the same data.</p>
+      <p><strong>What changed:</strong> the query now asks for each list separately, using pattern comprehensions. Each paper comes back as one row with three short lists, and the canvas gets exactly the same data. In a benchmark the query time stayed about the same (around 40 ms), because sending the papers themselves takes most of that time.</p>
       <p>Drag the sliders to see how fast the row count grows.</p>
     </div>
     <div class="panel">
