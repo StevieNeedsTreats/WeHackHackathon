@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { prefetchQuestion } from "@/lib/api";
 import { AGENT_ORDER, type AgentState, type State } from "@/lib/store";
 import type { QuestionSummary } from "@/lib/types";
 import { CollapseButton } from "./Shell";
@@ -137,7 +138,7 @@ export function AgentRail({
         ) : (
           <ul className="space-y-1">
             {questions.map((q) => (
-              <li key={q.id}>
+              <li key={q.id} onPointerEnter={() => prefetchQuestion(q.id)} onFocusCapture={() => prefetchQuestion(q.id)}>
                 <div className="group flex items-start gap-0.5">
                   <Button
                     variant="ghost"

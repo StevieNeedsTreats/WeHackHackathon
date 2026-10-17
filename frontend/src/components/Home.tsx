@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { deleteQuestion, getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
+import { deleteQuestion, forgetQuestion, getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
 import { useStableCallback } from "@/lib/use-stable-callback";
 import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
@@ -159,6 +159,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   const remove = useStableCallback(async (id: string) => {
     try {
       await deleteQuestion(id);
+      forgetQuestion(id);
     } catch (e) {
       setRefusal({ ok: false, code: "error", message: `Couldn't delete: ${(e as Error).message}` });
       return;

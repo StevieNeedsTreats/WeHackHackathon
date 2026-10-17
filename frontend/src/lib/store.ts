@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
-import { attachUrl, getQuestion, stopRun, streamUrl, type Edits, type Snapshot } from "./api";
+import { attachUrl, cachedQuestion, loadQuestion, stopRun, streamUrl, type Edits, type Snapshot } from "./api";
 import type {
   Cluster,
   Contradiction,
@@ -378,14 +378,22 @@ export function useResearch() {
   const run = useCallback((q: string, mode: "live" | "demo", edits?: Edits) => follow(streamUrl(q, mode, edits), mode), [follow]);
 
   /** Load a question: a finished one from FalkorDB, a running one by attaching to its live run. */
+  // Stale-while-revalidate: a cached snapshot renders immediately, the fresh one replaces it only
+  // if it changed, and a slow response never overwrites a question opened after it.
+  const loadSeq = useRef(0);
   const load = useCallback(
     async (id: string) => {
       detach();
+      const seq = ++loadSeq.current;
+      const hit = cachedQuestion(id);
+      if (hit) dispatch({ type: "snapshot", snap: hit });
       try {
-        const snap = await getQuestion(id);
+        const { snap, changed } = await loadQuestion(id);
+        if (seq !== loadSeq.current) return;
         if (snap.running) follow(attachUrl(id), id.startsWith("demo-") ? "demo" : "live");
-        else dispatch({ type: "snapshot", snap });
+        else if (!hit || changed) dispatch({ type: "snapshot", snap });
       } catch (e) {
+        if (seq !== loadSeq.current) return;
         dispatch({ type: "error", message: (e as Error)?.message ?? "Could not load question" });
       }
     },
