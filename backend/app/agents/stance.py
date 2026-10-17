@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from ..domains import DomainPack
 from .base import Agent, AgentContext
@@ -67,13 +67,14 @@ class StanceAgent(Agent):
             "\n\nReturn a stance for every ref, and clusters over the relevant refs. "
             "Identify findings by their ref (F1, F2, …), not by paper name."
         )
-        out = await self.ask(ctx, prompt, StanceResult, trace=f"stance:{hyp['key']}")
-        # Smaller models sometimes answer with paper names instead of refs, which matches
-        # nothing and silently drops every finding. Ask once more when most refs are unknown.
-        valid = {r["ref"] for r in rows}
-        if sum(s.ref in valid for s in out.stances) < len(rows) / 2:
-            bad = ", ".join(sorted({s.ref for s in out.stances if s.ref not in valid})[:4])
-            retry = (prompt + f"\n\nYour previous answer used refs that don't exist ({bad}). "
-                     f"Use exactly these refs, one stance each: {', '.join(r['ref'] for r in rows)}.")
-            out = await self.ask(ctx, retry, StanceResult, trace=f"stance:{hyp['key']}:retry")
-        return out
+        return await self.ask(ctx, prompt, _result_schema([r["ref"] for r in rows]), trace=f"stance:{hyp['key']}")
+
+
+def _result_schema(refs: list[str]) -> type[StanceResult]:
+    """StanceResult whose refs can only be this call's refs, so an answer that names papers
+    instead (smaller models do) fails validation and gets the model's repair round."""
+    Ref = Literal[tuple(refs)]  # type: ignore[valid-type]
+    stance = create_model("StanceOut", __base__=StanceOut, ref=(Ref, StanceOut.model_fields["ref"]))
+    cluster = create_model("ClusterOut", __base__=ClusterOut, refs=(list[Ref], ClusterOut.model_fields["refs"]))
+    return create_model("StanceResult", __base__=StanceResult, stances=(list[stance], ...),
+                        clusters=(list[cluster], StanceResult.model_fields["clusters"]))

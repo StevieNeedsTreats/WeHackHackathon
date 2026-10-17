@@ -590,15 +590,22 @@ class Run:
             cluster_of: dict[str, str] = {}
             for i, c in enumerate(out.clusters):
                 cid = f"{key}:c{i}"
-                members = [refs[r]["id"] for r in c.refs if r in refs]
+                members = [refs[r]["id"] for r in c.refs]
                 if members:
                     clusters.append({"id": cid, "label": c.label[:40], "context": c.context[:120], "hypothesis": key,
                                      "findings": members})
                     for m in members:
                         cluster_of.setdefault(m, cid)
+            judged = {}
             for s in out.stances:
-                r = refs.get(s.ref)
-                if not r or s.stance == "irrelevant":
+                judged.setdefault(s.ref, s)  # a ref judged twice keeps its first stance
+            missing = [ref for ref in refs if ref not in judged]
+            if missing:
+                await self.flag(f"h:{key}", "stance-missing",
+                                f"{len(missing)} of {len(refs)} findings got no stance, so the verdict leaves them out")
+            for ref, s in judged.items():
+                r = refs[ref]
+                if s.stance == "irrelevant":
                     continue
                 weight = (r["cred"] / 100) * max(0.25, s.population_match) * (1.0 if r["verified"] else 0.5)
                 evidence.append({"finding_id": r["id"], "stance": s.stance, "weight": round(weight, 3),
