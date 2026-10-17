@@ -20,7 +20,7 @@ DISCLAIMER = (
     "replace a clinician. Evidence grades reflect the papers found, not certainty about you."
 )
 
-ALLOWED_HOSTS = {"www.ebi.ac.uk", "api.openalex.org"}
+ALLOWED_HOSTS = {"www.ebi.ac.uk", "api.openalex.org", "clinicaltrials.gov"}
 MAX_RESPONSE_BYTES = 6_000_000
 MAX_ABSTRACT_CHARS = 6_000
 
