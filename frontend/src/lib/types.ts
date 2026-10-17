@@ -23,6 +23,9 @@ export interface Hypothesis {
   papers?: number;
   verdict?: string | null;
   stage?: "discovery" | "stance" | "contradictions" | "verdict" | "done";
+  // how the last run that researched it ended; only "complete" is reused
+  status?: "complete" | "degraded" | "failed" | null;
+  issues?: string[];
   // stored
   grade?: string;
   share_support?: number;
@@ -262,5 +265,5 @@ export interface QuestionSummary {
   domain: string;
   created?: number;
   running?: boolean;
-  hypotheses: { key: string; statement: string; verdict?: string | null; grade?: string | null }[];
+  hypotheses: { key: string; statement: string; verdict?: string | null; grade?: string | null; status?: Hypothesis["status"] }[];
 }

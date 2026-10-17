@@ -4,6 +4,7 @@ import { LoaderCircle } from "lucide-react";
 import { balance, type State } from "@/lib/store";
 import { STANCE, TONE } from "./graph/glyphs";
 import { BalanceBar } from "./graph/nodes";
+import { runIssue } from "./panels/VerdictPanel";
 
 export type Focus = string | "all" | "compare";
 
@@ -38,6 +39,7 @@ export function HypothesisBar({ state, focus, onFocus }: { state: State; focus: 
         const v = state.verdicts[k];
         const b = balance(state, k);
         const running = state.status === "streaming" && !v && !h.reused;
+        const issue = runIssue(h, state.status === "streaming");
         return tab(
           k,
           focus === k,
@@ -57,6 +59,11 @@ export function HypothesisBar({ state, focus, onFocus }: { state: State; focus: 
                   {running && <LoaderCircle size={10} className="animate-spin" />}
                   {h.reused ? "Reused" : STAGE[h.stage ?? "discovery"]}
                   {h.papers ? ` · ${h.papers} papers` : ""}
+                </span>
+              )}
+              {issue && (
+                <span className="mono ml-auto text-[10px] text-ink-3" title={issue.body}>
+                  {issue.title === "Partial evidence" ? "partial" : "incomplete"}
                 </span>
               )}
             </div>

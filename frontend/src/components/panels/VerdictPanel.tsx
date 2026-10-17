@@ -1,11 +1,11 @@
 "use client";
 
 import { Info, TriangleAlert } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { balance, papersFor, type State } from "@/lib/store";
-import type { Insight, Verdict } from "@/lib/types";
+import type { Hypothesis, Insight, Verdict } from "@/lib/types";
 import { STANCE, TONE } from "../graph/glyphs";
 import { BalanceBar } from "../graph/nodes";
 import { SectionLabel } from "../Tip";
@@ -18,6 +18,28 @@ const GRADE_TEXT: Record<string, string> = {
   C: "Limited: few papers, weaker designs, or substantial disagreement.",
   D: "Very limited: a single weak study or almost nothing found.",
 };
+
+const ISSUE_TEXT: Record<string, string> = {
+  "discovery-error": "a literature search failed",
+  "extract-error": "some papers couldn't be read",
+  "credibility-error": "some papers couldn't be scored",
+  "stance-missing": "some findings got no stance",
+  "verdict-error": "the verdict write-up failed",
+  budget: "the run ran out of its token budget",
+  timeout: "the run hit its time limit",
+  "orchestrator-error": "the planner failed",
+  incomplete: "the run stopped early",
+  interrupted: "the run was interrupted",
+};
+
+/** The last run's outcome, shown once a run isn't streaming (mid-run the stored status is a placeholder). */
+export function runIssue(h: Hypothesis, streaming: boolean): { title: string; body: string } | null {
+  if (streaming || !h.status || h.status === "complete") return null;
+  const what = (h.issues ?? []).map((i) => ISSUE_TEXT[i] ?? i).join("; ") || "something went wrong";
+  return h.status === "degraded"
+    ? { title: "Partial evidence", body: `This verdict was reached without some of its evidence: ${what}. It will be researched again the next time it's asked.` }
+    : { title: "Incomplete run", body: `The last run didn't reach a verdict: ${what}. It will be researched again the next time it's asked.` };
+}
 
 export function GradeBadge({ v }: { v: Pick<Verdict, "grade" | "tone" | "verdict"> }) {
   const t = TONE[v.tone] ?? TONE.neutral;
@@ -63,6 +85,7 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
   const papers = papersFor(state, hk);
   const clusters = Object.values(state.clusters).filter((c) => c.hypothesis === hk);
   const contra = state.contradictions[hk] ?? [];
+  const issue = runIssue(h, state.status === "streaming");
 
   return (
     <div className="p-5">
@@ -81,6 +104,14 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
         {v ? <GradeBadge v={v} /> : <span className="mono text-[12px] text-ink-3">{state.status === "streaming" ? "Researching…" : "No verdict yet"}</span>}
         {v && <p className="mt-1.5 text-[11.5px] leading-snug text-ink-3">{GRADE_TEXT[v.grade]}</p>}
       </div>
+
+      {issue && (
+        <Alert className="mt-3 border-neu/50 bg-neu-soft/60">
+          <TriangleAlert />
+          <AlertTitle className="text-[12.5px] text-ink">{issue.title}</AlertTitle>
+          <AlertDescription className="text-[12px] text-ink-2">{issue.body}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="mt-4">
         <BalanceBar support={b.support} refute={b.refute} mixed={b.mixed} className="h-[10px]" />
