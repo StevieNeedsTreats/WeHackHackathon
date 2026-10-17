@@ -3,12 +3,14 @@ the results and keeps only papers that actually test the hypothesis."""
 
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, Field
 
 from ..domains import DomainPack, Slice
-from ..llm import ToolSpec
+from ..llm import LLMError, ToolSpec
 from .base import Agent, AgentContext
 
 SOURCE_HELP = {
@@ -26,6 +28,15 @@ class Pick(BaseModel):
     ref: str = Field(description="The paper ref from search results")
     relevance: float = Field(ge=0, le=1, description="1 = tests exactly this hypothesis; 0.5 = related evidence")
     reason: str = Field(description="At most 15 words")
+
+
+class QueryOut(BaseModel):
+    source: str
+    query: str
+
+
+class QueryPlan(BaseModel):
+    queries: list[QueryOut] = Field(min_length=1, max_length=3)
 
 
 class DiscoveryOut(BaseModel):
@@ -82,6 +93,15 @@ class DiscoveryAgent(Agent):
             f"Sources: " + " | ".join(SOURCE_HELP[s] for s in sl.sources) + "\n\n"
             f"Run 1–3 searches, then pick up to {limit} papers that address the hypothesis (domain: {domain.name})."
         )
-        out = await self.loop(ctx, prompt, DiscoveryOut, [tool], trace=f"discovery:{hyp['key']}:{sl.id}", tag=hyp["key"])
+        trace = f"discovery:{hyp['key']}:{sl.id}"
+        try:
+            out = await self.loop(ctx, prompt, DiscoveryOut, [tool], trace=trace, tag=hyp["key"])
+        except LLMError:
+            # Some providers can't do tool calls. Same job in two structured calls: plan, then pick.
+            plan = await self.ask(ctx, prompt + "\n\nWrite the 1–3 searches you would run.", QueryPlan, trace=trace + ":plan")
+            results = await asyncio.gather(*(search_tool({"source": q.source, "query": q.query}) for q in plan.queries))
+            listing = json.dumps([r for res in results for r in res.get("results", [])], ensure_ascii=False)
+            out = await self.ask(ctx, prompt + f"\n\nSearch results:\n{listing[:24000]}\n\nPick the papers.", DiscoveryOut,
+                                 trace=trace + ":pick")
         out.picks = [p for p in out.picks if p.ref in seen][:limit]
         return out, {p.ref: seen[p.ref] for p in out.picks}
