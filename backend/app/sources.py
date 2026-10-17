@@ -129,8 +129,9 @@ class Sources:
         raise SourceError(f"unknown source {source}")
 
     async def search_epmc(self, query: str, size: int) -> list[dict]:
-        url = (f"{EPMC}/search?query={quote(query + ' AND HAS_ABSTRACT:y')}&resultType=core&format=json"
-               f"&pageSize={size}&sort={quote('CITED desc')}")
+        # Default (relevance) order. Europe PMC matches full text, so sorting by citations
+        # floats famous papers that merely mention a term (e.g. DrugBank) above on-topic ones.
+        url = f"{EPMC}/search?query={quote(query + ' AND HAS_ABSTRACT:y')}&resultType=core&format=json&pageSize={size}"
         data = await self.fetch(url)
         return [p for p in (parse_epmc(r) for r in data.get("resultList", {}).get("result", [])) if p]
 
