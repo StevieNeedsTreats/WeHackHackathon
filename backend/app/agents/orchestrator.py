@@ -97,7 +97,8 @@ class Run:
         self.pace = pace
 
         self.state: dict[str, dict] = {k: {"slices": [], "papers": {}, "stance": False, "contradictions": False,
-                                           "verdict": None, "reused": False, "note": ""} for k in self.hyps}
+                                           "verdict": None, "reused": False, "note": "", "status": None, "issues": []}
+                                       for k in self.hyps}
         self.papers: dict[str, dict] = {}
         self.extractions: dict[str, dict] = {}
         self.extract_failed: set[str] = set()
@@ -131,7 +132,23 @@ class Run:
     async def flag(self, target: str, code: str, detail: str) -> None:
         f = {"target": target, "code": code, "detail": detail}
         self.flags.append(f)
+        if code in LOST_EVIDENCE:
+            for key in self._affected(target):
+                if code not in self.state[key]["issues"]:
+                    self.state[key]["issues"].append(code)
         await self.emit("flag", f)
+
+    def _affected(self, target: str) -> list[str]:
+        """Hypotheses being researched whose evidence a warning on `target` cuts short."""
+        kind, _, ident = target.partition(":")
+        live = [k for k in self.hyps if not self.state[k]["reused"]]
+        if kind == "h":
+            return [ident] if ident in live else []
+        if kind == "p":
+            return [k for k in live if ident in self.state[k]["papers"]]
+        if kind == "q":  # a run-wide stop only hurts hypotheses that hadn't reached their verdict
+            return [k for k in live if not self.state[k]["verdict"]]
+        return []
 
     async def _sleep(self, s: float) -> None:
         if self.pace:
@@ -157,6 +174,9 @@ class Run:
                 await self.emit("hypothesis", self.hyp_view(h["key"]))
 
             todo = [k for k in self.hyps if not self.state[k]["reused"]]
+            # Pessimistic until finish() records the outcome, so a crash never leaves an old
+            # "complete" on a hypothesis whose evidence this run has started rewriting.
+            await self.store.set_status([{"key": k, "status": "failed", "issues": ["interrupted"]} for k in todo])
             if todo:
                 try:
                     async with asyncio.timeout(self.settings.run_timeout_s):
@@ -183,11 +203,12 @@ class Run:
             return
         for key in self.hyps:
             existing = await self.store.find_hypothesis(key)
-            # "Insufficient evidence" is often a run that went wrong (no papers found, a bad
-            # answer from a model), so research it again rather than reuse it.
-            if existing and existing.get("verdict") and existing["verdict"] != "Insufficient evidence" and \
+            # Only a run that finished with all its evidence is reused; degraded, failed or
+            # interrupted ones are researched again.
+            if existing and existing.get("status") == "complete" and existing.get("verdict") and \
                     existing.get("updated") and time.time() * 1000 - existing["updated"] < self.settings.cache_ttl_s * 1000:
                 self.state[key]["reused"] = True
+                self.state[key]["status"] = "complete"
                 self.state[key]["verdict"] = existing.get("verdict")
                 await self.agent("orchestrator", "running", f"Reusing earlier research for “{self.hyps[key]['statement']}”",
                                  hypothesis=key)
@@ -234,6 +255,7 @@ class Run:
         return {**{k: h.get(k) for k in ("key", "statement", "domain", "relation", "subject", "outcome", "population",
                                           "assumed")},
                 "reused": st["reused"], "papers": len(st["papers"]), "verdict": st["verdict"],
+                "status": st["status"], "issues": st["issues"],
                 "stage": ("done" if st["verdict"] else "verdict" if st["contradictions"] else "contradictions" if st["stance"]
                           else "stance" if st["papers"] else "discovery")}
 
@@ -750,6 +772,16 @@ class Run:
         await self.emit("metrics", self.metrics)
 
     async def finish(self) -> None:
+        rows = []
+        for key in self.hyps:
+            st = self.state[key]
+            if st["reused"]:
+                continue
+            st["status"] = "failed" if not st["verdict"] else "degraded" if st["issues"] else "complete"
+            rows.append({"key": key, "status": st["status"], "issues": st["issues"]})
+        await self.store.set_status(rows)
+        for row in rows:
+            await self.emit("hypothesis", self.hyp_view(row["key"]))
         counts = await self.store.counts()
         stats = {
             "papers": len(self.papers), "findings": len(self.findings),
@@ -785,6 +817,11 @@ class Run:
         return {"id": f["id"], "paper_id": pid, "study_id": f["study_id"], "outcome": f["outcome"],
                 "direction": f["direction"], "effect_unit": f["unit"], **f["props"], "evidence": {}}
 
+
+# Warnings that mean a hypothesis's verdict was reached without some of its evidence.
+# Content notes (unverified quotes, undisclosed funding) are not among them.
+LOST_EVIDENCE = {"discovery-error", "extract-error", "credibility-error", "stance-missing", "verdict-error",
+                 "budget", "timeout", "orchestrator-error", "incomplete"}
 
 _FLAG_TEXT = {
     "small-sample": "Fewer than 30 participants",

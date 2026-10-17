@@ -307,7 +307,8 @@ class GraphStore:
         await self.q("MATCH ()-[r:CONTRADICTS {hypothesis:$k}]->() DELETE r", {"k": key})
         await self.q("MATCH ()-[m:MEASURES {hypothesis:$k}]->() DELETE m", {"k": key})
         await self.q("MATCH (h:Hypothesis {key:$k})-[c:CONSIDERED]->() DELETE c", {"k": key})
-        await self.q("MATCH (h:Hypothesis {key:$k}) REMOVE h.verdict, h.grade, h.share_support, h.share_refute, h.share_mixed",
+        await self.q("MATCH (h:Hypothesis {key:$k}) "
+                     "REMOVE h.verdict, h.grade, h.share_support, h.share_refute, h.share_mixed, h.status, h.issues",
                      {"k": key})
 
     async def delete_question(self, qid: str) -> list[str]:
@@ -411,13 +412,22 @@ class GraphStore:
             {"k": key, "v": verdict},
         )
 
+    async def set_status(self, rows: list[dict]) -> None:
+        """rows: {key, status, issues}. status is complete | degraded | failed; issues are the
+        warning codes that cut the hypothesis's evidence short. Only complete ones are reused."""
+        if rows:
+            await self.q(
+                "UNWIND $rows AS r MATCH (h:Hypothesis {key:r.key}) SET h.status=intern(r.status), h.issues=r.issues",
+                {"rows": rows},
+            )
+
     # ================================================================== reads
 
     async def questions(self, limit: int = 30) -> list[dict]:
         res = await self.ro(
             """
             MATCH (q:Question)-[:ASKS]->(h:Hypothesis)
-            WITH q, collect({key:h.key, statement:h.statement, verdict:h.verdict, grade:h.grade}) AS hs
+            WITH q, collect({key:h.key, statement:h.statement, verdict:h.verdict, grade:h.grade, status:h.status}) AS hs
             RETURN q.id, q.text, q.domain, q.created, hs
             ORDER BY q.created DESC LIMIT $n
             """,
