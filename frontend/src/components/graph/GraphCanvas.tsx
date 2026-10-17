@@ -1,7 +1,7 @@
 "use client";
 
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeChange } from "@xyflow/react";
-import { Maximize, Minus, Plus } from "lucide-react";
+import { Info, Maximize, Minus, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { allLayout, focusLayout, type EdgeKind, type LNode } from "@/lib/layout";
+import { useLegend } from "@/lib/legend";
 import type { State } from "@/lib/store";
 import { GraphContext, LabelContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
@@ -372,8 +373,21 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
 
 function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow: (f: (s: Record<Toggleable, boolean>) => Record<Toggleable, boolean>) => void }) {
   const on = TOGGLES.filter((t) => show[t.kind]).map((t) => t.kind);
+  const [open, setOpen] = useLegend();
+  if (!open)
+    return (
+      <Button variant="outline" size="sm" className="absolute left-4 top-4 h-7 gap-1.5 bg-card/95 px-2.5 text-[12px] font-normal shadow-[var(--shadow-sm)] backdrop-blur" onClick={() => setOpen(true)}>
+        <Info className="size-3.5" />
+        Legend
+      </Button>
+    );
   return (
-    <Card size="sm" className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 bg-card/95 px-3 shadow-[var(--shadow-sm)] backdrop-blur">
+    <Card size="sm" className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 bg-card/95 py-2.5 pl-3 pr-9 shadow-[var(--shadow-sm)] backdrop-blur">
+      <Tip label="Hide legend">
+        <Button variant="ghost" size="icon-xs" aria-label="Hide legend" className="absolute right-1.5 top-1.5 text-muted-foreground" onClick={() => setOpen(false)}>
+          <X />
+        </Button>
+      </Tip>
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px] text-ink-2">
         {(["supports", "mixed", "refutes"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">

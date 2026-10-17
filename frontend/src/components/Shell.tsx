@@ -50,7 +50,7 @@ function ExpandButton({ side, onClick }: { side: Side; onClick: () => void }) {
         size="icon-sm"
         aria-label={`Show ${NAME[side]}`}
         onClick={onClick}
-        className={`absolute top-3 z-20 hidden bg-card shadow-[var(--shadow-sm)] lg:inline-flex ${side === "left" ? "left-3" : "right-3"}`}
+        className={`absolute top-1/2 z-20 hidden -translate-y-1/2 bg-card shadow-[var(--shadow-sm)] lg:inline-flex ${side === "left" ? "left-2" : "right-2"}`}
       >
         <Icon />
       </Button>
