@@ -26,12 +26,10 @@ ECONOMICS = DomainPack(
         "Panel / observational": 12, "Cross-sectional": 8, "Review": 10, "Theory or simulation": 5, "Other": 6,
     },
     judged=[
-        RubricItem("identification", "Identification strength", 0, 8,
+        RubricItem("identification", "Identification strength", 0, 10,
                    "How convincingly the design separates cause from correlation (parallel trends, valid instrument…)."),
         RubricItem("robustness", "Robustness checks", 0, 5, "Alternative specifications, placebo tests, sensitivity analyses."),
         RubricItem("data", "Data quality", 0, 5, "Administrative or large representative data vs small or self-reported samples."),
-        RubricItem("external_validity", "External validity", 0, 4,
-                   "How far the setting generalises to the population in the hypothesis."),
         RubricItem("conflicts", "Conflicts of interest", -8, 4,
                    "-8 = funded by an interested industry group or advocacy organisation; 4 = independent funding."),
     ],

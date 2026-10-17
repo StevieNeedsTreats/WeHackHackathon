@@ -20,9 +20,8 @@ GENERAL = DomainPack(
         "Observational": 12, "Review": 10, "Case study": 6, "Opinion or commentary": 3, "Other": 6,
     },
     judged=[
-        RubricItem("rigor", "Methodological rigour", 0, 10, "Controls, sample size, measurement and analysis appropriate to the claim."),
-        RubricItem("transparency", "Transparency", 0, 5, "Data, methods and limitations reported clearly."),
-        RubricItem("relevance", "Relevance", 0, 6, "How directly the study addresses the hypothesis as stated."),
+        RubricItem("rigor", "Methodological rigour", 0, 12, "Controls, sample size, measurement and analysis appropriate to the claim."),
+        RubricItem("transparency", "Transparency", 0, 8, "Data, methods and limitations reported clearly."),
         RubricItem("conflicts", "Conflicts of interest", -8, 4, "-8 = funded by a party with a stake in the answer; 4 = independent."),
     ],
     study_fields="design, sample, setting, measures, effect size",
