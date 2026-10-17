@@ -117,7 +117,7 @@ export const initial: State = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSE payloads are untyped JSON, shaped per event below
-type Ev = { event: string; data: any };
+export type Ev = { event: string; data: any };
 type Action =
   | { type: "start"; mode: State["mode"] }
   | { type: "events"; events: Ev[] }
@@ -293,7 +293,7 @@ function reducer(s: State, a: Action): State {
 }
 
 /** Parse a text/event-stream body incrementally. */
-async function* sse(body: ReadableStream<Uint8Array>, signal: AbortSignal): AsyncGenerator<Ev> {
+export async function* sse(body: ReadableStream<Uint8Array>, signal: AbortSignal): AsyncGenerator<Ev> {
   const reader = body.getReader();
   const dec = new TextDecoder();
   let buf = "";
@@ -414,7 +414,18 @@ export function useResearch() {
 
   useEffect(() => () => detach(), [detach]);
 
-  return { state, run, load, detach, stop: stopRunning, reset: () => dispatch({ type: "reset" }) };
+  /**
+   * Apply events from outside the main stream (papers added to the open question) on top of what
+   * is shown. Dropped when another question is open by then; usage events belong to the original run.
+   */
+  const absorb = useCallback(
+    (qid: string, ev: Ev) => {
+      if (stateRef.current.question?.id === qid && ev.event !== "usage") push(ev);
+    },
+    [push],
+  );
+
+  return { state, run, load, detach, absorb, stop: stopRunning, reset: () => dispatch({ type: "reset" }) };
 }
 
 // ---------------------------------------------------------------- selectors

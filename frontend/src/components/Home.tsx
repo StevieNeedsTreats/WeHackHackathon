@@ -9,6 +9,7 @@ import { EXAMPLES, Header } from "@/components/Header";
 import { HypothesisBar, type Focus } from "@/components/HypothesisBar";
 import { InterpretationCard } from "@/components/InterpretationCard";
 import { CollapseButton, Shell } from "@/components/Shell";
+import { ChatPanel } from "@/components/panels/ChatPanel";
 import { DetailsPanel } from "@/components/panels/DetailsPanel";
 import { EvidencePanel } from "@/components/panels/EvidencePanel";
 import { QueriesPanel } from "@/components/panels/QueriesPanel";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { setGraphSink } from "@/lib/chat";
 import { deleteQuestion, forgetQuestion, getHealth, warmQuestions, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
 import { useStableCallback } from "@/lib/use-stable-callback";
@@ -33,17 +35,19 @@ const VerdictTab = memo(VerdictPanel);
 const EvidenceTab = memo(EvidencePanel);
 const QueriesTab = memo(QueriesPanel);
 const DetailsTab = memo(DetailsPanel);
+const ChatTab = memo(ChatPanel);
 
-type Tab = "verdict" | "evidence" | "queries" | "details";
+type Tab = "verdict" | "evidence" | "chat" | "queries" | "details";
 const TABS: { id: Tab; label: string }[] = [
   { id: "verdict", label: "Verdict" },
   { id: "evidence", label: "Evidence" },
+  { id: "chat", label: "Chat" },
   { id: "queries", label: "Queries" },
   { id: "details", label: "Details" },
 ];
 
 export default function Home({ defaultLayout }: { defaultLayout?: Record<string, number> }) {
-  const { state, run, load, detach, stop, reset } = useResearch();
+  const { state, run, load, detach, absorb, stop, reset } = useResearch();
   const [health, setHealth] = useState<Health | null>(null);
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
   const [interp, setInterp] = useState<Interpretation | null>(null);
@@ -122,6 +126,14 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
     setSelected(id);
     if (id) setTab("details");
   }, []);
+  // Chat citations select on the graph without leaving the conversation.
+  const peek = useCallback((id: string) => setSelected(id), []);
+
+  // Papers added from the chat stream their graph updates onto the open canvas.
+  useEffect(() => {
+    setGraphSink({ apply: absorb, changed: refresh });
+    return () => setGraphSink(null);
+  }, [absorb, refresh]);
   const focusHyp = useCallback((f: Focus) => {
     setFocus(f);
     setSelected(null);
@@ -298,20 +310,27 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
               </TabsList>
               <CollapseButton side="right" onClick={collapse} />
             </div>
-            <ScrollArea key={tab} className="min-h-0 flex-1">
-              <TabsContent value="verdict">
-                <VerdictTab state={state} hk={hk} onRefs={setRefs} onSelect={select} />
+            {tab === "chat" ? (
+              // The chat scrolls its own messages and keeps the composer pinned below them.
+              <TabsContent value="chat" className="min-h-0 overflow-hidden">
+                <ChatTab state={state} hk={focus === "all" || focus === "compare" ? null : focus} selected={selected} onPeek={peek} onFocus={focusHyp} onRefs={setRefs} />
               </TabsContent>
-              <TabsContent value="evidence">
-                <EvidenceTab state={state} hk={hk} onSelect={select} />
-              </TabsContent>
-              <TabsContent value="queries">
-                <QueriesTab state={state} />
-              </TabsContent>
-              <TabsContent value="details">
-                <DetailsTab state={state} id={selected} hk={hk} onSelect={select} />
-              </TabsContent>
-            </ScrollArea>
+            ) : (
+              <ScrollArea key={tab} className="min-h-0 flex-1">
+                <TabsContent value="verdict">
+                  <VerdictTab state={state} hk={hk} onRefs={setRefs} onSelect={select} />
+                </TabsContent>
+                <TabsContent value="evidence">
+                  <EvidenceTab state={state} hk={hk} onSelect={select} />
+                </TabsContent>
+                <TabsContent value="queries">
+                  <QueriesTab state={state} />
+                </TabsContent>
+                <TabsContent value="details">
+                  <DetailsTab state={state} id={selected} hk={hk} onSelect={select} />
+                </TabsContent>
+              </ScrollArea>
+            )}
           </Tabs>
         )}
       />
