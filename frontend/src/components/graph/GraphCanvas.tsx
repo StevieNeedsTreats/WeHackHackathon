@@ -1,6 +1,6 @@
 "use client";
 
-import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node } from "@xyflow/react";
+import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeChange } from "@xyflow/react";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,19 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [layout]);
+
+  // ---- controlled flow: keep React Flow's measurements, or it re-hides nodes on every rebuild
+  const measured = useRef<Record<string, { width: number; height: number }>>({});
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    let changed = false;
+    for (const c of changes) {
+      if (c.type === "dimensions" && c.dimensions) {
+        measured.current[c.id] = c.dimensions;
+        changed = true;
+      }
+    }
+    if (changed) setFrame((f) => f + 1);
+  }, []);
 
   // ---- entry animations for ids that just arrived
   const known = useRef<Set<string>>(new Set());
@@ -201,6 +214,7 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
           type: n.kind,
           position: { x: p.x, y: p.y },
           data: { n, w: p.w, h: p.h },
+          measured: measured.current[n.id],
           draggable: false,
           zIndex: n.kind === "claim" ? 2 : 1,
         };
@@ -257,6 +271,7 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
           minZoom={0.12}
           maxZoom={2}
           onlyRenderVisibleElements={nodes.length > 400}
+          onNodesChange={onNodesChange}
           nodesConnectable={false}
           nodesDraggable={false}
           proOptions={{ hideAttribution: true }}
