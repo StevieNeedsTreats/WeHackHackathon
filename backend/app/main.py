@@ -14,7 +14,7 @@ from sse_starlette.sse import EventSourceResponse
 from .agents.base import AgentContext
 from .agents.intake import IntakeAgent, IntakeOut, hypothesis_key
 from .agents.metrics import QUERIES, run_benchmarks
-from .agents.orchestrator import Run
+from .agents.orchestrator import Run, finished
 from .config import get_settings
 from .demo import DemoBundle, build_question, bundles
 from .domains import DOMAINS, get_domain
@@ -172,31 +172,70 @@ async def research(request: Request, q: str = Query(..., max_length=400),
     run = Run(state["store"], state["sources"], router, question, mode,
               search=bundle.search if bundle else None, fulltext=bundle.fulltext if bundle else None,
               cites=bundle.cites if bundle else None, pace=1.0 if bundle else 0.0)
+    preamble = [
+        {"event": "guardrail", "data": json.dumps({"ok": True, "checks": interp["checks"]})},
+        {"event": "interpretation", "data": json.dumps({k: interp[k] for k in ("question", "notice", "disclaimer",
+                                                                                "domain")}, default=str)},
+    ]
+    return EventSourceResponse(_stream(request, run, qid, preamble), ping=10)
 
-    async def stream():
-        yield {"event": "guardrail", "data": json.dumps({"ok": True, "checks": interp["checks"]})}
-        yield {"event": "interpretation", "data": json.dumps({k: interp[k] for k in ("question", "notice", "disclaimer",
-                                                                                       "domain")}, default=str)}
-        async with state["runs"]:
-            state["active"].add(qid)
-            task = asyncio.create_task(run.execute())
-            try:
-                while True:
-                    msg = await run.queue.get()
-                    if msg is None:
-                        break
-                    if await request.is_disconnected():
-                        task.cancel()
-                        break
-                    data = msg["data"] if isinstance(msg["data"], dict) else {"items": msg["data"]}
-                    yield {"event": msg["event"], "data": json.dumps({"_t": msg["t"], **data}, default=str)}
-            finally:
-                state["active"].discard(qid)
-                if not task.done():
+
+async def _stream(request: Request, run: Run, qid: str, preamble: list[dict]):
+    """Relay a run's events to the browser; cancel the run if the browser goes away."""
+    for ev in preamble:
+        yield ev
+    async with state["runs"]:
+        state["active"].add(qid)
+        task = asyncio.create_task(run.execute())
+        try:
+            while True:
+                msg = await run.queue.get()
+                if msg is None:
+                    break
+                if await request.is_disconnected():
                     task.cancel()
-        yield {"event": "end", "data": "{}"}
+                    break
+                data = msg["data"] if isinstance(msg["data"], dict) else {"items": msg["data"]}
+                yield {"event": msg["event"], "data": json.dumps({"_t": msg["t"], **data}, default=str)}
+        finally:
+            state["active"].discard(qid)
+            if not task.done():
+                task.cancel()
+    yield {"event": "end", "data": "{}"}
 
-    return EventSourceResponse(stream(), ping=10)
+
+@app.get("/api/research/resume")
+async def resume(request: Request, qid: str = Query(..., max_length=64)):
+    """Continue a run that did not finish, reusing every paper, extraction and verdict it saved."""
+    _limit(request)
+    store: GraphStore = state["store"]
+    snap_q = await store.ro("MATCH (q:Question {id:$id}) RETURN q.text, q.domain", {"id": _check_id(qid)})
+    if not snap_q.result_set:
+        raise HTTPException(404, "Unknown question")
+    if qid.startswith("demo-"):
+        raise HTTPException(400, "Demo runs can't be resumed; replay the demo instead.")
+    if qid in state["active"]:
+        raise HTTPException(409, "That question is still being researched.")
+    text, domain_id = snap_q.result_set[0]
+    hyps = [{**h, "domain": h.get("domain") or domain_id, "population": h.get("population")}
+            for h in await store.hypotheses_of(qid)]
+    if not hyps:
+        raise HTTPException(400, "Nothing to resume: the question has no hypotheses.")
+    try:
+        router = LLMRouter.live(state["sources"].redis)
+    except LLMUnavailable as e:
+        raise HTTPException(503, str(e))
+
+    question = {"id": qid, "text": text, "domain": domain_id, "hypotheses": hyps, "resume": True}
+    domain = get_domain(domain_id)
+    notice = VULNERABLE_NOTE if mentions_vulnerable(text, *[(h["population"] or {}).get("name") for h in hyps]) else None
+    run = Run(store, state["sources"], router, question, "live")
+    preamble = [{"event": "interpretation", "data": json.dumps({
+        "question": question, "notice": notice, "disclaimer": domain.disclaimer,
+        "domain": {"id": domain.id, "name": domain.name, "subject": domain.subject_label,
+                   "outcome": domain.outcome_label, "population": domain.population_label},
+    }, default=str)}]
+    return EventSourceResponse(_stream(request, run, qid, preamble), ping=10)
 
 
 # ====================================================================== reads
@@ -215,7 +254,19 @@ async def _json(key: str):
 
 @app.get("/api/questions")
 async def questions():
-    return await state["store"].questions(30)
+    qs = await state["store"].questions(30)
+    for q in qs:
+        q["running"] = q["id"] in state["active"]
+        q["complete"] = await _complete(q["id"], q["hypotheses"])
+    return qs
+
+
+async def _complete(qid: str, hyps: list[dict]) -> bool:
+    """Every hypothesis has a verdict and the last run finished without cutting any of them short."""
+    run = await _json(f"tg:q:{qid}:run")
+    if run is None:
+        return False
+    return bool(hyps) and all(finished(h["key"], h.get("verdict"), run.get("flags")) for h in hyps)
 
 
 @app.get("/api/question/{qid}")
@@ -229,6 +280,7 @@ async def question(qid: str):
         verdicts[h["key"]] = await _json(f"tg:hyp:{h['key']}:verdict")
     run = await _json(f"tg:q:{qid}:run") or {}
     return {**snap, "verdicts": verdicts, "metrics": await _json(f"tg:q:{qid}:metrics"),
+            "running": qid in state["active"], "complete": await _complete(qid, snap["hypotheses"]),
             "stats": run.get("stats"), "flags": run.get("flags", []),
             "disclaimer": get_domain(snap["question"].get("domain", "general")).disclaimer}
 
