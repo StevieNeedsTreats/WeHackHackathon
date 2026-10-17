@@ -14,6 +14,7 @@ import type { State } from "@/lib/store";
 import { GraphContext, LabelContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
 import { STANCE } from "./glyphs";
+import { GraphTools, keep, NO_FILTER, type Filter, type Hit } from "./GraphTools";
 import { nodeTypes } from "./nodes";
 import { Tip } from "../Tip";
 
@@ -53,6 +54,14 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
   const [show, setShow] = useState<Record<Toggleable, boolean>>({ contradicts: true, cites: false, considered: false });
   const [hover, setHover] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
+  const [finding, setFinding] = useState<string | null>(null); // a search hit waiting for its layout
+  // A new question starts unfiltered (adjusted during render, not in an effect).
+  const [filterFor, setFilterFor] = useState(state.question?.id);
+  if (filterFor !== state.question?.id) {
+    setFilterFor(state.question?.id);
+    setFilter(NO_FILTER);
+  }
 
   // ---- position tween: nodes glide to new slots when the layout changes
   const target = useMemo(() => Object.fromEntries(layout.nodes.map((n) => [n.id, n])), [layout]);
@@ -178,6 +187,14 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     return lit(pair(selected), true) ?? none;
   }, [hover, highlight, selected, neighbourhood, spotlight, edgeEnds, target]);
 
+  // ---- filters: what doesn't match is faded and can't be clicked; the layout stays put
+  const kept = useMemo(() => keep(state, layout.nodes.map((n) => n.id), focus, filter), [state, layout, focus, filter]);
+  const shown = useMemo(() => {
+    if (!kept) return null;
+    const all = layout.nodes.filter((n) => n.kind === "finding");
+    return { findings: all.filter((n) => kept.has(n.id)).length, of: all.length };
+  }, [kept, layout]);
+
   const hNum = useMemo(() => Object.fromEntries(state.hypOrder.map((k, i) => [k, i + 1])), [state.hypOrder]);
   const ctx: GraphCtx = useMemo(() => ({ state, focus, hNum }), [state, focus, hNum]);
 
@@ -186,6 +203,10 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
   const focusCss = useMemo(() => {
     const q = (id: string) => `[data-id="${id.replace(/["\\]/g, "\\$&")}"]`;
     let css = "";
+    if (kept) {
+      const ok = [...kept, ...layout.edges.filter((e) => kept.has(e.source) && kept.has(e.target)).map((e) => e.id)].map(q).join(",");
+      css += `.tg-flow .react-flow__node:not(${ok}),.tg-flow .react-flow__edge:not(${ok}){opacity:.08!important;pointer-events:none}`;
+    }
     if (active?.size) {
       const lit = [...active].map(q).join(",");
       css += `.tg-flow .react-flow__node:not(${lit}),.tg-flow .react-flow__edge:not(${lit}){opacity:.18}`;
@@ -193,7 +214,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     }
     if (selected && target[selected]) css += `.tg-flow .react-flow__node${q(selected)} .tg-node{outline:2px solid var(--ink);outline-offset:2px}`;
     return css;
-  }, [active, selected, target]);
+  }, [active, selected, target, kept, layout]);
 
   // ---- React Flow elements
   // Node data objects are created once per layout, so memoised nodes skip re-rendering while the
@@ -307,6 +328,30 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     };
   }, [fit]);
 
+  // ---- search: jump to a hit, switching hypothesis first when it isn't on this canvas
+  const centerOn = useCallback(
+    (id: string) => {
+      const b = target[id];
+      if (!b) return false;
+      setFollow(false);
+      rf.setCenter(b.x + b.w / 2, b.y + b.h / 2, { zoom: Math.max(rf.getZoom(), 1), duration: 450 });
+      onSelect(id);
+      return true;
+    },
+    [target, rf, onSelect],
+  );
+  const find = (h: Hit) => {
+    if (kept && !kept.has(h.id)) setFilter(NO_FILTER); // a hit hidden by a filter would be invisible
+    if (centerOn(h.id)) return;
+    setFinding(h.id);
+    if (h.hyp) onFocus(h.hyp);
+  };
+  useEffect(() => {
+    if (!finding || !target[finding]) return;
+    const t = setTimeout(() => centerOn(finding) && setFinding(null), 320); // after the camera's own refit
+    return () => clearTimeout(t);
+  }, [finding, target, centerOn]);
+
   const isEmpty = !state.question;
 
   return (
@@ -348,6 +393,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
         {!isEmpty && (
           <>
             <Legend show={show} setShow={setShow} />
+            <GraphTools state={state} focus={focus} filter={filter} setFilter={setFilter} shown={shown} onFind={find} />
             <Card size="sm" className="absolute bottom-4 left-4 flex-row items-center gap-1 p-1 shadow-[var(--shadow-sm)]">
               <Tip label="Zoom in">
                 <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => rf.zoomIn({ duration: 200 })}>
@@ -398,7 +444,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
       </Button>
     );
   return (
-    <Card size="sm" className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 bg-card/95 py-2.5 pl-3 pr-9 shadow-[var(--shadow-sm)] backdrop-blur">
+    <Card size="sm" className="absolute left-4 top-4 max-w-[max(14rem,calc(100%-22rem))] gap-2 bg-card/95 py-2.5 pl-3 pr-9 shadow-[var(--shadow-sm)] backdrop-blur">
       <Tip label="Hide legend">
         <Button variant="ghost" size="icon-xs" aria-label="Hide legend" className="absolute right-1.5 top-1.5 text-muted-foreground" onClick={() => setOpen(false)}>
           <X />
