@@ -323,14 +323,18 @@ async def questions():
 @app.get("/api/question/{qid}")
 async def question(qid: str):
     store: GraphStore = state["store"]
-    snap = await store.snapshot(_check_id(qid))
+    redis = state["sources"].redis
+    # The graph snapshot and the run record are fetched together, then every verdict in one MGET:
+    # two round trips to Redis instead of one per key.
+    snap, (run_raw, metrics_raw) = await asyncio.gather(
+        store.snapshot(_check_id(qid)), redis.mget(f"tg:q:{qid}:run", f"tg:q:{qid}:metrics"))
     if not snap.get("question"):
         raise HTTPException(404, "Not researched yet")
-    verdicts = {}
-    for h in snap["hypotheses"]:
-        verdicts[h["key"]] = await _json(f"tg:hyp:{h['key']}:verdict")
-    run = await _json(f"tg:q:{qid}:run") or {}
-    return {**snap, "verdicts": verdicts, "metrics": await _json(f"tg:q:{qid}:metrics"),
+    keys = [h["key"] for h in snap["hypotheses"]]
+    raws = await redis.mget([f"tg:hyp:{k}:verdict" for k in keys]) if keys else []
+    verdicts = {k: json.loads(r) if r else None for k, r in zip(keys, raws)}
+    run = json.loads(run_raw) if run_raw else {}
+    return {**snap, "verdicts": verdicts, "metrics": json.loads(metrics_raw) if metrics_raw else None,
             "stats": run.get("stats"), "flags": run.get("flags", []), "running": qid in state["live"],
             "disclaimer": get_domain(snap["question"].get("domain", "general")).disclaimer}
 

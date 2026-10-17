@@ -24,6 +24,7 @@ Efficiency rules (FalkorDB docs):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -456,22 +457,43 @@ class GraphStore:
     async def snapshot(self, qid: str) -> dict:
         """Everything the canvas needs for one question."""
         t0 = time.perf_counter()
-        qres = await self.ro("MATCH (q:Question {id:$id}) RETURN q", {"id": qid})
+        # Independent reads go out together: over a remote connection each one costs a round trip.
+        qres, hyps, papers_res, fres, cres = await asyncio.gather(
+            self.ro("MATCH (q:Question {id:$id}) RETURN q", {"id": qid}),
+            self.hypotheses_of(qid),
+            self.ro(
+                """
+                MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)-[c:CONSIDERED]->(p:Paper)
+                RETURN h.key, c.relevance, c.slice, p,
+                       [(p)-[ra:AUTHORED_BY]->(a:Author) | [a.id, a.name, ra.pos]],
+                       [(p)-[:FUNDED_BY]->(f:Funder) | [f.id, f.name, f.type]],
+                       [(p)-[:AFFILIATED]->(l:Lab) | [l.id, l.name, l.country]]
+                """,
+                {"id": qid},
+            ),
+            self.ro(
+                """
+                MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(f:Finding)<-[:FOUND]-(s:Study)<-[:DESCRIBES]-(p:Paper)
+                OPTIONAL MATCH (f)-[m:MEASURES]->(o:Concept) WHERE m.hypothesis IS NULL
+                OPTIONAL MATCH (f)-[:IN_CLUSTER]->(cl:Cluster {hypothesis:h.key})
+                RETURN h.key, e.stance, e.weight, e.rationale, f, s, p.id, o.id, o.name, cl.id, cl.label, cl.context,
+                       e.same_outcome
+                """,
+                {"id": qid},
+            ),
+            self.ro(
+                """
+                MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)<-[:EVIDENCE_FOR]-(a:Finding)-[r:CONTRADICTS]->(b:Finding)
+                WHERE r.hypothesis = h.key
+                RETURN DISTINCT h.key, a.id, b.id, r.reason, r.severity, r.explained_by
+                """,
+                {"id": qid},
+            ),
+        )
         if not qres.result_set:
             return {"question": None, "hypotheses": [], "papers": [], "findings": [], "contradictions": [], "cites": []}
         question = dict(qres.result_set[0][0].properties)
-        hyps = await self.hypotheses_of(qid)
 
-        papers_res = await self.ro(
-            """
-            MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)-[c:CONSIDERED]->(p:Paper)
-            RETURN h.key, c.relevance, c.slice, p,
-                   [(p)-[ra:AUTHORED_BY]->(a:Author) | [a.id, a.name, ra.pos]],
-                   [(p)-[:FUNDED_BY]->(f:Funder) | [f.id, f.name, f.type]],
-                   [(p)-[:AFFILIATED]->(l:Lab) | [l.id, l.name, l.country]]
-            """,
-            {"id": qid},
-        )
         papers: dict[str, dict] = {}
         for hk, rel, sl, p, authors, funders, labs in papers_res.result_set:
             d = papers.get(p.properties["id"])
@@ -484,16 +506,6 @@ class GraphStore:
                 papers[d["id"]] = d
             d["considered"][hk] = {"relevance": rel, "slice": sl}
 
-        fres = await self.ro(
-            """
-            MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(f:Finding)<-[:FOUND]-(s:Study)<-[:DESCRIBES]-(p:Paper)
-            OPTIONAL MATCH (f)-[m:MEASURES]->(o:Concept) WHERE m.hypothesis IS NULL
-            OPTIONAL MATCH (f)-[:IN_CLUSTER]->(cl:Cluster {hypothesis:h.key})
-            RETURN h.key, e.stance, e.weight, e.rationale, f, s, p.id, o.id, o.name, cl.id, cl.label, cl.context,
-                   e.same_outcome
-            """,
-            {"id": qid},
-        )
         findings: dict[str, dict] = {}
         studies: dict[str, dict] = {}
         clusters: dict[str, dict] = {}
@@ -510,14 +522,6 @@ class GraphStore:
                 cl = clusters.setdefault(clid, {"id": clid, "label": cllabel, "context": clctx, "hypothesis": hk, "findings": []})
                 cl["findings"].append(fd["id"])
 
-        cres = await self.ro(
-            """
-            MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)<-[:EVIDENCE_FOR]-(a:Finding)-[r:CONTRADICTS]->(b:Finding)
-            WHERE r.hypothesis = h.key
-            RETURN DISTINCT h.key, a.id, b.id, r.reason, r.severity, r.explained_by
-            """,
-            {"id": qid},
-        )
         contradictions = [{"hypothesis": h, "a": a, "b": b, "reason": r, "severity": s, "explained_by": e}
                           for h, a, b, r, s, e in cres.result_set]
 
