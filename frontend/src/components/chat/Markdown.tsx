@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, memo } from "react";
+import type { Trail } from "@/lib/chat";
 import type { State } from "@/lib/store";
 import { StanceGlyph } from "../graph/glyphs";
 
@@ -17,6 +18,7 @@ export interface CiteHandlers {
   onPeek: (nodeId: string) => void;
   onFocus: (key: string) => void;
   onRefs: (ids: string[] | null) => void;
+  onTrail?: (t: Trail | null) => void;
 }
 
 type Target = { kind: "paper" | "finding" | "hypothesis"; id: string };

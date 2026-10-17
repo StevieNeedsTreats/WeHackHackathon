@@ -17,8 +17,25 @@ export type Part =
   | { kind: "query"; cypher: string; rows?: number; ms?: number; error?: string }
   | { kind: "lookup"; text: string; papers: number; concepts: number; ms: number }
   // any other MCP tool: its summary, and the graph nodes ("paper:ID" / "finding:ID") its result rests on
-  | { kind: "tool"; name: string; args: Record<string, unknown>; summary?: string; error?: string; ms?: number; nodes: string[] }
+  | { kind: "tool"; name: string; args: Record<string, unknown>; summary?: string; error?: string; ms?: number; nodes: string[]; paths?: TracePath[] }
   | { kind: "job"; job: string };
+
+/** One route found by trace_path: its nodes in order and the relationship between each pair. */
+export interface TracePath {
+  nodes: { kind: string; id: string; name: string }[];
+  rels: string[]; // "-[FUNDED_BY]->" / "<-[FOUND]-", one per hop
+}
+
+/** Reasoning to draw on the canvas: a route hop by hop, or the set of papers and findings a tool rests on. */
+export interface Trail {
+  title: string;
+  paths: TracePath[] | null;
+  nodes: string[]; // "paper:ID" / "finding:ID"
+}
+
+export function trailOf(p: Extract<Part, { kind: "tool" }>, title: string): Trail {
+  return { title: p.summary ? `${title} · ${p.summary}` : title, paths: p.paths?.length ? p.paths : null, nodes: p.nodes };
+}
 
 export interface Suggestion {
   title: string;
@@ -101,7 +118,7 @@ export const isAnswering = (qid: string) => answering.has(qid);
 
 // ---- where graph events from added papers go (the open canvas), set by the page
 
-type Sink = { apply: (qid: string, ev: Ev) => void; changed: (qid: string) => void };
+type Sink = { apply: (qid: string, ev: Ev) => void; changed: (qid: string) => void; trail: (qid: string, t: Trail) => void };
 let sink: Sink | null = null;
 export function setGraphSink(s: Sink | null) {
   sink = s;
@@ -167,7 +184,11 @@ export async function send(qid: string, text: string, ctx: ChatContext) {
       } else if (ev.event === "aliases") patchMsg(qid, reply.id, (m) => ({ ...m, aliases: d }));
       else if (ev.event === "query") append({ kind: "query", cypher: d.cypher, rows: d.rows, ms: d.ms, error: d.error });
       else if (ev.event === "lookup") append({ kind: "lookup", text: d.text, papers: d.papers, concepts: d.concepts, ms: d.ms });
-      else if (ev.event === "tool") append({ kind: "tool", name: d.name, args: d.args ?? {}, summary: d.summary ?? undefined, error: d.error ?? undefined, ms: d.ms, nodes: d.nodes ?? [] });
+      else if (ev.event === "tool") {
+        const part = { kind: "tool" as const, name: d.name, args: d.args ?? {}, summary: d.summary ?? undefined, error: d.error ?? undefined, ms: d.ms, nodes: d.nodes ?? [], paths: d.paths };
+        append(part);
+        if (part.paths?.length) sink?.trail(qid, trailOf(part, "Traced connections")); // routes are drawn as they're found
+      }
       else if (ev.event === "ingest") {
         append({ kind: "job", job: d.job });
         void follow(qid, d.job, d.refs ?? []);

@@ -35,7 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { addPapers, clearConversation, send, stopAnswer, useConversation, type Job, type Msg, type Part } from "@/lib/chat";
+import { addPapers, clearConversation, send, stopAnswer, trailOf, useConversation, type Job, type Msg, type Part, type Trail } from "@/lib/chat";
 import type { State } from "@/lib/store";
 import { Markdown, type CiteHandlers } from "../chat/Markdown";
 import { Tip } from "../Tip";
@@ -55,9 +55,10 @@ interface Props {
   onPeek: (nodeId: string) => void;
   onFocus: (key: string) => void;
   onRefs: (ids: string[] | null) => void;
+  onTrail: (t: Trail | null) => void;
 }
 
-export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, onRefs }: Props) {
+export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, onRefs, onTrail: trail }: Props) {
   const qid = state.question?.id ?? null;
   const conv = useConversation(qid);
   const [mode, setMode] = useState<"ask" | "add">("ask");
@@ -113,7 +114,11 @@ export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, o
     setFull(false);
     focus(key);
   };
-  const h: CiteHandlers = { state, hk, onPeek, onFocus, onRefs };
+  const onTrail = (t: Trail | null) => {
+    setFull(false);
+    trail(t);
+  };
+  const h: CiteHandlers = { state, hk, onPeek, onFocus, onRefs, onTrail };
   const payload = () => ({
     hypotheses: ctx.items.filter((x) => x.startsWith("h:")).map((x) => x.slice(2)),
     selected: ctx.items.filter((x) => !x.startsWith("h:")),
@@ -565,9 +570,13 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="space-y-1 border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">
-          <div className="mono text-ink-3">
-            mcp · {p.name}
-            {findings.length > 0 && <span className="font-sans"> · hover to see {findings.length} finding{findings.length === 1 ? "" : "s"} on the graph</span>}
+          <div className="flex items-center gap-2">
+            <span className="mono text-ink-3">mcp · {p.name}</span>
+            {(findings.length > 0 || !!p.paths?.length) && h.onTrail && (
+              <Button variant="outline" size="sm" className="ml-auto h-6 gap-1 px-2 text-[11px]" onClick={() => h.onTrail?.(trailOf(p, t.label))}>
+                <Waypoints className="size-3" /> Show on graph
+              </Button>
+            )}
           </div>
           {args.map(([k, v]) => (
             <div key={k} className="mono break-words">

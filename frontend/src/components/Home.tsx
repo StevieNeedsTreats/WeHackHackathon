@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { setGraphSink } from "@/lib/chat";
+import { setGraphSink, type Trail } from "@/lib/chat";
 import { deleteQuestion, forgetQuestion, getHealth, warmQuestions, getQuestions, interpret, type Edits } from "@/lib/api";
 import { notify } from "@/lib/notify";
 import { useResearch } from "@/lib/store";
@@ -59,6 +59,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   const [selected, setSelected] = useState<string | null>(null);
   const [refs, setRefs] = useState<string[] | null>(null);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [trail, setTrail] = useState<Trail | null>(null);
 
   const refresh = useCallback(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
@@ -130,11 +131,28 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   // Chat citations select on the graph without leaving the conversation.
   const peek = useCallback((id: string) => setSelected(id), []);
 
+  // Reasoning drawn on the canvas, from the chat's tool calls. It lives on one hypothesis's canvas,
+  // so showing it moves the focus there.
+  const showTrail = useStableCallback((t: Trail | null) => {
+    setTrail(t);
+    if (!t) return;
+    const first = t.nodes.find((n) => n.startsWith("finding:"));
+    const key =
+      t.paths?.[0]?.nodes.find((n) => n.kind === "hypothesis" && state.hyps[n.id])?.id ??
+      (focus !== "all" && focus !== "compare" ? null : first ? Object.keys(state.findings[first.slice(8)]?.evidence ?? {})[0] : state.hypOrder[0]);
+    if (key && key !== focus && state.hyps[key]) setFocus(key);
+  });
+  const [trailFor, setTrailFor] = useState(qid);
+  if (trailFor !== qid) {
+    setTrailFor(qid);
+    setTrail(null);
+  }
+  const trailFromChat = useStableCallback((q: string, t: Trail) => q === state.question?.id && showTrail(t));
   // Papers added from the chat stream their graph updates onto the open canvas.
   useEffect(() => {
-    setGraphSink({ apply: absorb, changed: refresh });
+    setGraphSink({ apply: absorb, changed: refresh, trail: trailFromChat });
     return () => setGraphSink(null);
-  }, [absorb, refresh]);
+  }, [absorb, refresh, trailFromChat]);
   const focusHyp = useCallback((f: Focus) => {
     setFocus(f);
     setSelected(null);
@@ -309,6 +327,8 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
                   onSelect={select}
                   onFocus={setFocus}
                   highlight={refs}
+                  trail={trail}
+                  onTrail={showTrail}
                   empty={empty}
                 />
               )}
@@ -331,7 +351,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
             {tab === "chat" ? (
               // The chat scrolls its own messages and keeps the composer pinned below them.
               <TabsContent value="chat" className="min-h-0 overflow-hidden">
-                <ChatTab state={state} hk={focus === "all" || focus === "compare" ? null : focus} selected={selected} onPeek={peek} onFocus={focusHyp} onRefs={setRefs} />
+                <ChatTab state={state} hk={focus === "all" || focus === "compare" ? null : focus} selected={selected} onPeek={peek} onFocus={focusHyp} onRefs={setRefs} onTrail={showTrail} />
               </TabsContent>
             ) : (
               <ScrollArea key={tab} className="min-h-0 flex-1">
