@@ -43,6 +43,19 @@ FalkorDB holds only the evidence graph. The side storage (abstracts, verdicts, r
 
 All backend settings use the `TG_` prefix; see `backend/app/config.py`.
 
+### Chat and adding papers
+
+The **Chat** tab answers questions about the open question and anything else in the graph. Answers cite the hypotheses, papers and findings they rest on; click a citation to see it on the graph.
+
+- **Context:** each message carries a compact summary of the question with short refs (`H1`, `P3`, `F12`), so most answers need no query. The summary is the cached part of the prompt.
+- **Queries:** for the rest, the model writes read-only Cypher that starts from indexed keys, and uses the full-text indexes to find papers and topics by name. Each query shows under the answer with its row count and time.
+- **Model:** chat uses `TG_MODEL_CHAT`. If that's unset, it uses `claude-opus-5-5` on Anthropic, or the orchestrator's model on other providers.
+
+To add papers to a researched question, switch the composer to **Add paper**, or ask in the chat. You can give a DOI, a link (DOI, PubMed, PMC, arXiv, OpenAlex, a publisher page or a PDF) or a title with authors. You can also upload or drop up to 8 PDF or text files.
+
+- **Screening:** each paper is checked against the question's hypotheses and turned away if it isn't evidence on any of them. A paper already in the graph is reported as a duplicate.
+- **Graph update:** accepted papers are extracted and scored like discovered ones. Only their findings are judged and checked for contradictions, then each affected verdict is rewritten. The graph updates live.
+
 ### Access password
 
 Set `TG_APP_PASSWORD` in `backend/.env` to require a password. The frontend shows a sign-in screen, and every API route except sign-in needs a token.
