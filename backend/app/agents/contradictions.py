@@ -23,7 +23,9 @@ class PairOut(BaseModel):
     conflict: bool = Field(description="False when the two findings do not actually disagree")
     reason: Reason
     explained_by: str | None = Field(default=None,
-                                     description="If a study difference explains the disagreement, say which in ≤12 words")
+                                     description="If a study difference explains the disagreement, name the specific "
+                                                 "difference in ≤12 words (e.g. 'PHQ-9 vs HAM-D', '8 vs 2 weeks'), "
+                                                 "not just the reason category")
 
 
 class ContradictionResult(BaseModel):
