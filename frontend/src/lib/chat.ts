@@ -15,6 +15,8 @@ export type Part =
   | { kind: "text"; text: string }
   | { kind: "query"; cypher: string; rows?: number; ms?: number; error?: string }
   | { kind: "lookup"; text: string; papers: number; concepts: number; ms: number }
+  // any other MCP tool: its summary, and the graph nodes ("paper:ID" / "finding:ID") its result rests on
+  | { kind: "tool"; name: string; args: Record<string, unknown>; summary?: string; error?: string; ms?: number; nodes: string[] }
   | { kind: "job"; job: string };
 
 export interface Suggestion {
@@ -164,6 +166,7 @@ export async function send(qid: string, text: string, ctx: ChatContext) {
       } else if (ev.event === "aliases") patchMsg(qid, reply.id, (m) => ({ ...m, aliases: d }));
       else if (ev.event === "query") append({ kind: "query", cypher: d.cypher, rows: d.rows, ms: d.ms, error: d.error });
       else if (ev.event === "lookup") append({ kind: "lookup", text: d.text, papers: d.papers, concepts: d.concepts, ms: d.ms });
+      else if (ev.event === "tool") append({ kind: "tool", name: d.name, args: d.args ?? {}, summary: d.summary ?? undefined, error: d.error ?? undefined, ms: d.ms, nodes: d.nodes ?? [] });
       else if (ev.event === "ingest") {
         append({ kind: "job", job: d.job });
         void follow(qid, d.job, d.refs ?? []);

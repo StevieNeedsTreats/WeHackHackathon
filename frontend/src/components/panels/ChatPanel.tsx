@@ -9,16 +9,21 @@ import {
   Copy,
   Database,
   FileUp,
+  GitFork,
   Info,
   Link2,
   LoaderCircle,
   Maximize2,
   MessageSquare,
   Minimize2,
+  Network,
   Plus,
+  Scale,
   Search,
   Square,
   Trash2,
+  Waypoints,
+  Wrench,
   X,
 } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -510,8 +515,69 @@ function PartView({ p, jobs, h, onRetry }: { p: Part; jobs: Record<string, Job>;
         </CollapsibleContent>
       </Collapsible>
     );
+  if (p.kind === "tool") return <ToolCard p={p} h={h} />;
   const job = jobs[p.job];
   return job ? <JobCard job={job} h={h} onRetry={onRetry} /> : null;
+}
+
+const TOOLS: Record<string, { label: string; icon: React.ReactNode }> = {
+  explain_verdict: { label: "Explained the verdict", icon: <Scale className="size-3" /> },
+  trace_path: { label: "Traced connections", icon: <Waypoints className="size-3" /> },
+  influential_papers: { label: "Ranked papers by citation influence", icon: <Network className="size-3" /> },
+  contradiction_clusters: { label: "Found where the evidence splits", icon: <GitFork className="size-3" /> },
+  question_overview: { label: "Read a question overview", icon: <Info className="size-3" /> },
+  list_questions: { label: "Listed questions", icon: <Database className="size-3" /> },
+};
+
+/** A call to one of the MCP server's tools. Hovering it lights up the findings its result rests on. */
+function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandlers }) {
+  const t = TOOLS[p.name] ?? { label: p.name, icon: <Wrench className="size-3" /> };
+  const papers = new Set(p.nodes.filter((n) => n.startsWith("paper:")).map((n) => n.slice(6)));
+  const findings = [
+    ...new Set([
+      ...p.nodes.filter((n) => n.startsWith("finding:")).map((n) => n.slice(8)),
+      ...Object.values(h.state.findings)
+        .filter((f) => papers.has(f.paper_id))
+        .map((f) => f.id),
+    ]),
+  ].filter((id) => h.state.findings[id]);
+  const args = Object.entries(p.args).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length));
+  return (
+    <Collapsible
+      className="group/q rounded-md border bg-surface/60 text-[11.5px]"
+      onMouseEnter={() => findings.length && h.onRefs(findings)}
+      onMouseLeave={() => findings.length && h.onRefs(null)}
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-muted-foreground hover:text-ink">
+        <ChevronRight className="size-3 shrink-0 transition-transform group-data-[state=open]/q:rotate-90" />
+        {t.icon}
+        {p.error ? (
+          <span className="truncate text-neg-ink">
+            {t.label} failed: {p.error}
+          </span>
+        ) : (
+          <span className="truncate">
+            {t.label}
+            {p.summary ? ` · ${p.summary}` : ""}
+            {p.ms != null ? ` · ${Math.round(p.ms)} ms` : ""}
+          </span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-1 border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">
+          <div className="mono text-ink-3">
+            mcp · {p.name}
+            {findings.length > 0 && <span className="font-sans"> · hover to see {findings.length} finding{findings.length === 1 ? "" : "s"} on the graph</span>}
+          </div>
+          {args.map(([k, v]) => (
+            <div key={k} className="mono break-words">
+              <span className="text-ink-3">{k}:</span> {typeof v === "string" ? v : JSON.stringify(v)}
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 const ITEM_ICON: Record<string, React.ReactNode> = {
