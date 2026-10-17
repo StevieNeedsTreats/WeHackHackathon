@@ -5,16 +5,19 @@ import hashlib
 import json
 import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from mcp import Client as MCPClient
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, Field
 from redis.exceptions import RedisError
 from sse_starlette.sse import EventSourceResponse
+from starlette.routing import Route
 
-from . import auth
+from . import auth, mcp_server
 from .agents import chat as chat_agent
 from .agents.base import AgentContext
 from .agents.ingest import IngestRun, Item
@@ -48,11 +51,16 @@ async def lifespan(app: FastAPI):
     state["jobs"] = {}  # ingest job id -> LiveRun
     state["ingest_locks"] = {}  # qid -> lock: papers for one question are added one batch at a time
     state["chat_ctx"] = {}  # qid -> (fetched at, snapshot, verdicts)
+    state["mcp_limiter"] = RateLimiter(240)  # MCP clients make several requests per tool call
+    mcp_server.bind(mcp_server.Deps(store=store, overview=_overview, add_papers=_add_by_reference))
     if not auth.enabled():
         log.warning("TG_APP_PASSWORD is not set: the API is open to anyone who can reach it")
-    yield
-    for live in [*state["live"].values(), *state["jobs"].values()]:
-        live.task.cancel()
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(mcp_server.server.session_manager.run())  # /mcp over HTTP
+        state["mcp"] = await stack.enter_async_context(MCPClient(mcp_server.server))  # the chat's session
+        yield
+        for live in [*state["live"].values(), *state["jobs"].values()]:
+            live.task.cancel()
     await state["sources"].close()
 
 
@@ -109,6 +117,15 @@ async def refresh(body: RefreshIn, request: Request):
     if not auth.enabled() or not auth.valid(body.refresh, "refresh"):
         raise HTTPException(401, "Session expired, sign in again")
     return auth.issue()
+
+
+@app.post("/api/mcp/token")
+async def mcp_token():
+    """A long-lived token for an MCP client (Claude Code, Claude Desktop…) to reach /mcp. Signed in only."""
+    if not auth.enabled():
+        return {"token": None, "expires": None, "note": "Sign-in is off, so /mcp needs no token"}
+    token, exp = auth.mcp_token()
+    return {"token": token, "expires": exp}
 
 
 @app.get("/api/health")
@@ -440,6 +457,22 @@ async def _chat_context(qid: str) -> tuple[dict, dict]:
     return snap, verdicts
 
 
+async def _overview(qid: str, keys: list[str]) -> str:
+    """The chat's digest of a question, for MCP clients."""
+    try:
+        snap, verdicts = await _chat_context(_check_id(qid))
+    except HTTPException as e:
+        raise LookupError(e.detail) from e
+    return chat_agent.digest(snap, verdicts, keys, [])[0]
+
+
+async def _add_by_reference(qid: str, refs: list[str]) -> str:
+    exists = await state["store"].ro("MATCH (q:Question {id:$id}) RETURN q.id", {"id": qid})
+    if not exists.result_set:
+        raise LookupError(f"No question with id {qid}")
+    return start_ingest(qid, [Item(r[:120], ref=r) for r in refs[:MAX_ITEMS]])
+
+
 @app.post("/api/chat")
 async def chat(body: ChatIn, request: Request):
     """Answer a question about the open question (and anything else in the graph), streamed."""
@@ -450,12 +483,9 @@ async def chat(body: ChatIn, request: Request):
     snap, verdicts = await _chat_context(qid)
     context, aliases = chat_agent.digest(snap, verdicts, body.hypotheses, body.selected)
 
-    async def add(refs: list[str]) -> str:
-        return start_ingest(qid, [Item(r[:120], ref=r) for r in refs])
-
     async def events():
-        async for ev in chat_agent.answer(state["store"], qid, (body.hypotheses or [None])[0], context, aliases,
-                                          [m.model_dump() for m in body.messages], add):
+        async for ev in chat_agent.answer(state["mcp"], qid, (body.hypotheses or [None])[0], context, aliases,
+                                          [m.model_dump() for m in body.messages]):
             yield {"event": ev["event"], "data": json.dumps(ev["data"], default=str)}
 
     return EventSourceResponse(events(), ping=10)
@@ -562,3 +592,39 @@ async def query(body: CypherIn, request: Request):
         "ms": ms,
         "server_ms": getattr(res, "run_time_ms", None),
     }
+
+
+# ====================================================================== MCP over HTTP
+
+
+class _MCPApp:
+    """/mcp: the MCP server (mcp_server.py) over streamable HTTP, stateless so any worker can answer. It sits
+    outside FastAPI's dependencies, so it checks the bearer token itself: an access token, or the long-lived
+    token from POST /api/mcp/token. A class, so Starlette routes to it as a raw ASGI app."""
+
+    def __init__(self) -> None:
+        # Host checks guard an unauthenticated local server against DNS rebinding; with sign-in on, the token does.
+        security = TransportSecuritySettings(enable_dns_rebinding_protection=False) if auth.enabled() else None
+        sub = mcp_server.server.streamable_http_app(streamable_http_path="/mcp", stateless_http=True,
+                                                    transport_security=security)
+        self.inner = next(r for r in sub.routes if getattr(r, "path", None) == "/mcp").app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            client = scope.get("client")
+            allowed, retry = state["mcp_limiter"].allow((client[0] if client else "anon") + ":mcp")
+            headers = dict(scope.get("headers") or [])
+            scheme, _, token = headers.get(b"authorization", b"").decode().partition(" ")
+            if not allowed or (auth.enabled() and (scheme.lower() != "bearer" or not (
+                    auth.valid(token, "access") or auth.valid(token, "mcp")))):
+                status, msg = (429, f"Rate limit reached. Try again in {int(retry) + 1}s.") if not allowed else \
+                    (401, "Sign in to use TruthGraph: send Authorization: Bearer <token from POST /api/mcp/token>")
+                body = json.dumps({"detail": msg}).encode()
+                await send({"type": "http.response.start", "status": status, "headers": [
+                    (b"content-type", b"application/json"), (b"www-authenticate", b"Bearer")]})
+                await send({"type": "http.response.body", "body": body})
+                return
+        await self.inner(scope, receive, send)
+
+
+app.router.routes.append(Route("/mcp", _MCPApp(), methods=["GET", "POST", "DELETE"]))

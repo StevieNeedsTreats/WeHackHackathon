@@ -63,6 +63,12 @@ def issue() -> dict:
     return {"access": access, "access_expires": access_exp, "refresh": refresh, "refresh_expires": refresh_exp}
 
 
+def mcp_token() -> tuple[str, int]:
+    """A bearer token for MCP clients only (valid at /mcp, not the rest of the API), lasting days, since
+    those clients can't refresh."""
+    return _sign("mcp", get_settings().auth_mcp_days * 86400)
+
+
 def valid(token: str, typ: str) -> bool:
     """Signature intact, of the expected type (a refresh token can't be used as a bearer), not expired."""
     try:

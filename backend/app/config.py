@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     auth_secret: str = ""  # optional token-signing key; derived from the password when empty
     auth_access_minutes: int = 30  # bearer token sent with every request
     auth_refresh_days: int = 30  # exchanged for new tokens; rotated on each use (sliding)
+    auth_mcp_days: int = 90  # tokens for MCP clients (POST /api/mcp/token), which can't refresh
 
 
 @lru_cache
