@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
+import { deleteQuestion, getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
 import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
 
@@ -125,6 +125,23 @@ export default function Home() {
     load(id);
   };
 
+  const remove = async (id: string) => {
+    try {
+      await deleteQuestion(id);
+    } catch (e) {
+      setRefusal({ ok: false, code: "error", message: `Couldn't delete: ${(e as Error).message}` });
+      return;
+    }
+    if (state.question?.id === id) {
+      stop();
+      reset();
+      setFocus("all");
+      setSelected(null);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    refresh();
+  };
+
   const demos = health?.demos ?? [];
   const empty = interp ? (
     <InterpretationCard interp={interp} onRun={research} onCancel={() => setInterp(null)} />
@@ -198,7 +215,7 @@ export default function Home() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[272px_minmax(0,1fr)_400px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
         <div className="order-3 border-t bg-background lg:order-none lg:min-h-0 lg:border-r lg:border-t-0">
-          <AgentRail state={state} questions={questions} onOpen={open} onFocus={setFocus} />
+          <AgentRail state={state} questions={questions} onOpen={open} onFocus={setFocus} onDelete={remove} />
         </div>
 
         <main className="order-1 h-[64vh] min-h-[420px] lg:order-none lg:h-auto lg:min-h-0" aria-label="Evidence graph">
