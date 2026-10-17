@@ -183,12 +183,51 @@ class Run:
             return
         for key in self.hyps:
             existing = await self.store.find_hypothesis(key)
-            if existing and existing.get("verdict") and existing.get("updated") and \
-                    time.time() * 1000 - existing["updated"] < self.settings.cache_ttl_s * 1000:
+            # "Insufficient evidence" is often a run that went wrong (no papers found, a bad
+            # answer from a model), so research it again rather than reuse it.
+            if existing and existing.get("verdict") and existing["verdict"] != "Insufficient evidence" and \
+                    existing.get("updated") and time.time() * 1000 - existing["updated"] < self.settings.cache_ttl_s * 1000:
                 self.state[key]["reused"] = True
                 self.state[key]["verdict"] = existing.get("verdict")
                 await self.agent("orchestrator", "running", f"Reusing earlier research for “{self.hyps[key]['statement']}”",
                                  hypothesis=key)
+        reused = [k for k in self.hyps if self.state[k]["reused"]]
+        if reused:
+            await self.replay(reused)
+
+    async def replay(self, keys: list[str]) -> None:
+        """Stream the stored results of reused hypotheses, so the canvas shows them during the run
+        exactly as if they had just been researched (no LLM calls, one graph read)."""
+        snap = await self.store.snapshot(self.qid)
+        want = set(keys)
+        for p in snap["papers"]:
+            considered = {k: c for k, c in (p.get("considered") or {}).items() if k in want}
+            if not considered:
+                continue
+            for k, c in considered.items():
+                self.state[k]["papers"][p["id"]] = {"relevance": c.get("relevance") or 0, "slice": c.get("slice") or ""}
+            await self.emit("paper", {"paper": {**p, "considered": considered}})
+        by_paper: dict[str, dict] = {}
+        for f in snap["findings"]:
+            if want & set(f["evidence"]):
+                by_paper.setdefault(f["paper_id"], {"studies": {}, "findings": []})["findings"].append(f)
+        studies = {st["id"]: st for st in snap["studies"]}
+        for pid, x in by_paper.items():
+            sts = [studies[f["study_id"]] for f in x["findings"] if f["study_id"] in studies]
+            first = sts[0] if sts else {}
+            await self.emit("extraction", {"paper_id": pid, "design": first.get("design"), "n": first.get("n"),
+                                           "studies": list({st["id"]: st for st in sts}.values()),
+                                           "findings": [{k: v for k, v in f.items() if k != "evidence"} for f in x["findings"]]})
+        for key in keys:
+            evidence = [{"finding_id": f["id"], **f["evidence"][key]} for f in snap["findings"] if key in f["evidence"]]
+            await self.emit("stances", {"hypothesis": key, "evidence": evidence,
+                                        "clusters": [c for c in snap["clusters"] if c["hypothesis"] == key]})
+            await self.emit("contradictions", {"hypothesis": key, "items": [
+                {k: v for k, v in c.items() if k != "hypothesis"} for c in snap["contradictions"] if c["hypothesis"] == key]})
+            raw = await self.sources.redis.get(f"tg:hyp:{key}:verdict")
+            if raw:
+                await self.emit("verdict", json.loads(raw))
+            self.state[key].update(stance=True, contradictions=True)
 
     def hyp_view(self, key: str) -> dict:
         h, st = self.hyps[key], self.state[key]
