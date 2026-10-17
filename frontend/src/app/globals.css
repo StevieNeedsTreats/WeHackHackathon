@@ -229,17 +229,20 @@ body {
   }
 }
 
-.tg-dim {
-  opacity: 0.18;
+/* Dimming is applied to React Flow's own wrappers by a generated rule (GraphCanvas). */
+.tg-flow .react-flow__node,
+.tg-flow .react-flow__edge {
   transition: opacity 160ms ease;
 }
 
+/* Entry animation plays when a node mounts, i.e. exactly when it first appears. */
 .tg-node {
-  transition: opacity 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  animation: tg-enter 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .tg-edge path {
-  transition: opacity 160ms ease, stroke 160ms ease, stroke-width 160ms ease;
+  transition: opacity 160ms ease;
 }
 
 .tg-edge-draw {
@@ -293,6 +296,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .tg-enter,
+  .tg-node,
   .tg-edge-draw,
   .tg-shimmer,
   .tg-spin,

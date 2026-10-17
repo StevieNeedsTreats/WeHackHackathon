@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import { attachUrl, getQuestion, stopRun, streamUrl, type Edits, type Snapshot } from "./api";
 import type {
   Cluster,
@@ -130,9 +130,13 @@ const addStep = (s: State, step: Step): State => ({ ...s, steps: [...s.steps.sli
 function setHyps(s: State, hs: Hypothesis[]): State {
   const hyps = { ...s.hyps };
   const order = [...s.hypOrder];
+  const seen = new Set(order);
   for (const h of hs) {
     hyps[h.key] = { ...(hyps[h.key] ?? {}), ...h };
-    if (!order.includes(h.key)) order.push(h.key);
+    if (!seen.has(h.key)) {
+      seen.add(h.key);
+      order.push(h.key);
+    }
   }
   return { ...s, hyps, hypOrder: order };
 }
@@ -317,7 +321,9 @@ async function* sse(body: ReadableStream<Uint8Array>, signal: AbortSignal): Asyn
 export function useResearch() {
   const [state, dispatch] = useReducer(reducer, initial);
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   const abort = useRef<AbortController | null>(null);
   const pending = useRef<Ev[]>([]);
   const raf = useRef<number | null>(null);

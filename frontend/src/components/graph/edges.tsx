@@ -1,10 +1,10 @@
 "use client";
 
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useContext } from "react";
 import type { EdgeKind } from "@/lib/layout";
 import type { Stance } from "@/lib/types";
-import { dimClass, useGraph } from "./context";
+import { LabelContext } from "./context";
 import { STANCE } from "./glyphs";
 
 type Data = { kind: EdgeKind; stance?: Stance; weight?: number; reason?: string; severity?: string; explained?: string | null };
@@ -19,10 +19,8 @@ export const EDGE_STYLE: Record<EdgeKind, { stroke: string; width: number; dash?
 
 export const VgEdge = memo(function VgEdge(props: EdgeProps & { data?: Data }) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props;
-  const ctx = useGraph();
   const kind = data?.kind ?? "describes";
   const s = EDGE_STYLE[kind];
-  const focused = ctx.active?.has(id);
   const [path, lx, ly] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, curvature: kind === "contradicts" ? 0.5 : 0.3 });
   let stroke = s.stroke;
   let width = s.width;
@@ -31,30 +29,36 @@ export const VgEdge = memo(function VgEdge(props: EdgeProps & { data?: Data }) {
     width = 1 + (data.weight ?? 0.3) * 3.2;
   }
   if (kind === "contradicts" && data?.explained) stroke = "var(--ink-3)";
-  const fresh = ctx.fresh.has(id) && (kind === "contradicts" || kind === "evidence");
   return (
     <>
-      <g className={`tg-edge ${dimClass(ctx, id)}`}>
+      <g className="tg-edge">
         <BaseEdge
           id={id}
           path={path}
-          className={fresh ? "tg-edge-draw" : ""}
-          style={{ stroke, strokeWidth: focused ? width + 0.6 : width, strokeDasharray: fresh ? undefined : s.dash, opacity: focused ? 1 : s.opacity, fill: "none" }}
+          className={kind === "evidence" ? "tg-edge-draw" : ""}
+          style={{ stroke, strokeWidth: width, strokeDasharray: s.dash, opacity: s.opacity, fill: "none" }}
         />
       </g>
-      {kind === "contradicts" && data?.reason && (focused || ctx.selected === id) && (
-        <EdgeLabelRenderer>
-          <div
-            className="mono pointer-events-none absolute max-w-[220px] rounded-[4px] border bg-surface px-1.5 py-0.5 text-[10px] shadow-[var(--shadow-sm)]"
-            style={{ transform: `translate(-50%,-50%) translate(${lx}px,${ly}px)`, borderColor: stroke, color: data.explained ? "var(--ink-2)" : "var(--neg-ink)" }}
-          >
-            {data.reason}
-            {data.explained && <span className="block text-ink-3">explained: {data.explained}</span>}
-          </div>
-        </EdgeLabelRenderer>
-      )}
+      {kind === "contradicts" && data?.reason && <ContradictionLabel id={id} x={lx} y={ly} stroke={stroke} reason={data.reason} explained={data.explained} />}
     </>
   );
 });
+
+/** Only contradiction edges read the label set, so changing it re-renders just these. */
+function ContradictionLabel({ id, x, y, stroke, reason, explained }: { id: string; x: number; y: number; stroke: string; reason: string; explained?: string | null }) {
+  const labelled = useContext(LabelContext);
+  if (!labelled.has(id)) return null;
+  return (
+        <EdgeLabelRenderer>
+          <div
+            className="mono pointer-events-none absolute max-w-[220px] rounded-[4px] border bg-surface px-1.5 py-0.5 text-[10px] shadow-[var(--shadow-sm)]"
+            style={{ transform: `translate(-50%,-50%) translate(${x}px,${y}px)`, borderColor: stroke, color: explained ? "var(--ink-2)" : "var(--neg-ink)" }}
+          >
+            {reason}
+            {explained && <span className="block text-ink-3">{explained.toLowerCase() !== reason.toLowerCase() ? `explained: ${explained}` : "explained"}</span>}
+          </div>
+        </EdgeLabelRenderer>
+  );
+}
 
 export const edgeTypes = { tg: VgEdge };

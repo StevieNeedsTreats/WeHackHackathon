@@ -32,7 +32,7 @@ export function InterpretationCard({
 }) {
   const q = interp.question!;
   const d = interp.domain!;
-  const [keep, setKeep] = useState<Record<string, boolean>>(Object.fromEntries(q.hypotheses.map((h) => [h.key, true])));
+  const [keep, setKeep] = useState<Record<string, boolean>>(() => Object.fromEntries(q.hypotheses.map((h) => [h.key, true])));
   const [pop, setPop] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [fresh, setFresh] = useState(false);

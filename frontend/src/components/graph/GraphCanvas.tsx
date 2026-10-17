@@ -2,7 +2,7 @@
 
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeChange } from "@xyflow/react";
 import { Maximize, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -10,7 +10,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { allLayout, focusLayout, type EdgeKind, type LNode } from "@/lib/layout";
 import type { State } from "@/lib/store";
-import { GraphContext, type GraphCtx } from "./context";
+import { GraphContext, LabelContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
 import { STANCE } from "./glyphs";
 import { nodeTypes } from "./nodes";
@@ -56,7 +56,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
   // ---- position tween: nodes glide to new slots when the layout changes
   const target = useMemo(() => Object.fromEntries(layout.nodes.map((n) => [n.id, n])), [layout]);
   const display = useRef<Record<string, Box>>({});
-  const [, setFrame] = useState(0);
+  const [frame, setFrame] = useState(0);
   useEffect(() => {
     const from: Record<string, Box> = {};
     let moving = false;
@@ -102,34 +102,6 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     if (changed) setFrame((f) => f + 1);
   }, []);
 
-  // ---- entry animations for ids that just arrived
-  const known = useRef<Set<string>>(new Set());
-  const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  useEffect(() => {
-    const ids = [...layout.nodes.map((n) => n.id), ...layout.edges.map((e) => e.id)];
-    const added = ids.filter((id) => !known.current.has(id));
-    if (!added.length) return;
-    added.forEach((id) => known.current.add(id));
-    setFresh((f) => new Set([...f, ...added]));
-    const t = setTimeout(() => {
-      timers.current.delete(t);
-      setFresh((f) => {
-        const n = new Set(f);
-        added.forEach((id) => n.delete(id));
-        return n;
-      });
-    }, 900);
-    timers.current.add(t);
-  }, [layout]);
-  useEffect(() => {
-    const ts = timers.current;
-    return () => ts.forEach(clearTimeout);
-  }, []);
-  useEffect(() => {
-    known.current = new Set();
-  }, [state.version]);
-
   // ---- neighbourhood for hover / selection / insight refs
   const adjacency = useMemo(() => {
     const adj: Record<string, { node: string; edge: string; kind: EdgeKind }[]> = {};
@@ -163,52 +135,115 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     [adjacency, kindOf],
   );
 
-  const active = useMemo(() => {
+  // Exactly these findings: their papers, their evidence edges, and only the contradictions
+  // *between* them (not every other conflict they take part in). Returns the contradiction
+  // edges inside the set too, so a single pair can be labelled.
+  const spotlight = useCallback(
+    (seeds: string[]) => {
+      const set = new Set(seeds.filter((id) => target[id]));
+      if (!set.size) return null;
+      const between: string[] = [];
+      for (const id of [...set]) {
+        for (const nb of adjacency[id] ?? []) {
+          if (nb.kind === "contradicts") {
+            if (set.has(nb.node)) between.push(nb.edge);
+            continue;
+          }
+          if (nb.kind === "describes" || nb.kind === "evidence") {
+            set.add(nb.edge);
+            set.add(nb.node);
+          }
+        }
+      }
+      between.forEach((e) => set.add(e));
+      return { set, between: [...new Set(between)] };
+    },
+    [adjacency, target],
+  );
+
+  const edgeEnds = useMemo(() => Object.fromEntries(layout.edges.map((e) => [e.id, [e.source, e.target]])), [layout]);
+  const { active, labelled } = useMemo(() => {
     const valid = (id: string | null) => id && target[id] && target[id].kind !== "hypothesis" && target[id].kind !== "label";
-    if (valid(hover)) return neighbourhood([hover!]);
-    if (highlight?.length) return neighbourhood(highlight.map((f) => `f:${f}`).filter((id) => target[id]));
-    if (valid(selected)) return neighbourhood([selected!]);
-    return null;
-  }, [hover, highlight, selected, neighbourhood, target]);
+    const pair = (id: string | null) => (id?.startsWith("c:") && edgeEnds[id] ? spotlight(edgeEnds[id]) : null);
+    const lit = (s: { set: Set<string>; between: string[] } | null, label: boolean) =>
+      s && { active: s.set, labelled: new Set(label ? s.between : []) };
+    const none = { active: null, labelled: new Set<string>() };
+    if (valid(hover)) return { active: neighbourhood([hover!]), labelled: new Set<string>() };
+    const hovered = lit(pair(hover), true);
+    if (hovered) return hovered;
+    // Panel hover (insight, cluster, contradiction): label only a single pair, or labels pile up.
+    if (highlight?.length) return lit(spotlight(highlight.map((f) => `f:${f}`)), highlight.length === 2) ?? none;
+    if (valid(selected)) return { active: neighbourhood([selected!]), labelled: new Set<string>() };
+    return lit(pair(selected), true) ?? none;
+  }, [hover, highlight, selected, neighbourhood, spotlight, edgeEnds, target]);
 
   const hNum = useMemo(() => Object.fromEntries(state.hypOrder.map((k, i) => [k, i + 1])), [state.hypOrder]);
-  const ctx: GraphCtx = useMemo(() => ({ state, focus, active, selected, fresh, hNum }), [state, focus, active, selected, fresh, hNum]);
+  const ctx: GraphCtx = useMemo(() => ({ state, focus, hNum }), [state, focus, hNum]);
+
+  // Dimming and the selection ring as one generated rule keyed on React Flow's data-id
+  // attributes: hovering rewrites this string instead of re-rendering every node and edge.
+  const focusCss = useMemo(() => {
+    const q = (id: string) => `[data-id="${id.replace(/["\\]/g, "\\$&")}"]`;
+    let css = "";
+    if (active?.size) {
+      const lit = [...active].map(q).join(",");
+      css += `.tg-flow .react-flow__node:not(${lit}),.tg-flow .react-flow__edge:not(${lit}){opacity:.18}`;
+      css += `.tg-flow .react-flow__edge:is(${lit}) .react-flow__edge-path{opacity:1!important}`;
+    }
+    if (selected && target[selected]) css += `.tg-flow .react-flow__node${q(selected)} .tg-node{outline:2px solid var(--ink);outline-offset:2px}`;
+    return css;
+  }, [active, selected, target]);
 
   // ---- React Flow elements
-  const nodes: Node[] = layout.nodes
-    .filter((n) => display.current[n.id])
-    .map((n: LNode) => {
-      const p = display.current[n.id];
-      return {
-        id: n.id,
-        type: n.kind,
-        position: { x: p.x, y: p.y },
-        data: { ...n.data, w: n.w, h: n.h },
-        measured: measured.current[n.id],
-        draggable: false,
-        selectable: n.kind !== "label",
-        // The hypothesis sits above everything, contradiction lines included: they span the
-        // canvas between findings and must never cover its title or verdict.
-        zIndex: n.kind === "finding" ? 2 : n.kind === "hypothesis" ? 5 : 1,
-      };
-    });
-  const edges: Edge[] = layout.edges
-    .filter((e) => display.current[e.source] && display.current[e.target])
-    .filter((e) => !(e.kind in show) || show[e.kind as Toggleable])
-    .map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: "tg",
-      ...handles(target[e.source], target[e.target]),
-      data: { kind: e.kind, stance: e.stance, weight: e.weight, reason: e.reason, severity: e.severity, explained: e.explained },
-      zIndex: e.kind === "contradicts" ? 4 : 0,
-      selectable: e.kind === "contradicts",
-    }));
+  // Node data objects are created once per layout, so memoised nodes skip re-rendering while the
+  // tween moves them (only `position` changes per frame) and when the user merely hovers.
+  const nodeData = useMemo(() => Object.fromEntries(layout.nodes.map((n) => [n.id, { ...n.data, w: n.w, h: n.h }])), [layout]);
+  const nodes: Node[] = useMemo(
+    () =>
+      layout.nodes
+        .filter((n) => display.current[n.id])
+        .map((n: LNode) => {
+          const p = display.current[n.id];
+          return {
+            id: n.id,
+            type: n.kind,
+            position: { x: p.x, y: p.y },
+            data: nodeData[n.id],
+            measured: measured.current[n.id],
+            draggable: false,
+            selectable: n.kind !== "label",
+            // The hypothesis sits above everything, contradiction lines included: they span the
+            // canvas between findings and must never cover its title or verdict.
+            zIndex: n.kind === "finding" ? 2 : n.kind === "hypothesis" ? 5 : 1,
+          };
+        }),
+    // `frame` advances whenever display positions or measurements (both refs) change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layout, nodeData, frame],
+  );
+  const edges: Edge[] = useMemo(
+    () =>
+      layout.edges
+        .filter((e) => target[e.source] && target[e.target])
+        .filter((e) => !(e.kind in show) || show[e.kind as Toggleable])
+        .map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          type: "tg",
+          ...handles(target[e.source], target[e.target]),
+          data: { kind: e.kind, stance: e.stance, weight: e.weight, reason: e.reason, severity: e.severity, explained: e.explained },
+          zIndex: e.kind === "contradicts" ? 4 : 0,
+          selectable: e.kind === "contradicts",
+        })),
+    [layout, show, target],
+  );
 
   // ---- follow the build: keep the whole graph in view while it grows
   const boundsRef = useRef(layout.bounds);
-  boundsRef.current = layout.bounds;
+  useLayoutEffect(() => {
+    boundsRef.current = layout.bounds;
+  }, [layout.bounds]);
   const fit = useCallback(
     (duration: number) => {
       const b = boundsRef.current;
@@ -227,13 +262,41 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     }, wait + 60);
     return () => clearTimeout(t);
   }, [sig, follow, fit, layout.nodes.length]);
-  useEffect(() => setFollow(true), [focus]);
+  // Switching hypothesis re-enables following (adjusted during render, not in an effect).
+  const [followFor, setFollowFor] = useState(focus);
+  if (followFor !== focus) {
+    setFollowFor(focus);
+    setFollow(true);
+  }
+
+  // Refit when the canvas itself resizes (side panels collapsing, window resize) while following.
+  const box = useRef<HTMLDivElement>(null);
+  const followRef = useRef(follow);
+  useLayoutEffect(() => {
+    followRef.current = follow;
+  }, [follow]);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(() => followRef.current && fit(300), 240);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      clearTimeout(t);
+    };
+  }, [fit]);
 
   const isEmpty = !state.question;
 
   return (
     <GraphContext.Provider value={ctx}>
-      <div className="relative h-full w-full">
+      <LabelContext.Provider value={labelled}>
+      <style>{focusCss}</style>
+      <div ref={box} className="tg-flow relative h-full w-full">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -253,6 +316,8 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
             else if (n.type !== "label") onSelect(n.id);
           }}
           onEdgeClick={(_, e) => onSelect(e.id)}
+          onEdgeMouseEnter={(_, e) => e.data?.kind === "contradicts" && setHover(e.id)}
+          onEdgeMouseLeave={() => setHover(null)}
           onPaneClick={() => onSelect(null)}
           onMoveStart={(ev) => {
             if (ev) setFollow(false);
@@ -300,6 +365,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
           </>
         )}
       </div>
+      </LabelContext.Provider>
     </GraphContext.Provider>
   );
 }

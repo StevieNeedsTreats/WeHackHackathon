@@ -5,7 +5,7 @@ import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { balance } from "@/lib/store";
 import type { Stance } from "@/lib/types";
-import { dimClass, useGraph } from "./context";
+import { useGraph } from "./context";
 import { designShort, DIRECTION, Icon, STANCE, StanceGlyph, TONE } from "./glyphs";
 
 type Data = { w: number; h: number; id?: string; key?: string; side?: Stance | null; shared?: boolean; stance?: string; count?: number; align?: string };
@@ -25,10 +25,18 @@ const Handles = () => (
   </>
 );
 
-function useNodeClass(id: string, base: string) {
-  const ctx = useGraph();
-  const sel = ctx.selected === id;
-  return `${base} tg-node ${dimClass(ctx, id)} ${ctx.fresh.has(id) ? "tg-enter" : ""} ${sel ? "ring-2 ring-ink ring-offset-2 ring-offset-bg" : ""}`;
+/** Node classes. Dimming, selection and the entry animation are styled from GraphCanvas's CSS. */
+/**
+ * Nodes render only from their data (and the graph context). React Flow also passes the live
+ * position, which changes on every frame of a layout tween; ignoring it keeps nodes still while
+ * they glide.
+ */
+function sameNode(a: NodeProps, b: NodeProps) {
+  return a.data === b.data && a.id === b.id;
+}
+
+function nodeClass(base: string) {
+  return `${base} tg-node`;
 }
 
 export function BalanceBar({ support, refute, mixed, className = "h-[6px]" }: { support: number; refute: number; mixed: number; className?: string }) {
@@ -53,14 +61,14 @@ const STAGE: Record<string, string> = {
   done: "done",
 };
 
-export const HypothesisNode = memo(function HypothesisNode({ id, data }: NodeProps & { data: Data }) {
+export const HypothesisNode = memo(function HypothesisNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const key = data.key!;
   const h = ctx.state.hyps[key];
   const v = ctx.state.verdicts[key];
   const b = balance(ctx.state, key);
   const tone = v ? TONE[v.tone] : null;
-  const cls = useNodeClass(id, "rounded-xl border-2 bg-card px-4 py-3 shadow-[var(--shadow-md)]");
+  const cls = nodeClass("rounded-xl border-2 bg-card px-4 py-3 shadow-[var(--shadow-md)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h, borderColor: tone?.color ?? "var(--ink)" }}>
       <Handles />
@@ -82,12 +90,12 @@ export const HypothesisNode = memo(function HypothesisNode({ id, data }: NodePro
       </div>
     </div>
   );
-});
+}, sameNode);
 
-export const OtherHypNode = memo(function OtherHypNode({ id, data }: NodeProps & { data: Data }) {
+export const OtherHypNode = memo(function OtherHypNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const h = ctx.state.hyps[data.key!];
-  const cls = useNodeClass(id, "flex items-center gap-2 rounded-lg border border-dashed border-line-2 bg-surface-2 px-3 opacity-70 hover:opacity-100");
+  const cls = nodeClass("flex items-center gap-2 rounded-lg border border-dashed border-line-2 bg-surface-2 px-3 opacity-70 hover:opacity-100");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }} title="Click to focus this hypothesis">
       <Handles />
@@ -95,11 +103,11 @@ export const OtherHypNode = memo(function OtherHypNode({ id, data }: NodeProps &
       <span className="truncate text-[12px] text-ink-2">{h?.statement}</span>
     </div>
   );
-});
+}, sameNode);
 
-export const QuestionNode = memo(function QuestionNode({ id, data }: NodeProps & { data: Data }) {
+export const QuestionNode = memo(function QuestionNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
-  const cls = useNodeClass(id, "rounded-lg bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-md)]");
+  const cls = nodeClass("rounded-lg bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-md)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }}>
       <Handles />
@@ -107,12 +115,12 @@ export const QuestionNode = memo(function QuestionNode({ id, data }: NodeProps &
       <div className="line-clamp-2 text-[14px] font-medium leading-tight">{ctx.state.question?.text}</div>
     </div>
   );
-});
+}, sameNode);
 
-export const PaperNode = memo(function PaperNode({ id, data }: NodeProps & { data: Data }) {
+export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const p = ctx.state.papers[data.id!];
-  const cls = useNodeClass(id, "relative rounded-lg border bg-card px-3 pb-2.5 pt-2.5 border-input shadow-[var(--shadow-sm)] hover:border-ink-3");
+  const cls = nodeClass("relative rounded-lg border bg-card px-3 pb-2.5 pt-2.5 border-input shadow-[var(--shadow-sm)] hover:border-ink-3");
   if (!p) return null;
   const cred = p.credibility;
   const industry = p.funders.some((f) => f.type === "industry");
@@ -162,12 +170,12 @@ export const PaperNode = memo(function PaperNode({ id, data }: NodeProps & { dat
       </div>
     </div>
   );
-});
+}, sameNode);
 
-export const FindingNode = memo(function FindingNode({ id, data }: NodeProps & { data: Data }) {
+export const FindingNode = memo(function FindingNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const f = ctx.state.findings[data.id!];
-  const cls = useNodeClass(id, "relative overflow-hidden rounded-md border bg-surface pl-3 pr-2.5 py-2 shadow-[var(--shadow-sm)]");
+  const cls = nodeClass("relative overflow-hidden rounded-md border bg-surface pl-3 pr-2.5 py-2 shadow-[var(--shadow-sm)]");
   if (!f) return null;
   const e = ctx.focus ? f.evidence[ctx.focus] : null;
   const stance = (e?.stance ?? data.side ?? "mixed") as Stance;
@@ -199,7 +207,7 @@ export const FindingNode = memo(function FindingNode({ id, data }: NodeProps & {
       </div>
     </div>
   );
-});
+}, sameNode);
 
 const LABELS: Record<string, { title: string; hint: string; color: string }> = {
   supports: { title: "Supports", hint: "evidence the hypothesis is true", color: STANCE.supports.ink },
@@ -220,7 +228,7 @@ export const LabelNode = memo(function LabelNode({ data }: NodeProps & { data: D
       <div className="text-[10.5px] text-ink-3">{l.hint}</div>
     </div>
   );
-});
+}, sameNode);
 
 export const nodeTypes = {
   question: QuestionNode,

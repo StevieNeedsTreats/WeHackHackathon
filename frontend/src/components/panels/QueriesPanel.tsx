@@ -53,9 +53,8 @@ function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }
   );
 }
 
-/** The property-graph model, drawn as a schema. */
-function Schema() {
-  const N = ({ x, y, label, dark }: { x: number; y: number; label: string; dark?: boolean }) => (
+function N({ x, y, label, dark }: { x: number; y: number; label: string; dark?: boolean }) {
+  return (
     <g>
       <rect x={x - 40} y={y - 11} width="80" height="22" rx="5" fill={dark ? "var(--ink)" : "var(--surface)"} stroke={dark ? "var(--ink)" : "var(--line-2)"} />
       <text x={x} y={y + 4} textAnchor="middle" fontSize="10.5" fill={dark ? "var(--primary-foreground)" : "var(--ink)"} fontWeight="500">
@@ -63,7 +62,10 @@ function Schema() {
       </text>
     </g>
   );
-  const E = ({ d, label, lx, ly, color = "var(--ink-4)", dash }: { d: string; label: string; lx: number; ly: number; color?: string; dash?: string }) => (
+}
+
+function E({ d, label, lx, ly, color = "var(--ink-4)", dash }: { d: string; label: string; lx: number; ly: number; color?: string; dash?: string }) {
+  return (
     <g>
       <path d={d} fill="none" stroke={color} strokeWidth="1.2" strokeDasharray={dash} markerEnd="url(#arr)" />
       <text x={lx} y={ly} fontSize="8.5" fill="var(--ink-3)" className="mono" textAnchor="middle">
@@ -71,6 +73,10 @@ function Schema() {
       </text>
     </g>
   );
+}
+
+/** The property-graph model, drawn as a schema. */
+function Schema() {
   return (
     <svg viewBox="0 0 340 260" className="w-full" role="img" aria-label="Graph schema">
       <defs>

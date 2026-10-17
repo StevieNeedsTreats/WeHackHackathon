@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, ShieldAlert } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { AgentRail } from "@/components/AgentRail";
 import { CompareView } from "@/components/CompareView";
 import GraphCanvas from "@/components/graph/GraphCanvas";
@@ -20,7 +20,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { deleteQuestion, getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
+import { useStableCallback } from "@/lib/use-stable-callback";
 import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
+
+// Memoised once at module level: with stable handlers below, a panel re-renders only when its
+// own inputs change (not on every hover or tab switch elsewhere on the page).
+const Rail = memo(AgentRail);
+const Graph = memo(GraphCanvas);
+const Compare = memo(CompareView);
+const Hyps = memo(HypothesisBar);
+const VerdictTab = memo(VerdictPanel);
+const EvidenceTab = memo(EvidencePanel);
+const QueriesTab = memo(QueriesPanel);
+const DetailsTab = memo(DetailsPanel);
 
 type Tab = "verdict" | "evidence" | "queries" | "details";
 const TABS: { id: Tab; label: string }[] = [
@@ -89,11 +101,15 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
 
   const hk = focus !== "all" && focus !== "compare" ? focus : (state.hypOrder[0] ?? null);
 
-  const select = (id: string | null) => {
+  const select = useCallback((id: string | null) => {
     setSelected(id);
     if (id) setTab("details");
-  };
-  const ask = async (text: string) => {
+  }, []);
+  const focusHyp = useCallback((f: Focus) => {
+    setFocus(f);
+    setSelected(null);
+  }, []);
+  const ask = useStableCallback(async (text: string) => {
     detach();
     reset();
     setRefusal(null);
@@ -108,23 +124,23 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
     } finally {
       setAsking(false);
     }
-  };
-  const research = (edits: Edits) => {
+  });
+  const research = useStableCallback((edits: Edits) => {
     if (!interp?.question) return;
     const text = interp.question.text;
     setInterp(null);
     setSelected(null);
     setTab("verdict");
     run(text, "live", edits);
-  };
-  const demo = (text: string) => {
+  });
+  const demo = useStableCallback((text: string) => {
     setInterp(null);
     setRefusal(null);
     setSelected(null);
     setTab("verdict");
     run(text, "demo");
-  };
-  const open = (id: string, key?: string) => {
+  });
+  const open = useStableCallback((id: string, key?: string) => {
     setInterp(null);
     setRefusal(null);
     setSelected(null);
@@ -138,9 +154,9 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
     }
     setPendingFocus(key ?? null);
     load(id);
-  };
+  });
 
-  const remove = async (id: string) => {
+  const remove = useStableCallback(async (id: string) => {
     try {
       await deleteQuestion(id);
     } catch (e) {
@@ -155,10 +171,10 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
       window.history.replaceState(null, "", window.location.pathname);
     }
     refresh();
-  };
+  });
 
-  const demos = health?.demos ?? [];
-  const empty = interp ? (
+  const demos = health?.demos;
+  const empty = useMemo(() => interp ? (
     <InterpretationCard interp={interp} onRun={research} onCancel={() => setInterp(null)} />
   ) : (
     <div className="pointer-events-auto max-w-[600px] px-6 text-center">
@@ -174,7 +190,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
           </Button>
         ))}
       </div>
-      {demos.length > 0 && (
+      {demos && demos.length > 0 && (
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {demos.map((d) => (
             <Button key={d.id} size="lg" className="px-4" onClick={() => demo(d.text)}>
@@ -184,11 +200,11 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
         </div>
       )}
       {health && !health.llm.available && (
-        <p className="mt-4 text-[12px] text-ink-3">No LLM configured on the server: live research is off{demos.length ? "; demos still work" : ""}.</p>
+        <p className="mt-4 text-[12px] text-ink-3">No LLM configured on the server: live research is off{demos?.length ? "; demos still work" : ""}.</p>
       )}
-      <p className="mono mt-4 text-[11px] text-muted-foreground">{asking ? "Reading your question…" : "Press / to ask"}</p>
+      <p className="mono mt-4 text-[11px] text-muted-foreground">{asking ? "Reading your question…" : "Press / or Ctrl K to ask"}</p>
     </div>
-  );
+  ), [interp, research, asking, demos, health, ask, demo]);
 
   const guard = refusal ?? (state.status === "refused" ? state.guard : null);
   const showError = guard || state.status === "error";
@@ -205,14 +221,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
         onDemo={demo}
         onStop={stop}
       />
-      <HypothesisBar
-        state={state}
-        focus={focus}
-        onFocus={(f) => {
-          setFocus(f);
-          setSelected(null);
-        }}
-      />
+      <Hyps state={state} focus={focus} onFocus={focusHyp} />
 
       {showError && (
         <div className="border-b bg-card px-4 py-2.5 md:px-5">
@@ -239,12 +248,12 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
 
       <Shell
         defaultLayout={defaultLayout}
-        left={(collapse) => <AgentRail state={state} questions={questions} onOpen={open} onFocus={setFocus} onDelete={remove} onCollapse={collapse} />}
+        left={(collapse) => <Rail state={state} questions={questions} onOpen={open} onFocus={setFocus} onDelete={remove} onCollapse={collapse} />}
         main={
           focus === "compare" && state.hypOrder.length > 1 ? (
-            <CompareView state={state} onFocus={setFocus} />
+            <Compare state={state} onFocus={setFocus} />
           ) : (
-            <GraphCanvas
+            <Graph
               state={state}
               focus={focus === "all" || focus === "compare" ? null : focus}
               selected={selected}
@@ -269,16 +278,16 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
             </div>
             <ScrollArea key={tab} className="min-h-0 flex-1">
               <TabsContent value="verdict">
-                <VerdictPanel state={state} hk={hk} onRefs={setRefs} onSelect={select} />
+                <VerdictTab state={state} hk={hk} onRefs={setRefs} onSelect={select} />
               </TabsContent>
               <TabsContent value="evidence">
-                <EvidencePanel state={state} hk={hk} onSelect={select} />
+                <EvidenceTab state={state} hk={hk} onSelect={select} />
               </TabsContent>
               <TabsContent value="queries">
-                <QueriesPanel state={state} />
+                <QueriesTab state={state} />
               </TabsContent>
               <TabsContent value="details">
-                <DetailsPanel state={state} id={selected} hk={hk} onSelect={select} />
+                <DetailsTab state={state} id={selected} hk={hk} onSelect={select} />
               </TabsContent>
             </ScrollArea>
           </Tabs>
