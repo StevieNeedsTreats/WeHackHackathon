@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, ShieldAlert } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRail } from "@/components/AgentRail";
 import { CompareView } from "@/components/CompareView";
 import GraphCanvas from "@/components/graph/GraphCanvas";
@@ -21,6 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { setGraphSink } from "@/lib/chat";
 import { deleteQuestion, forgetQuestion, getHealth, warmQuestions, getQuestions, interpret, type Edits } from "@/lib/api";
+import { notify } from "@/lib/notify";
 import { useResearch } from "@/lib/store";
 import { useStableCallback } from "@/lib/use-stable-callback";
 import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
@@ -185,6 +186,22 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
     load(id);
   });
 
+  // A toast when a run finishes, wherever it was started: here, another tab, or an MCP client.
+  const wasRunning = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const now = new Set(questions.filter((q) => q.running).map((q) => q.id));
+    const before = wasRunning.current;
+    wasRunning.current = now;
+    for (const id of before ?? []) {
+      const q = questions.find((x) => x.id === id);
+      if (!q || now.has(id)) continue;
+      const done = q.hypotheses.some((h) => h.verdict);
+      notify(done ? "success" : "info", done ? "Research finished" : "Research stopped", {
+        description: q.text,
+        action: id === state.question?.id ? undefined : { label: "Open", onClick: () => open(id) },
+      });
+    }
+  }, [questions, state.question?.id, open]);
   const remove = useStableCallback(async (id: string) => {
     try {
       await deleteQuestion(id);
@@ -193,6 +210,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
       setRefusal({ ok: false, code: "error", message: `Couldn't delete: ${(e as Error).message}` });
       return;
     }
+    notify("info", "Question deleted");
     if (state.question?.id === id) {
       detach();
       reset();
@@ -300,10 +318,10 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
         }
         right={(collapse) => (
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="h-full min-h-0 gap-0" aria-label="Analysis">
-            <div className="flex h-10 shrink-0 items-center border-b pl-3 pr-2">
+            <div className="flex h-12 shrink-0 items-center border-b pl-3 pr-2">
               <TabsList variant="line" className="h-full flex-1 justify-start rounded-none p-0">
                 {TABS.map((t) => (
-                  <TabsTrigger key={t.id} value={t.id} className="flex-none px-2.5 text-[13px]">
+                  <TabsTrigger key={t.id} value={t.id} className="flex-none px-3 text-[13.5px]">
                     {t.label}
                   </TabsTrigger>
                 ))}
