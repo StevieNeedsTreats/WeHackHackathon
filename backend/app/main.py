@@ -45,7 +45,7 @@ app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -231,6 +231,21 @@ async def question(qid: str):
     return {**snap, "verdicts": verdicts, "metrics": await _json(f"tg:q:{qid}:metrics"),
             "stats": run.get("stats"), "flags": run.get("flags", []),
             "disclaimer": get_domain(snap["question"].get("domain", "general")).disclaimer}
+
+
+@app.delete("/api/question/{qid}")
+async def delete_question(qid: str, request: Request):
+    _limit(request, ":d")
+    if _check_id(qid) in state["active"]:
+        raise HTTPException(409, "That question is still being researched. Stop it first.")
+    store: GraphStore = state["store"]
+    exists = await store.ro("MATCH (q:Question {id:$id}) RETURN q.id", {"id": qid})
+    if not exists.result_set:
+        raise HTTPException(404, "Unknown question")
+    keys = await store.delete_question(qid)
+    redis = state["sources"].redis
+    await redis.delete(f"tg:q:{qid}:run", f"tg:q:{qid}:metrics", *[f"tg:hyp:{k}:verdict" for k in keys])
+    return {"deleted": qid, "hypotheses": keys}
 
 
 @app.get("/api/hypothesis/{key}")

@@ -270,6 +270,27 @@ class GraphStore:
         await self.q("MATCH (h:Hypothesis {key:$k}) REMOVE h.verdict, h.grade, h.share_support, h.share_refute, h.share_mixed",
                      {"k": key})
 
+    async def delete_question(self, qid: str) -> list[str]:
+        """Delete a question and the hypotheses only it asks. Papers, studies and findings are
+        shared across questions, so they stay. Returns the keys of the deleted hypotheses."""
+        res = await self.ro(
+            """
+            MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)
+            MATCH (o:Question)-[:ASKS]->(h)
+            WITH h, count(o) AS askers
+            WHERE askers = 1
+            RETURN h.key
+            """,
+            {"id": qid},
+        )
+        keys = [r[0] for r in res.result_set]
+        for key in keys:
+            await self.reset_hypothesis(key)
+        if keys:
+            await self.q("UNWIND $ks AS k MATCH (h:Hypothesis {key:k}) DETACH DELETE h", {"ks": keys})
+        await self.q("MATCH (q:Question {id:$id}) DETACH DELETE q", {"id": qid})
+        return keys
+
     async def write_stances(self, key: str, stances: list[dict], clusters: list[dict]) -> None:
         """stances: {finding_id, stance, weight, rationale}; clusters: {id, label, context, findings[]}."""
         await self.q("MATCH (:Hypothesis {key:$k})<-[e:EVIDENCE_FOR]-() DELETE e", {"k": key})
