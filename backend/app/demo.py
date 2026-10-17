@@ -1,131 +1,147 @@
-"""Offline demo: the creatine example from the design board.
+"""Demo runs without an API key.
 
-Abstracts are short illustrative summaries written for the demo (not the papers'
-published abstracts), so every record is marked `demo: True` and the UI says so.
-They run through the same extractor, credibility, grouper and contradiction agents
-as live data.
+A demo bundle is one real run captured to JSON: every LLM answer (keyed by trace), every
+search result (keyed by source, query and limit) and the citation links. Replaying it
+runs the real agents and orchestrator; only the LLM and the network are swapped out.
+
+Record a bundle with:  uv run python -m app.demo record "creatine on intelligence vs muscle gain"
 """
 
-DEMO_SUBSTANCE = "Creatine"
+from __future__ import annotations
 
-DEMO_PAPERS = [
-    {
-        "id": "28615996", "pmid": "28615996", "label": "Kreider 2017", "year": 2017,
-        "title": "Position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine",
-        "journal": "J Int Soc Sports Nutr", "design": "Meta-analysis", "studies": 22, "sample_size": 680,
-        "citations": 890, "peer_reviewed": True, "lab": "University of Texas A&M", "region": "United States",
-        "authors": ["Kreider RB", "Kalman DS", "Antonio J"],
-        "funders": [{"name": "National Institutes of Health", "type": "public"}],
-        "abstract": (
-            "Background: Creatine is one of the most widely used ergogenic aids. We pooled 22 studies of resistance-trained "
-            "and untrained adults. Results: Creatine supplementation significantly improved upper- and lower-body strength by "
-            "8–14% compared with placebo. Lean body mass increased by 1–2 kg over 4–12 weeks of training. "
-            "Conclusions: Supplementation was well tolerated, with no adverse effects reported in studies lasting up to five years."
-        ),
-    },
-    {
-        "id": "12701815", "pmid": "12701815", "label": "Branch 2003", "year": 2003,
-        "title": "Effect of creatine supplementation on body composition and performance: a meta-analysis",
-        "journal": "Int J Sport Nutr Exerc Metab", "design": "Meta-analysis", "studies": 100, "sample_size": 1800,
-        "citations": 1200, "peer_reviewed": True, "lab": "Old Dominion University", "region": "United States",
-        "authors": ["Branch JD"],
-        "funders": [{"name": "Old Dominion University", "type": "academic"}],
-        "abstract": (
-            "Background: The purpose of this meta-analysis was to quantify the effects of creatine on body composition and "
-            "performance across 100 studies. Results: Creatine significantly increased maximal strength by 5–15% in short, "
-            "repeated bouts. Effects on endurance performance were inconsistent and varied by person and task duration."
-        ),
-    },
-    {
-        "id": "demo-smith-2021", "label": "Smith 2021", "year": 2021,
-        "title": "Creatine monohydrate and resistance training in recreationally active adults: a randomised trial",
-        "journal": "Demo Journal of Exercise Science", "design": "RCT", "sample_size": 28,
-        "citations": 45, "peer_reviewed": True, "lab": "University of Leeds", "region": "United Kingdom",
-        "authors": ["Smith A", "Okafor B"],
-        "funders": [{"name": "University of Leeds", "type": "academic"}],
-        "abstract": (
-            "Background: Few trials have tested creatine in recreationally active adults. Methods: 28 participants were "
-            "randomised to creatine or placebo for 8 weeks. Results: There was no significant difference in strength between "
-            "groups (no difference vs placebo). Creatine did not significantly increase lean mass compared with placebo."
-        ),
-    },
-    {
-        "id": "demo-lee-2019", "label": "Lee 2019", "year": 2019,
-        "title": "A novel creatine blend increases lean mass in trained men",
-        "journal": "Demo Supplement Research", "design": "RCT", "sample_size": 42,
-        "citations": 18, "peer_reviewed": True, "lab": "Seoul National University", "region": "South Korea",
-        "authors": ["Lee J", "Park S"],
-        "funders": [{"name": "Company X Nutrition Inc", "type": "industry"}],
-        "abstract": (
-            "Background: Proprietary creatine blends are widely marketed. Methods: 42 trained men were randomised to the blend "
-            "or placebo for 6 weeks. Results: The blend significantly increased lean mass by +2.5 kg relative to placebo. "
-            "Strength improved by 30% in the blend group."
-        ),
-    },
-    {
-        "id": "14561278", "pmid": "14561278", "label": "Rae 2003", "year": 2003,
-        "title": "Oral creatine monohydrate supplementation and brain performance",
-        "journal": "Proc Biol Sci", "design": "RCT", "sample_size": 45,
-        "citations": 310, "peer_reviewed": True, "lab": "University of Sydney", "region": "Australia",
-        "authors": ["Rae C", "Digney AL", "McEwan SR"],
-        "funders": [{"name": "National Health and Medical Research Council", "type": "public"}],
-        "abstract": (
-            "Background: The brain relies on creatine for energy buffering. Methods: 45 young adult vegetarians took creatine "
-            "or placebo for 6 weeks in a crossover design. Results: Working memory and intelligence scores improved only in "
-            "vegetarians, whose baseline creatine intake is low."
-        ),
-    },
-    {
-        "id": "demo-moriarty-2023", "label": "Moriarty 2023", "year": 2023,
-        "title": "Creatine and cognition in healthy older adults: a randomised controlled trial",
-        "journal": "Demo Journal of Ageing", "design": "RCT", "sample_size": 36,
-        "citations": 12, "peer_reviewed": True, "lab": "University College Dublin", "region": "Ireland",
-        "authors": ["Moriarty T", "Byrne K"],
-        "funders": [{"name": "Health Research Board Ireland", "type": "public"}],
-        "abstract": (
-            "Background: Interest in creatine for brain ageing is growing. Methods: 36 older adults received creatine or "
-            "placebo for 12 weeks. Results: Creatine did not improve memory or executive function compared with placebo. "
-            "No adverse events were reported."
-        ),
-    },
-    {
-        "id": "demo-souza-2019", "label": "de Souza 2019", "year": 2019,
-        "title": "Creatine supplementation and kidney function: a systematic review and meta-analysis",
-        "journal": "Demo Renal Reviews", "design": "Meta-analysis", "studies": 15, "sample_size": 520,
-        "citations": 140, "peer_reviewed": True, "lab": "University of São Paulo", "region": "Brazil",
-        "authors": ["de Souza E Silva A", "Pertille A"],
-        "funders": [],
-        "abstract": (
-            "Background: Renal safety concerns limit creatine use. We pooled 15 controlled trials. Results: Creatine did not "
-            "significantly change creatinine clearance or other markers of kidney function. Conclusions: Short- and long-term "
-            "supplementation did not cause renal damage in healthy adults."
-        ),
-    },
-]
+import asyncio
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
 
-DEMO_CITES = [
-    ("28615996", "12701815"),
-    ("demo-lee-2019", "28615996"),
-    ("demo-lee-2019", "12701815"),
-    ("demo-smith-2021", "12701815"),
-    ("demo-moriarty-2023", "14561278"),
-    ("demo-souza-2019", "28615996"),
-]
+from .llm import Fixtures, LLMRouter, RecordingClient
+
+BUNDLES = Path(__file__).parent / "demo_bundles"
 
 
-def demo_papers() -> list[dict]:
+def _name(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60]
+
+
+def _skey(source: str, query: str, limit: int) -> str:
+    return f"{source}|{query.strip().lower()}|{limit}"
+
+
+def bundles() -> list[dict]:
     out = []
-    for p in DEMO_PAPERS:
-        q = dict(p)
-        q.setdefault("pmid", None)
-        q.setdefault("studies", None)
-        q.update({
-            "demo": True,
-            "open_access": False,
-            "retracted": False,
-            "animal": False,
-            "pub_types": [q["design"]],
-            "url": f"https://pubmed.ncbi.nlm.nih.gov/{q['pmid']}/" if q.get("pmid") else "",
-        })
-        out.append(q)
+    for p in sorted(BUNDLES.glob("*.json")):
+        try:
+            data = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+        out.append({"id": p.stem, "text": data.get("text", p.stem), "domain": data.get("domain")})
     return out
+
+
+class DemoBundle:
+    def __init__(self, data: dict[str, Any]):
+        self.data = data
+        self.text: str = data["text"]
+        self.fixtures = Fixtures(BUNDLES / "unused.json", data.setdefault("llm", {}))
+
+    @classmethod
+    def load(cls, bundle_id: str) -> "DemoBundle | None":
+        path = BUNDLES / f"{_name(bundle_id)}.json"
+        if not path.exists():
+            return None
+        return cls(json.loads(path.read_text()))
+
+    @classmethod
+    def match(cls, text: str) -> "DemoBundle | None":
+        """The bundle whose question matches this text, if any."""
+        return cls.load(_name(text))
+
+    def router(self) -> LLMRouter:
+        return LLMRouter.replay(self.fixtures)
+
+    async def search(self, source: str, query: str, limit: int) -> list[dict]:
+        rows = self.data.get("search", {}).get(_skey(source, query, limit), [])
+        return [{**p, "demo": True} for p in rows]
+
+    async def fulltext(self, paper: dict) -> str:
+        return ""
+
+    async def cites(self, papers: list[dict]) -> list[tuple[str, str]]:
+        ids = {p["id"] for p in papers}
+        return [(a, b) for a, b in self.data.get("cites", []) if a in ids and b in ids]
+
+
+# ---------------------------------------------------------------- recording
+
+
+async def record(text: str) -> Path:
+    """Run the live pipeline once and save everything it saw."""
+    from .agents.intake import IntakeAgent
+    from .agents.orchestrator import Run
+    from .agents.base import AgentContext
+    from .graph import GraphStore
+    from .llm import UsageMeter
+    from .sources import Sources
+
+    store, sources = GraphStore(), Sources()
+    await store.init()
+    fx = Fixtures(BUNDLES / f"{_name(text)}.json", {})
+    live = LLMRouter.live(None)  # no cache: every call must be recorded
+    router = LLMRouter({a: RecordingClient(live.for_agent(a), fx) for a in ("orchestrator", "intake", "discovery",
+                                                                           "extractor", "credibility", "stance",
+                                                                           "contradictions", "verdict")},
+                       RecordingClient(live.for_agent("extractor"), fx), "live")
+    search_log: dict[str, list[dict]] = {}
+    cite_log: list[list[str]] = []
+
+    async def search(source: str, query: str, limit: int) -> list[dict]:
+        rows = await sources.search(source, query, limit)
+        search_log[_skey(source, query, limit)] = rows
+        return rows
+
+    async def cites(papers: list[dict]) -> list[tuple[str, str]]:
+        pairs = await sources.citation_links(papers)
+        cite_log.extend([a, b] for a, b in pairs if [a, b] not in cite_log)
+        return pairs
+
+    async def ignore(*_):
+        return None
+
+    ctx = AgentContext(router, UsageMeter(10**9), ignore)
+    out = await IntakeAgent().run(ctx, text)
+    if out.intent != "research" or not out.hypotheses:
+        raise SystemExit(f"intake refused: {out.intent} {out.message}")
+    question = build_question(text, out, demo=True)
+    question["fresh"] = True
+    run = Run(store, sources, router, question, "live", search=search, cites=cites)
+
+    async def drain():
+        while (msg := await run.queue.get()) is not None:
+            if msg["event"] in ("agent", "error", "flag"):
+                print(msg["event"], json.dumps(msg["data"], default=str)[:160])
+
+    await asyncio.gather(run.execute(), drain())
+    fx.data = {"text": text, "domain": out.domain, "llm": fx.data, "search": search_log, "cites": cite_log}
+    fx.save()
+    await sources.close()
+    return fx.path
+
+
+def build_question(text: str, out: Any, demo: bool = False) -> dict:
+    import hashlib
+
+    from .agents.intake import to_hypotheses
+
+    hyps = to_hypotheses(out)
+    qid = hashlib.sha1((out.domain + "|" + "|".join(sorted(h["key"] for h in hyps))).encode()).hexdigest()[:10]
+    return {"id": ("demo-" if demo else "") + qid, "text": text, "domain": out.domain, "hypotheses": hyps,
+            "corrections": out.corrections, "compare": out.compare}
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "record":
+        print(asyncio.run(record(sys.argv[2])))
+    else:
+        print('usage: python -m app.demo record "<question>"')
