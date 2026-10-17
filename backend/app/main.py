@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -420,8 +420,8 @@ class ChatMsg(BaseModel):
 
 class ChatIn(BaseModel):
     qid: str = Field(max_length=64)
-    hypothesis: str | None = Field(default=None, max_length=64)
-    selected: str | None = Field(default=None, max_length=400)
+    hypotheses: list[Annotated[str, Field(max_length=64)]] = Field(default=[], max_length=12)
+    selected: list[Annotated[str, Field(max_length=400)]] = Field(default=[], max_length=12)
     messages: list[ChatMsg] = Field(min_length=1, max_length=30)
 
 
@@ -448,13 +448,13 @@ async def chat(body: ChatIn, request: Request):
     if not llm_status()["available"]:
         raise HTTPException(503, "No LLM is configured on the server.")
     snap, verdicts = await _chat_context(qid)
-    context, aliases = chat_agent.digest(snap, verdicts, body.hypothesis, body.selected)
+    context, aliases = chat_agent.digest(snap, verdicts, body.hypotheses, body.selected)
 
     async def add(refs: list[str]) -> str:
         return start_ingest(qid, [Item(r[:120], ref=r) for r in refs])
 
     async def events():
-        async for ev in chat_agent.answer(state["store"], qid, body.hypothesis, context, aliases,
+        async for ev in chat_agent.answer(state["store"], qid, (body.hypotheses or [None])[0], context, aliases,
                                           [m.model_dump() for m in body.messages], add):
             yield {"event": ev["event"], "data": json.dumps(ev["data"], default=str)}
 

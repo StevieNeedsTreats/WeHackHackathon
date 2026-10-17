@@ -45,7 +45,7 @@ Relationships:
   (Finding)-[:CONTRADICTS {hypothesis, reason, severity, explained_by}]->(Finding)  [hypothesis] is indexed
   (Paper)-[:AUTHORED_BY {pos}]->(Author)  (Paper)-[:AFFILIATED]->(Lab)  (Paper)-[:FUNDED_BY]->(Funder)
   (Paper)-[:CITES]->(Paper)  (Paper)-[:SAME_AS]->(Paper)
-Parameters you can use: $q = the open question's id, $k = the focused hypothesis's key."""
+Parameters you can use: $q = the open question's id, $k = the first focused hypothesis's key (empty when all are in focus)."""
 
 SYSTEM = """You are TruthGraph's research assistant. TruthGraph maps published research on a claim into a graph: \
 hypotheses, the papers considered for each, their studies and findings, each finding's stance on each hypothesis, \
@@ -91,23 +91,24 @@ def _pct(x: Any) -> str:
     return f"{round((x or 0) * 100)}%"
 
 
-def digest(snap: dict, verdicts: dict[str, dict | None], focus: str | None, selected: str | None,
+def digest(snap: dict, verdicts: dict[str, dict | None], focus: list[str], selected: list[str],
            budget: int = 40_000) -> tuple[str, dict[str, str]]:
     """A compact summary of one question for the model's context, and the short refs it uses
     (H1 / P3 / F12 -> hypothesis key, paper id, finding id). Short refs keep the context small
     and give the model ids it can cite without mangling."""
     q = snap["question"]
     hyps = snap["hypotheses"]
-    focus_keys = [focus] if focus and any(h["key"] == focus for h in hyps) else [h["key"] for h in hyps]
+    known = {h["key"] for h in hyps}
+    focus_keys = [k for k in dict.fromkeys(focus) if k in known] or [h["key"] for h in hyps]
     papers = {p["id"]: p for p in snap["papers"]}
     studies = {s["id"]: s for s in snap["studies"]}
     hn = {h["key"]: f"H{i + 1}" for i, h in enumerate(hyps)}
     pn = {pid: f"P{i + 1}" for i, pid in enumerate(sorted(papers, key=lambda x: -(papers[x].get("credibility") or 0)))}
     fn: dict[str, str] = {}
     aliases = {**{v: k for k, v in hn.items()}, **{v: k for k, v in pn.items()}}
-    focus_name = hn.get(focus, "") if len(focus_keys) == 1 and focus else ""
+    focused = ", ".join(f"{hn[k]} (key {k})" for k in focus_keys) if len(focus_keys) < len(hyps) else "all"
     out = [f"Open question: {q['text']}  (id {q['id']}, domain {q.get('domain')})",
-           f"Focused hypothesis: {f'{focus_name} (key {focus})' if focus_name else 'all'}", "", "Hypotheses:"]
+           f"Focused hypotheses (the user put these in context): {focused}", "", "Hypotheses:"]
     for h in hyps:
         v = verdicts.get(h["key"]) or {}
         line = (f"- {hn[h['key']]} (key {h['key']}) {h['statement']}: {v.get('verdict') or h.get('verdict') or 'no verdict'}"
@@ -155,7 +156,8 @@ def digest(snap: dict, verdicts: dict[str, dict | None], focus: str | None, sele
             out.append(f"Clusters on {hn[key]}: " + "; ".join(f"{c['label']} ({len(c['findings'])}): {c['context']}" for c in cls))
 
     if selected:
-        out += ["", f"Selected on the graph: {_selected(selected, snap, papers, studies)}"]
+        out += ["", "Also in context (the user picked these on the graph or in the chat):"]
+        out += [f"- {_selected(sel, snap, papers, studies)}" for sel in dict.fromkeys(selected)]
     text = "\n".join(out)
     return (text if len(text) <= budget else text[:budget] + "\n… (digest truncated; query for the rest)"), aliases
 
