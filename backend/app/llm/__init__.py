@@ -11,6 +11,7 @@ TG_LLM_MODEL, and override any agent with TG_MODEL_<AGENT>.
 from __future__ import annotations
 
 import os
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ from ..config import get_settings
 from .base import LLMClient, schema_of
 from .types import (LLMError, LLMRefusal, LLMUnavailable, Message, ToolCall, ToolResult, ToolSpec, Turn,
                     Usage, UsageMeter)
-from .wrappers import CachedClient, Fixtures, RecordingClient, ReplayClient
+from .wrappers import CachedClient, Fixtures, LimitedClient, RecordingClient, ReplayClient
 
 __all__ = [
     "LLMClient", "LLMError", "LLMRefusal", "LLMRouter", "LLMUnavailable", "Message", "ToolCall", "ToolResult",
@@ -89,12 +90,13 @@ class LLMRouter:
                 "No LLM is configured. Set ANTHROPIC_API_KEY (or TG_LLM_PROVIDER=openai with TG_LLM_BASE_URL / "
                 "OPENAI_API_KEY), or use the demo.")
         record = Fixtures(s.llm_record) if s.llm_record else None
+        sem = asyncio.Semaphore(max(1, s.llm_concurrency))
         built: dict[str, Any] = {}
         clients: dict[str, Any] = {}
         for agent in AGENTS:
             model = model_for(agent)
             if model not in built:
-                c = _make(model)
+                c = LimitedClient(_make(model), sem)
                 if redis is not None:
                     c = CachedClient(c, redis, s.cache_ttl_s)
                 built[model] = c

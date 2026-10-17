@@ -7,6 +7,8 @@ the offline demo runs the real agents without an API key.
 
 from __future__ import annotations
 
+import asyncio
+
 import hashlib
 import json
 import os
@@ -24,6 +26,27 @@ T = TypeVar("T", bound=BaseModel)
 def _msg_key(messages: list[Message]) -> list:
     return [[m.role, m.text, [[c.name, c.args] for c in m.tool_calls], [[r.content, r.is_error] for r in m.results]]
             for m in messages]
+
+
+class LimitedClient:
+    """Caps requests in flight across every agent sharing the same semaphore."""
+
+    def __init__(self, inner: Any, sem: asyncio.Semaphore):
+        self.inner, self.sem = inner, sem
+        self.provider, self.model = inner.provider, inner.model
+
+    async def structured(self, **kw):
+        async with self.sem:
+            return await self.inner.structured(**kw)
+
+    async def chat(self, **kw):
+        async with self.sem:
+            return await self.inner.chat(**kw)
+
+    async def stream_text(self, **kw):
+        async with self.sem:
+            async for chunk in self.inner.stream_text(**kw):
+                yield chunk
 
 
 class CachedClient:
