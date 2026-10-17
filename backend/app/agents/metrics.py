@@ -17,8 +17,9 @@ QUERIES = [
         "id": "funding-trail",
         "title": "Funding trail",
         "question": "For each hypothesis, which kinds of funder paid for the supporting vs refuting evidence?",
-        "hops": 5,
-        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)
+        "hops": 3,
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(x:Finding)
+MATCH (p:Paper {id:x.paper_id})
 OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
 RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funder_type, e.stance AS stance,
        count(DISTINCT p) AS papers
@@ -28,10 +29,10 @@ ORDER BY hypothesis, papers DESC""",
         "id": "who-contradicts-whom",
         "title": "Who contradicts whom",
         "question": "Which labs' findings contradict which other labs' findings, and why?",
-        "hops": 7,
+        "hops": 4,
         "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
 MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
-MATCH (a)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pa:Paper), (b)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pb:Paper)
+MATCH (pa:Paper {id:a.paper_id}), (pb:Paper {id:b.paper_id})
 OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
 OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
 RETURN pa.label AS paper_a, la.name AS lab_a, pb.label AS paper_b, lb.name AS lab_b, c.reason AS reason,

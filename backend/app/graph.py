@@ -5,6 +5,7 @@ Data model (one shared graph, so papers, findings and people are reused across q
   (:Question)-[:ASKS]->(:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(:Concept)
   (:Hypothesis)-[:CONSIDERED {relevance, slice}]->(:Paper)
   (:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(:Finding)-[:MEASURES]->(:Concept)
+  (:Finding {paper_id})                              shortcut to its Paper, skipping the Study
   (:Finding)-[:EVIDENCE_FOR {stance, weight, rationale}]->(:Hypothesis)
   (:Finding)-[:IN_CLUSTER]->(:Cluster)-[:OF]->(:Hypothesis)
   (:Finding)-[:CONTRADICTS {hypothesis, reason, severity, explained_by}]->(:Finding)
@@ -76,6 +77,10 @@ class GraphStore:
             await self.graph.query("CREATE INDEX FOR ()-[r:CONTRADICTS]-() ON (r.hypothesis)")
         except Exception:
             pass
+        # Findings written before paper_id existed get it from their study's paper.
+        await self.graph.query(
+            "MATCH (p:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(f:Finding) WHERE f.paper_id IS NULL SET f.paper_id = p.id"
+        )
         for label, prop in FULLTEXT:
             try:
                 await self.graph.create_node_fulltext_index(label, prop)
@@ -247,12 +252,12 @@ class GraphStore:
                 UNWIND $rows AS r
                 MATCH (st:Study {id:r.study_id})
                 MERGE (f:Finding {id:r.id})
-                SET f += r.props, f.direction = intern(r.direction), f.effect_unit = intern(r.unit)
+                SET f += r.props, f.direction = intern(r.direction), f.effect_unit = intern(r.unit), f.paper_id = $pid
                 MERGE (st)-[:FOUND]->(f)
                 MERGE (c:Concept {id:r.outcome.id}) ON CREATE SET c.name=r.outcome.name, c.kind=intern('outcome')
                 MERGE (f)-[:MEASURES]->(c)
                 """,
-                {"rows": findings},
+                {"rows": findings, "pid": paper_id},
             )
 
     async def set_credibility(self, rows: list[dict]) -> None:
