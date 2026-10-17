@@ -89,6 +89,22 @@ export function prefetchQuestion(id: string) {
   fetchSnapshot(id).catch(() => {});
 }
 
+/**
+ * Fetch snapshots that aren't cached yet, one at a time so the API isn't flooded. Stops when the
+ * signal aborts (e.g. the question list changed and a new pass started).
+ */
+export async function warmQuestions(ids: string[], signal: AbortSignal) {
+  for (const id of ids) {
+    if (signal.aborted) return;
+    if (snaps.has(id) || inflight.has(id)) continue;
+    try {
+      await fetchSnapshot(id);
+    } catch {
+      // Not critical: opening the question fetches it again.
+    }
+  }
+}
+
 /** The last finished snapshot seen for a question, if any. */
 export const cachedQuestion = (id: string) => snaps.get(id)?.snap;
 

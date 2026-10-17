@@ -253,12 +253,28 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }:
     [rf],
   );
   const lastFit = useRef(0);
+  const fittedSig = useRef("");
   const sig = `${Math.round(layout.bounds.w / 60)}:${Math.round(layout.bounds.h / 60)}:${focus}`;
+
+  // A new question snaps the camera before paint; a new hypothesis glides there right away.
+  // Only growth during a live build goes through the throttled follow below.
+  const scene = `${state.question?.id ?? ""}|${focus ?? ""}`;
+  const lastScene = useRef({ q: state.question?.id, scene: "" });
+  useLayoutEffect(() => {
+    if (!layout.nodes.length || scene === lastScene.current.scene) return;
+    const newQuestion = lastScene.current.q !== state.question?.id;
+    lastScene.current = { q: state.question?.id, scene };
+    fit(newQuestion ? 0 : 280);
+    lastFit.current = Date.now();
+    fittedSig.current = sig;
+  }, [scene, sig, fit, layout.nodes.length, state.question?.id]);
+
   useEffect(() => {
-    if (!follow || !layout.nodes.length) return;
+    if (!follow || !layout.nodes.length || sig === fittedSig.current) return;
     const wait = Math.max(0, 650 - (Date.now() - lastFit.current));
     const t = setTimeout(() => {
       lastFit.current = Date.now();
+      fittedSig.current = sig;
       fit(520);
     }, wait + 60);
     return () => clearTimeout(t);

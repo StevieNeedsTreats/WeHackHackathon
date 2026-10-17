@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { deleteQuestion, forgetQuestion, getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
+import { deleteQuestion, forgetQuestion, getHealth, warmQuestions, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
 import { useStableCallback } from "@/lib/use-stable-callback";
 import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
@@ -74,14 +74,31 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   // Default focus when a question's hypotheses arrive: Compare for "X vs Y", else the first.
   const qid = state.question?.id;
   const nHyps = state.hypOrder.length;
+  // Adjusted during render rather than in an effect, so a new question's first paint already uses
+  // its focus: otherwise it drew once in the All layout and again focused.
+  const focusKey = nHyps ? qid : undefined;
+  const [focusFor, setFocusFor] = useState(focusKey);
+  if (focusKey !== focusFor) {
+    setFocusFor(focusKey);
+    if (focusKey) {
+      if (pendingFocus && state.hyps[pendingFocus]) {
+        setFocus(pendingFocus);
+        setPendingFocus(null);
+      } else setFocus(state.question?.compare && nHyps > 1 ? "compare" : state.hypOrder[0]);
+    }
+  }
+
+  // Warm the cache with every finished question once the list is known, so switching is instant.
   useEffect(() => {
-    if (!nHyps) return;
-    if (pendingFocus && state.hyps[pendingFocus]) {
-      setFocus(pendingFocus);
-      setPendingFocus(null);
-    } else setFocus(state.question?.compare && nHyps > 1 ? "compare" : state.hypOrder[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when a new question arrives
-  }, [qid, nHyps > 0]);
+    const ids = questions.filter((q) => !q.running).map((q) => q.id);
+    if (!ids.length) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => warmQuestions(ids, ctrl.signal), 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [questions]);
 
   // Deep links: /?q=<question id>&h=<hypothesis key>
   useEffect(() => {
