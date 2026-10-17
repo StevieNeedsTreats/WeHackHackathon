@@ -14,10 +14,12 @@ import type {
   Verdict,
 } from "./types";
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8100";
+import { API, authFetch } from "./auth";
+
+export { API };
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${API}${path}`, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  const r = await authFetch(`${API}${path}`, { ...init, headers: { "content-type": "application/json", ...((init?.headers as Record<string, string>) ?? {}) } });
   if (!r.ok) {
     let msg = `${r.status}`;
     try {
@@ -62,7 +64,7 @@ function fetchSnapshot(id: string): Promise<Cached> {
   const pending = inflight.get(id);
   if (pending) return pending;
   const p = (async () => {
-    const r = await fetch(`${API}/api/question/${encodeURIComponent(id)}`);
+    const r = await authFetch(`${API}/api/question/${encodeURIComponent(id)}`);
     if (!r.ok) {
       let msg = `${r.status}`;
       try {

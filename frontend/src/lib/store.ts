@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import { attachUrl, cachedQuestion, loadQuestion, stopRun, streamUrl, type Edits, type Snapshot } from "./api";
+import { authFetch } from "./auth";
 import type {
   Cluster,
   Contradiction,
@@ -355,7 +356,7 @@ export function useResearch() {
       abort.current = ctrl;
       dispatch({ type: "start", mode });
       try {
-        const r = await fetch(url, { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
+        const r = await authFetch(url, { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
         if (!r.ok || !r.body) {
           let msg = `Request failed (${r.status})`;
           try {
