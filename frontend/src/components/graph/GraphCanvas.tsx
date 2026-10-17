@@ -189,7 +189,7 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
       .filter((n) => display.current[n.id])
       .map((n) => {
         const p = display.current[n.id];
-        return { id: n.id, type: n.kind, position: { x: p.x, y: p.y }, data: { n, w: p.w, h: p.h }, width: p.w, height: p.h, draggable: false, zIndex: n.kind === "claim" ? 2 : 1 };
+        return { id: n.id, type: n.kind, position: { x: p.x, y: p.y }, data: { n, w: p.w, h: p.h }, draggable: false, zIndex: n.kind === "claim" ? 2 : 1 };
       }),
   );
   const edges: Edge[] = Object.values(state.edges)
@@ -206,7 +206,17 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
       selectable: e.type === "CONTRADICTS",
     }));
 
-  // ---- follow the build: keep the whole graph in view while it grows
+  // ---- follow the build: keep the whole graph in view while it grows.
+  // Fit to the computed layout bounds, which are known before React Flow measures nodes.
+  const boundsRef = useRef({ w: 0, h: 0 });
+  boundsRef.current = { w: layout.width, h: layout.height };
+  const fit = useCallback(
+    (duration: number) => {
+      const { w, h } = boundsRef.current;
+      rf.fitBounds({ x: -GUTTER, y: -40, width: w + GUTTER + 40, height: h + 60 }, { padding: 0.04, duration });
+    },
+    [rf],
+  );
   const lastFit = useRef(0);
   const bounds = `${Math.round(layout.width / 50)}:${Math.round(layout.height / 50)}`;
   useEffect(() => {
@@ -215,12 +225,12 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
     const wait = Math.max(0, 650 - (now - lastFit.current));
     const t = setTimeout(() => {
       lastFit.current = Date.now();
-      rf.fitView({ padding: 0.06, duration: 520, maxZoom: 1.05 });
+      fit(520);
     }, wait + 60);
     return () => clearTimeout(t);
-  }, [bounds, follow, rf, state.status, state.nodes]);
+  }, [bounds, follow, fit, state.status, state.nodes]);
 
-  const empty_ = !Object.keys(state.nodes).length;
+  const empty_ = !hasPapers;
 
   return (
     <GraphContext.Provider value={ctx}>
@@ -260,7 +270,7 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
                 label="Fit graph"
                 onClick={() => {
                   setFollow(true);
-                  rf.fitView({ padding: 0.06, duration: 400, maxZoom: 1.05 });
+                  fit(400);
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -308,7 +318,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
           Industry funded
         </span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1">
+      <div className="mt-2 hidden flex-wrap gap-1 sm:flex">
         {TOGGLES.map((t) => {
           const s = EDGE_STYLE[t.type];
           const on = show[t.type];

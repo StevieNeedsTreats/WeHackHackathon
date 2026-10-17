@@ -5,11 +5,11 @@ import { DIR } from "./graph/glyphs";
 
 function Stat({ label, value, sub, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className="min-w-[96px] px-4 py-2 first:pl-0">
-      <div className="text-[10.5px] font-medium uppercase tracking-[0.11em] text-ink-3">{label}</div>
+    <div className="min-w-[96px] shrink-0 px-4 py-2 first:pl-0">
+      <div className="whitespace-nowrap text-[10.5px] font-medium uppercase tracking-[0.11em] text-ink-3">{label}</div>
       <div className="mt-0.5 flex items-baseline gap-1.5">
         <span className="tabular text-[20px] font-semibold leading-7 tracking-[-0.02em] text-ink">{value}</span>
-        {sub && <span className="mono tabular text-[11px] text-ink-3">{sub}</span>}
+        {sub && <span className="mono tabular whitespace-nowrap text-[11px] text-ink-3">{sub}</span>}
       </div>
       {children}
     </div>

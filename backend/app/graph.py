@@ -160,6 +160,7 @@ class GraphStore:
             MATCH (s:Substance)
             OPTIONAL MATCH (s)-[:STUDIED_IN]->(p:Paper)
             WITH s, count(p) AS papers
+            WHERE papers > 0
             OPTIONAL MATCH (c:Claim {substance:s.key})
             RETURN s.key, s.name, papers, count(c) AS claims, s.updated
             ORDER BY s.updated DESC
