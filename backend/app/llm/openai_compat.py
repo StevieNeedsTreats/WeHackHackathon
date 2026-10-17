@@ -66,7 +66,9 @@ class OpenAICompatClient:
                     # Per-minute token limits: wait as long as the provider asks, not a fixed backoff.
                     wait = _retry_after(r) or wait
                     raise LLMError(f"429: {r.text[:200]}")
-                if r.status_code >= 500:
+                if r.status_code >= 500 or (r.status_code == 400 and "tool_use_failed" in r.text):
+                    # Groq answers 400 tool_use_failed when the model wrote a malformed tool
+                    # call; that's a sampling fluke, so it is worth another try.
                     raise LLMError(f"{r.status_code}: {r.text[:200]}")
                 if r.status_code >= 400:
                     raise _BadRequest(f"{r.status_code}: {r.text[:300]}")
