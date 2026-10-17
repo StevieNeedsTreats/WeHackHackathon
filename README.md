@@ -33,9 +33,10 @@ To use FalkorDB Cloud instead of the local container, set these in `backend/.env
 TG_DB_INSTANCE=<public host>:<port>       # from the instance's connection details
 TG_DB_USER=...
 TG_DB_PASS=...
+TG_REDIS_URL=rediss://<user>:<pass>@<host>:<port>   # any Redis, for the side storage
 ```
 
-Cloud users may only run graph commands, so the side storage (abstracts, verdicts, run logs, LLM and HTTP caches) goes into a second graph, `truthgraph_kv`, instead of plain Redis keys.
+Cloud users may only run graph commands, so the side storage (abstracts, verdicts, run logs, LLM and HTTP caches) needs its own Redis. Locally, the FalkorDB container doubles as that Redis.
 
 - **Asking a question:** the question is interpreted first. You can drop a hypothesis or change its population before the research starts.
 - **Demo:** "Watch demo" replays a recorded run through the real agents, so it works without an API key.
@@ -111,7 +112,7 @@ To explore the schema interactively, open [`docs/data-model.html`](docs/data-mod
   - relationship indexes on `CONTRADICTS.hypothesis` and `MEASURES.hypothesis`;
   - batched `UNWIND` writes with constant parameterised queries, so the plan cache hits;
   - `intern()` for repeated strings.
-- **Redis in the same instance:** abstracts and agent caches (HTTP responses, LLM answers, extractions) live outside the graph.
+- **Redis beside the graph:** abstracts and agent caches (HTTP responses, LLM answers, extractions) live outside the graph.
 
 The **Queries** tab benchmarks five multi-hop questions on every run (funding trail, who contradicts whom, evidence reused across hypotheses, citation reach, shared researchers) and includes a read-only Cypher console.
 

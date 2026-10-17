@@ -10,14 +10,18 @@ class Settings(BaseSettings):
     falkor_port: int = 6380
     graph_name: str = "truthgraph"
     # FalkorDB Cloud: the instance's public "host:port" and its credentials. When set, they
-    # replace falkor_host/falkor_port, so the graph and the Redis cache both live in the cloud.
+    # replace falkor_host/falkor_port.
     db_instance: str | None = None
     db_user: str | None = None
     db_pass: str | None = None
     db_tls: bool = False
+    # Redis for side storage (caches, abstracts, verdicts, run logs), e.g. "rediss://user:pass@host:port".
+    # Unset, the local FalkorDB container doubles as Redis. FalkorDB Cloud only runs graph
+    # commands, so with it this must be set.
+    redis_url: str | None = None
 
     def db_conn(self) -> dict:
-        """Connection kwargs shared by the graph client and the Redis cache."""
+        """Connection kwargs for the graph client (and for Redis when redis_url is unset)."""
         host, port = self.falkor_host, self.falkor_port
         if self.db_instance:
             host, _, p = self.db_instance.removeprefix("redis://").removeprefix("rediss://").rpartition(":")

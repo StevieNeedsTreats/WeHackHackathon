@@ -19,8 +19,7 @@ Efficiency rules (FalkorDB docs):
     plan cache (CACHE_SIZE) is hit and round trips stay few;
   * every MERGE key has a unique constraint (backed by its exact-match index);
   * repeated low-cardinality strings are stored with intern();
-  * big text (abstracts, insights, run logs) lives beside the graph, not in it: plain Redis
-    locally, or a separate key-value graph on FalkorDB Cloud (see kv.py).
+  * big text (abstracts, insights, run logs) lives beside the graph in Redis, not in it.
 """
 
 from __future__ import annotations

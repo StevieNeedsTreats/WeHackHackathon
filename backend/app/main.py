@@ -34,8 +34,6 @@ async def lifespan(app: FastAPI):
     await store.init()
     state["store"] = store
     state["sources"] = Sources()
-    if hasattr(state["sources"].redis, "init"):
-        await state["sources"].redis.init()
     state["limiter"] = RateLimiter(settings.rate_limit_per_min)
     state["runs"] = asyncio.Semaphore(settings.max_concurrent_runs)
     state["live"] = {}  # qid -> LiveRun

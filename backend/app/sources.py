@@ -5,8 +5,8 @@
   * OpenAlex          — every field: papers, abstracts, funders, institutions, citations
 
 Every request goes through `fetch`, which enforces the host allow-list, a
-response-size cap, timeouts with retry, and a shared Redis cache that lives in the
-same FalkorDB instance — so parallel agents never fetch the same thing twice.
+response-size cap, timeouts with retry, and a shared Redis cache, so parallel
+agents never fetch the same thing twice.
 All sources return papers in one normalised shape (see `_paper`).
 """
 
@@ -24,7 +24,6 @@ from redis.asyncio import Redis
 from .config import get_settings
 from .graph import slug
 from .guardrails import ALLOWED_HOSTS, MAX_RESPONSE_BYTES
-from .kv import GraphKV
 
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 OPENALEX = "https://api.openalex.org/works"
@@ -39,9 +38,14 @@ class Sources:
     def __init__(self) -> None:
         s = get_settings()
         self.settings = s
-        # Side storage (caches, abstracts, verdicts, run logs). Locally that's plain Redis next to
-        # the graph; FalkorDB Cloud users can only run graph commands, so there it's a graph.
-        self.redis = GraphKV(s.db_conn(), f"{s.graph_name}_kv") if s.db_instance else Redis(**s.db_conn())
+        # Side storage (caches, abstracts, verdicts, run logs): its own Redis when configured,
+        # else the local FalkorDB container, which is also a Redis server.
+        if s.redis_url:
+            self.redis = Redis.from_url(s.redis_url, socket_keepalive=True, health_check_interval=30)
+        elif s.db_instance:
+            raise RuntimeError("FalkorDB Cloud only runs graph commands: set TG_REDIS_URL for the cache.")
+        else:
+            self.redis = Redis(**s.db_conn())
         self.http = httpx.AsyncClient(
             timeout=s.http_timeout_s,
             headers={"User-Agent": "TruthGraph/2.0 (evidence-graph research tool)"},
