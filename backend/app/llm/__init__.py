@@ -76,8 +76,13 @@ def _make(model: str) -> Any:
 class LLMRouter:
     """Hands each agent its client. One router per run."""
 
-    def __init__(self, clients: dict[str, Any], default: Any, mode: str):
+    def __init__(self, clients: dict[str, Any], default: Any, mode: str, caches: list[CachedClient] | None = None):
         self._clients, self._default, self.mode = clients, default, mode
+        self._caches = caches or []
+
+    @property
+    def cache_errors(self) -> int:
+        return sum(c.errors for c in self._caches)
 
     def for_agent(self, agent: str) -> Any:
         return self._clients.get(agent, self._default)
@@ -93,15 +98,17 @@ class LLMRouter:
         sem = asyncio.Semaphore(max(1, s.llm_concurrency))
         built: dict[str, Any] = {}
         clients: dict[str, Any] = {}
+        caches: list[CachedClient] = []
         for agent in AGENTS:
             model = model_for(agent)
             if model not in built:
                 c = LimitedClient(_make(model), sem)
                 if redis is not None:
                     c = CachedClient(c, redis, s.cache_ttl_s)
+                    caches.append(c)
                 built[model] = c
             clients[agent] = RecordingClient(built[model], record) if record else built[model]
-        return cls(clients, clients["extractor"], "live")
+        return cls(clients, clients["extractor"], "live", caches)
 
     @classmethod
     def replay(cls, fixtures: Fixtures) -> "LLMRouter":

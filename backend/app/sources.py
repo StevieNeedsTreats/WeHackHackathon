@@ -15,11 +15,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import re
 from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from .config import get_settings
 from .graph import slug
@@ -28,6 +30,8 @@ from .guardrails import ALLOWED_HOSTS, MAX_RESPONSE_BYTES
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 OPENALEX = "https://api.openalex.org/works"
 CTGOV = "https://clinicaltrials.gov/api/v2/studies"
+
+log = logging.getLogger(__name__)
 
 
 class SourceError(RuntimeError):
@@ -46,7 +50,7 @@ class Sources:
             follow_redirects=False,
         )
         self._inflight: dict[str, asyncio.Future] = {}
-        self.stats = {"requests": 0, "cache_hits": 0}
+        self.stats = {"requests": 0, "cache_hits": 0, "cache_errors": 0}
 
     async def close(self) -> None:
         await self.http.aclose()
@@ -59,7 +63,12 @@ class Sources:
         if host not in ALLOWED_HOSTS:
             raise SourceError(f"host not allowed: {host}")
         key = f"tg:http:{kind}:" + hashlib.sha1(url.encode()).hexdigest()
-        cached = await self.redis.get(key)
+        try:
+            cached = await self.redis.get(key)
+        except RedisError as e:  # the cache only saves requests; fetch without it
+            self.stats["cache_errors"] += 1
+            log.warning("HTTP cache read failed: %s", e)
+            cached = None
         if cached:
             self.stats["cache_hits"] += 1
             return json.loads(cached) if kind == "json" else cached.decode()
@@ -71,7 +80,11 @@ class Sources:
         self._inflight[key] = fut
         try:
             data = await self._get(url, kind)
-            await self.redis.set(key, json.dumps(data) if kind == "json" else data, ex=self.settings.cache_ttl_s)
+            try:
+                await self.redis.set(key, json.dumps(data) if kind == "json" else data, ex=self.settings.cache_ttl_s)
+            except RedisError as e:
+                self.stats["cache_errors"] += 1
+                log.warning("HTTP cache write failed: %s", e)
             fut.set_result(data)
             return data
         except Exception as e:

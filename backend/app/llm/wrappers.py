@@ -11,16 +11,19 @@ import asyncio
 
 import hashlib
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, TypeVar
 
 from pydantic import BaseModel
+from redis.exceptions import RedisError
 
 from .types import LLMError, Message, ToolCall, ToolSpec, Turn, Usage
 
 T = TypeVar("T", bound=BaseModel)
+log = logging.getLogger(__name__)
 
 
 def _msg_key(messages: list[Message]) -> list:
@@ -50,11 +53,13 @@ class LimitedClient:
 
 
 class CachedClient:
-    """Caches structured answers in Redis, keyed by the exact request."""
+    """Caches structured answers in Redis, keyed by the exact request. The cache only saves
+    time and money, so a Redis failure is logged and counted, and the call goes ahead."""
 
     def __init__(self, inner: Any, redis: Any, ttl_s: int):
         self.inner, self.redis, self.ttl_s = inner, redis, ttl_s
         self.provider, self.model = inner.provider, inner.model
+        self.errors = 0
 
     def _key(self, system: str, messages: list[Message], schema: type[BaseModel]) -> str:
         blob = json.dumps([self.provider, self.model, system, _msg_key(messages), schema.__name__,
@@ -65,7 +70,9 @@ class CachedClient:
         key = self._key(system, messages, schema)
         try:
             hit = await self.redis.get(key)
-        except Exception:
+        except RedisError as e:
+            self.errors += 1
+            log.warning("LLM cache read failed: %s", e)
             hit = None
         if hit:
             return schema.model_validate_json(hit), Usage()
@@ -73,8 +80,9 @@ class CachedClient:
                                                    max_tokens=max_tokens, effort=effort)
         try:
             await self.redis.set(key, value.model_dump_json(), ex=self.ttl_s)
-        except Exception:
-            pass
+        except RedisError as e:
+            self.errors += 1
+            log.warning("LLM cache write failed: %s", e)
         return value, usage
 
     async def chat(self, **kw) -> Turn:

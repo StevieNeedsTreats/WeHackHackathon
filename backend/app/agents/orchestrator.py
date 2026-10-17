@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, Field
+from redis.exceptions import RedisError
 
 from ..config import get_settings
 from ..domains import DomainPack, get_domain
@@ -35,6 +37,8 @@ from .extractor import EXTRACT_VERSION, ExtractorAgent, normalise
 from .metrics import run_benchmarks
 from .stance import StanceAgent
 from .verdict import VerdictAgent, consensus
+
+log = logging.getLogger(__name__)
 
 AGENTS = [
     ("orchestrator", "Graph Manager", "Plans the run, dedupes papers, decides what to do next"),
@@ -107,6 +111,8 @@ class Run:
         self.evidence: dict[str, list[dict]] = {}
         self.contradictions: dict[str, list[dict]] = {}
         self.flags: list[dict] = []
+        self.log_errors = 0
+        self.cache_errors0 = sources.stats["cache_errors"]  # Sources is shared; count this run's only
         self.agent_t0: dict[str, float] = {}
         self.locks: dict[str, asyncio.Lock] = {}
         self.sem = asyncio.Semaphore(self.settings.paper_concurrency)
@@ -126,8 +132,9 @@ class Run:
         try:
             await self.sources.redis.xadd(f"tg:run:{self.id}", {"agent": aid, "status": status, "detail": detail[:300]},
                                           maxlen=500)
-        except Exception:
-            pass
+        except RedisError as e:  # the run log is for debugging; the run goes on without it
+            self.log_errors += 1
+            log.warning("run log write failed: %s", e)
 
     async def flag(self, target: str, code: str, detail: str) -> None:
         f = {"target": target, "code": code, "detail": detail}
@@ -782,6 +789,11 @@ class Run:
         await self.store.set_status(rows)
         for row in rows:
             await self.emit("hypothesis", self.hyp_view(row["key"]))
+        cache_errors = (getattr(self.llm, "cache_errors", 0) + self.sources.stats["cache_errors"] - self.cache_errors0
+                        + self.log_errors)
+        if cache_errors:
+            await self.flag(f"q:{self.qid}", "cache-unavailable",
+                            f"{cache_errors} cache or run-log operation(s) failed; results are unaffected, the run was slower")
         counts = await self.store.counts()
         stats = {
             "papers": len(self.papers), "findings": len(self.findings),
