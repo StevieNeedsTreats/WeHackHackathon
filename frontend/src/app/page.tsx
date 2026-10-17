@@ -128,6 +128,13 @@ export default function Home() {
     setRefusal(null);
     setSelected(null);
     setTab("verdict");
+    // Already showing this question (finished or still streaming): just switch hypothesis.
+    // Reloading would neither change focus (that only happens when a new question arrives)
+    // nor keep a live run's stream.
+    if (id === state.question?.id) {
+      if (key && state.hyps[key]) setFocus(key);
+      return;
+    }
     setPendingFocus(key ?? null);
     load(id);
   };
