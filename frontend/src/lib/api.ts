@@ -47,8 +47,6 @@ export interface Snapshot {
   stats: Stats | null;
   flags: Flag[];
   disclaimer: string;
-  running: boolean;
-  complete: boolean;
   ms: number;
 }
 export const getQuestion = (id: string) => json<Snapshot>(`/api/question/${encodeURIComponent(id)}`);
@@ -73,5 +71,3 @@ export function streamUrl(q: string, mode: "live" | "demo", edits?: Edits) {
   const e = edits && Object.keys(edits).length ? `&edits=${encodeURIComponent(JSON.stringify(edits))}` : "";
   return `${API}/api/research/stream?q=${encodeURIComponent(q)}&mode=${mode}${e}`;
 }
-
-export const resumeUrl = (qid: string) => `${API}/api/research/resume?qid=${encodeURIComponent(qid)}`;

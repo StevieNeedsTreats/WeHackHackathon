@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getQuestion, resumeUrl, streamUrl, type Edits, type Snapshot } from "./api";
+import { getQuestion, streamUrl, type Edits, type Snapshot } from "./api";
 import type {
   Cluster,
   Contradiction,
@@ -80,8 +80,6 @@ export interface State {
   flags: Flag[];
   guard: Guardrail | null;
   error: string | null;
-  /** Whether every hypothesis finished; false means the run can be resumed. null while unknown. */
-  complete: boolean | null;
   version: number;
 }
 
@@ -114,19 +112,8 @@ export const initial: State = {
   flags: [],
   guard: null,
   error: null,
-  complete: null,
   version: 0,
 };
-
-// Same rule as the backend: a hypothesis is done when it has a verdict and the run
-// recorded no failure for it.
-const FAILED_HYP = new Set(["discovery-error", "verdict-error", "incomplete"]);
-const FAILED_RUN = new Set(["timeout", "budget"]);
-function isComplete(s: State): boolean {
-  if (!s.hypOrder.length) return false;
-  if (s.flags.some((f) => FAILED_RUN.has(f.code))) return false;
-  return s.hypOrder.every((k) => (s.verdicts[k] || s.hyps[k]?.verdict) && !s.flags.some((f) => f.target === `h:${k}` && FAILED_HYP.has(f.code)));
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSE payloads are untyped JSON, shaped per event below
 type Ev = { event: string; data: any };
@@ -241,12 +228,10 @@ function applyEvent(s: State, { event, data }: Ev): State {
       return { ...s, verdicts: { ...s.verdicts, [d.hypothesis]: d as Verdict } };
     case "metrics":
       return { ...s, metrics: d.items };
-    case "done": {
-      const n = { ...s, stats: d as Stats, status: "done" as const };
-      return { ...n, complete: isComplete(n) };
-    }
+    case "done":
+      return { ...s, stats: d as Stats, status: "done" };
     case "error":
-      return { ...s, status: "error", error: d.message, complete: false };
+      return { ...s, status: "error", error: d.message };
     default:
       return s;
   }
@@ -261,6 +246,7 @@ function fromSnapshot(s: State, snap: Snapshot): State {
   return {
     ...initial,
     version: s.version + 1,
+    status: "done",
     mode: "snapshot",
     engine: snap.stats?.engine ?? "",
     question: { ...snap.question, hypotheses: snap.hypotheses },
@@ -280,9 +266,6 @@ function fromSnapshot(s: State, snap: Snapshot): State {
     metrics: snap.metrics,
     stats: snap.stats,
     flags: snap.flags ?? [],
-    // A question another tab is still running can't be resumed yet.
-    complete: snap.running ? null : snap.complete,
-    status: "done",
   };
 }
 
@@ -300,7 +283,7 @@ function reducer(s: State, a: Action): State {
     case "snapshot":
       return fromSnapshot(s, a.snap);
     case "error":
-      return { ...s, status: "error", error: a.message, complete: s.question ? false : null };
+      return { ...s, status: "error", error: a.message };
   }
 }
 
@@ -356,14 +339,14 @@ export function useResearch() {
     abort.current = null;
   }, []);
 
-  const stream = useCallback(
-    async (url: string, mode: "live" | "demo") => {
+  const run = useCallback(
+    async (q: string, mode: "live" | "demo", edits?: Edits) => {
       stop();
       const ctrl = new AbortController();
       abort.current = ctrl;
       dispatch({ type: "start", mode });
       try {
-        const r = await fetch(url, { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
+        const r = await fetch(streamUrl(q, mode, edits), { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
         if (!r.ok || !r.body) {
           let msg = `Request failed (${r.status})`;
           try {
@@ -383,11 +366,6 @@ export function useResearch() {
     [push, stop],
   );
 
-  const run = useCallback((q: string, mode: "live" | "demo", edits?: Edits) => stream(streamUrl(q, mode, edits), mode), [stream]);
-
-  /** Continue an unfinished run from what it already saved. */
-  const resume = useCallback((qid: string) => stream(resumeUrl(qid), "live"), [stream]);
-
   /** Load a stored question from FalkorDB. */
   const load = useCallback(
     async (id: string) => {
@@ -403,7 +381,7 @@ export function useResearch() {
 
   useEffect(() => () => stop(), [stop]);
 
-  return { state, run, resume, load, stop, reset: () => dispatch({ type: "reset" }) };
+  return { state, run, load, stop, reset: () => dispatch({ type: "reset" }) };
 }
 
 // ---------------------------------------------------------------- selectors
