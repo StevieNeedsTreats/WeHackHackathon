@@ -1,11 +1,9 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useTooltips } from "@/lib/tooltips";
 
-/** One-line wrapper so every hint in the app uses the same shadcn tooltip (and obeys the tooltips setting). */
+/** One-line wrapper so every hint in the app uses the same shadcn tooltip. */
 export function Tip({ label, children, side = "top" }: { label: React.ReactNode; children: React.ReactElement; side?: "top" | "bottom" | "left" | "right" }) {
-  if (!useTooltips()) return children;
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
