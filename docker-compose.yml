@@ -1,0 +1,11 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: truthgraph-falkordb
+    ports:
+      - "6380:6379"
+    volumes:
+      - truthgraph-data:/var/lib/falkordb/data
+    restart: unless-stopped
+volumes:
+  truthgraph-data:
