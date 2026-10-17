@@ -75,6 +75,7 @@ svg.graph { display: block; width: 100%; min-width: 760px; height: auto; }
 
 .edge path { fill: none; stroke: var(--edge); stroke-width: 1.5; transition: stroke .25s, opacity .25s, stroke-width .25s; }
 .edge text { font: 500 10.5px var(--mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; transition: fill .25s, opacity .25s; letter-spacing: .02em; }
+.edge.shortcut path { stroke-dasharray: 3 4; }
 .edge.on path { stroke: var(--accent); stroke-width: 2.6; stroke-dasharray: 7 5; animation: flow 1s linear infinite; }
 .edge.on text { fill: var(--accent); font-weight: 600; }
 .edge.off { opacity: .22; }
@@ -211,11 +212,11 @@ pre.cypher .rel { color: var(--code-str); }
       </div>
       <div class="point">
         <h3>Research is reused</h3>
-        <p>Every write is a <code>MERGE</code> on a unique key, and papers are deduplicated by DOI, PMID and normalised title. A new question that matches earlier research joins nodes already in the graph, so nothing is looked up twice.</p>
+        <p>Every write is a <code>MERGE</code> on a unique key, and papers are deduplicated by DOI, PMID and normalised title. A new question that matches earlier research joins nodes already in the graph, so nothing is looked up twice. Concept synonyms extend this to reworded questions: “lean mass” resolves to the existing muscle mass concept.</p>
       </div>
       <div class="point">
         <h3>Indexed where it's queried</h3>
-        <p>FalkorDB indexes what the app searches: full text on concept names and paper titles, and a relationship index on <code>CONTRADICTS.hypothesis</code> so contradictions are found per hypothesis.</p>
+        <p>FalkorDB indexes what the app searches: full text on concept names and paper titles, and relationship indexes on <code>CONTRADICTS.hypothesis</code> and <code>MEASURES.hypothesis</code> so each hypothesis's links are found directly.</p>
       </div>
       <div class="point">
         <h3>Safe to explore live</h3>
@@ -234,14 +235,14 @@ const NODES = {
     desc: "What the user typed, e.g. “creatine on intelligence vs muscle gain”." },
   Hypothesis: { x: 500, y: 90,  g: "ask", key: "key", props: ["statement", "verdict", "grade", "share_support", "share_refute"],
     desc: "A testable claim split out of the question. Its key comes from domain, subject, outcome and population, so differently worded questions with the same meaning share one hypothesis." },
-  Concept:    { x: 860, y: 90,  g: "ask", key: "id", props: ["name", "kind"],
-    desc: "A building block of a hypothesis (the subject, outcome or population), such as creatine, muscle mass or adults. Findings point at the outcome they measure." },
+  Concept:    { x: 860, y: 90,  g: "ask", key: "id", props: ["name", "kind", "synonyms"],
+    desc: "A building block of a hypothesis (the subject, outcome or population), such as creatine, muscle mass or adults. Its synonyms let a finding about “lean body mass” and a later question about “lean mass” both land on muscle mass." },
   Paper:      { x: 300, y: 330, g: "evidence", key: "id", props: ["title", "doi", "pmid", "year", "design", "credibility", "flags"],
     desc: "A published article found by the search agents. The Credibility agent scores it from 0 to 100 and writes the reasons." },
   Study:      { x: 500, y: 540, g: "evidence", key: "id", props: ["design"],
     desc: "An experiment described in a paper, with its design, participants, population, dose and duration. One paper can describe several studies." },
-  Finding:    { x: 700, y: 330, g: "evidence", key: "id", props: ["direction", "effect_unit"],
-    desc: "One result of a study, with its effect size and a word-for-word quote that is checked against the source." },
+  Finding:    { x: 700, y: 330, g: "evidence", key: "id", props: ["paper_id", "direction", "effect_unit"],
+    desc: "One result of a study, with its effect size and a word-for-word quote that is checked against the source. Its paper_id lets queries jump straight to the paper without going through the study." },
   Cluster:    { x: 500, y: 320, g: "judge", key: "id", props: ["label", "context", "hypothesis"],
     desc: "A group of findings that share a context, such as “trials in older adults”, built separately for each hypothesis." },
   Author:     { x: 70,  y: 210, g: "prov", key: "id", props: ["name"],
@@ -259,8 +260,9 @@ const EDGES = [
   ["CONSIDERED",  "Hypothesis", "Paper",      "CONSIDERED", ["relevance", "slice"], [-10, 0]],
   ["DESCRIBES",   "Paper",      "Study",      "DESCRIBES", [], [-14, 8]],
   ["FOUND",       "Study",      "Finding",    "FOUND", [], [14, 8]],
-  ["EVIDENCE_FOR","Finding",    "Hypothesis", "EVIDENCE_FOR", ["stance", "weight", "rationale"], [12, 0]],
-  ["MEASURES",    "Finding",    "Concept",    "MEASURES", [], [26, 0]],
+  ["EVIDENCE_FOR","Finding",    "Hypothesis", "EVIDENCE_FOR", ["stance", "weight", "rationale", "same_outcome"], [12, 0]],
+  ["MEASURES",    "Finding",    "Concept",    "MEASURES", ["hypothesis?"], [26, 0]],
+  ["PAPER_ID",    "Finding",    "Paper",      "paper_id shortcut", [], null],
   ["IN_CLUSTER",  "Finding",    "Cluster",    "IN_CLUSTER", [], [0, -9]],
   ["OF",          "Cluster",    "Hypothesis", "OF", [], [12, 0]],
   ["AUTHORED_BY", "Paper",      "Author",     "AUTHORED_BY", ["pos"], [0, -8]],
@@ -281,28 +283,27 @@ const QUERIES = [
       <-[e:EVIDENCE_FOR]-(f:Finding)<-[:FOUND]-(s:Study)
       <-[:DESCRIBES]-(p:Paper)
 RETURN h.statement, e.stance, e.weight, p.title, p.credibility` },
-  { id: "funding", title: "Funding trail", hops: 5, src: "backend/app/agents/metrics.py",
+  { id: "funding", title: "Funding trail", hops: 3, src: "backend/app/agents/metrics.py",
     ask: "For each hypothesis, which kinds of funder paid for the supporting vs refuting evidence?",
-    path: "Question → Hypothesis ← Finding ← Study ← Paper → <b>Funder</b>",
-    edges: ["ASKS", "EVIDENCE_FOR", "FOUND", "DESCRIBES", "FUNDED_BY"],
-    nodes: ["Question", "Hypothesis", "Finding", "Study", "Paper", "Funder"],
-    sql: "<strong>5 hops in one pattern.</strong> In SQL that's a join for every step, plus link tables.",
-    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(:Finding)
-      <-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)
+    path: "Question → Hypothesis ← Finding ⇢ <b>Paper</b> (by paper_id) → <b>Funder</b>",
+    edges: ["ASKS", "EVIDENCE_FOR", "PAPER_ID", "FUNDED_BY"],
+    nodes: ["Question", "Hypothesis", "Finding", "Paper", "Funder"],
+    sql: "<strong>3 hops plus one index lookup.</strong> It used to be 5. The finding's <code>paper_id</code> jumps straight to its paper, skipping the study.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(x:Finding)
+MATCH (p:Paper {id:x.paper_id})
 OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
 RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funder_type,
        e.stance AS stance, count(DISTINCT p) AS papers
 ORDER BY hypothesis, papers DESC` },
-  { id: "contradicts", title: "Who contradicts whom", hops: 7, src: "backend/app/agents/metrics.py",
+  { id: "contradicts", title: "Who contradicts whom", hops: 4, src: "backend/app/agents/metrics.py",
     ask: "Which labs' findings contradict which other labs' findings, and why?",
-    path: "Finding <b>CONTRADICTS</b> Finding, then each side ← Study ← Paper → <b>Lab</b>",
-    edges: ["ASKS", "CONTRADICTS", "FOUND", "DESCRIBES", "AFFILIATED"],
-    nodes: ["Question", "Hypothesis", "Finding", "Study", "Paper", "Lab"],
-    sql: "<strong>7 hops, walked from both ends of a contradiction.</strong> <code>c.hypothesis</code> is answered by a relationship index.",
+    path: "Finding <b>CONTRADICTS</b> Finding, then each side ⇢ Paper → <b>Lab</b>",
+    edges: ["ASKS", "CONTRADICTS", "PAPER_ID", "AFFILIATED"],
+    nodes: ["Question", "Hypothesis", "Finding", "Paper", "Lab"],
+    sql: "<strong>4 hops, down from 7.</strong> Each side of a contradiction jumps to its paper by <code>paper_id</code>, and <code>c.hypothesis</code> is answered by a relationship index.",
     cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
 MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
-MATCH (a)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pa:Paper),
-      (b)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pb:Paper)
+MATCH (pa:Paper {id:a.paper_id}), (pb:Paper {id:b.paper_id})
 OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
 OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
 RETURN pa.label AS paper_a, la.name AS lab_a, pb.label AS paper_b,
@@ -373,6 +374,10 @@ for (const [id, from, to, label, , off] of EDGES) {
     const x = a.x + W / 2, y = a.y;
     d = `M${x},${y - 10} C${x + 70},${y - 50} ${x + 70},${y + 50} ${x + 2},${y + 10}`;
     lx = x + 60; ly = y + 44; anchor = "start";
+  } else if (id === "PAPER_ID") {
+    g.classList.add("shortcut");
+    d = "M660,350 Q500,460 340,352";
+    lx = 500; ly = 424;
   } else if (id === "CITES") {
     const y = a.y + H / 2;
     d = `M${a.x - 20},${y} C${a.x - 38},${y + 70} ${a.x + 38},${y + 70} ${a.x + 20},${y + 2}`;
@@ -405,6 +410,7 @@ function inspect(name) {
   const n = NODES[name];
   Object.entries(nodeEls).forEach(([k, g]) => g.classList.toggle("sel", k === name));
   const rels = EDGES.filter(e => e[1] === name || e[2] === name).map(([id, f, t, label, props]) => {
+    if (id === "PAPER_ID") return `<div>(${f} {<b>paper_id</b>}) ⇢ (${t} {id})</div>`;
     const pr = props.length ? ` {${props.join(", ")}}` : "";
     return `<div>(${f})-[<b>:${label.replace(/ · /g, "|")}</b>${pr}]->(${t})</div>`;
   }).join("");

@@ -94,8 +94,9 @@ To explore the schema interactively, open [`docs/data-model.html`](docs/data-mod
 ```
 (:Question)-[:ASKS]->(:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(:Concept)
 (:Hypothesis)-[:CONSIDERED {relevance, slice}]->(:Paper)
-(:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(:Finding)-[:MEASURES]->(:Concept)
-(:Finding)-[:EVIDENCE_FOR {stance, weight, rationale}]->(:Hypothesis)
+(:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(:Finding {paper_id})-[:MEASURES]->(:Concept {synonyms})
+(:Finding)-[:MEASURES {hypothesis}]->(:Concept)   the hypothesis's outcome, under another name
+(:Finding)-[:EVIDENCE_FOR {stance, weight, rationale, same_outcome}]->(:Hypothesis)
 (:Finding)-[:IN_CLUSTER]->(:Cluster)-[:OF]->(:Hypothesis)
 (:Finding)-[:CONTRADICTS {hypothesis, reason, severity, explained_by}]->(:Finding)
 (:Paper)-[:AUTHORED_BY]->(:Author)  (:Paper)-[:AFFILIATED]->(:Lab)  (:Paper)-[:FUNDED_BY]->(:Funder)
@@ -103,16 +104,26 @@ To explore the schema interactively, open [`docs/data-model.html`](docs/data-mod
 ```
 
 - **Stance on the edge:** stance lives on `EVIDENCE_FOR`, not on the finding. One finding can support one hypothesis and be irrelevant to another, and papers, studies and findings are shared across every question.
-- **Deterministic keys:** a hypothesis's key comes from its domain, subject, outcome and population. Differently worded questions with the same meaning reuse earlier research.
+- **Deterministic keys:** a hypothesis's key comes from its domain, subject, outcome and population. Differently worded questions with the same meaning reuse earlier research, and a concept named by one of an existing concept's synonyms resolves to that concept first.
 - **FalkorDB specifics:**
   - unique constraints on ids, plus range indexes on DOI, PMID and normalised title for dedupe;
   - full-text indexes on concept names and paper titles;
-  - a relationship index on `CONTRADICTS.hypothesis`;
+  - relationship indexes on `CONTRADICTS.hypothesis` and `MEASURES.hypothesis`;
   - batched `UNWIND` writes with constant parameterised queries, so the plan cache hits;
   - `intern()` for repeated strings.
 - **Redis in the same instance:** abstracts and agent caches (HTTP responses, LLM answers, extractions) live outside the graph.
 
 The **Queries** tab benchmarks five multi-hop questions on every run (funding trail, who contradicts whom, evidence reused across hypotheses, citation reach, shared researchers) and includes a read-only Cypher console.
+
+### Optimizations
+
+Three changes to the model and its queries. [`docs/optimizations.html`](docs/optimizations.html) shows each one as a before-and-after diagram.
+
+| Change | Before | After |
+|---|---|---|
+| **Findings link to the hypothesis outcome** | The Intake agent named the outcome "muscle mass" and the Extractor named each paper's outcome in the paper's own words ("lean body mass"). Each name became its own `Concept`, so most findings never reached the hypothesis's concept. | The Stance agent also judges `same_outcome`. Matching findings get `MEASURES {hypothesis}` to the hypothesis's concept, and their wording is added to its `synonyms`. A later question using a synonym resolves to the same concept and key, so it reuses the research. |
+| **One row per paper in the snapshot** | Three `OPTIONAL MATCH`es for authors, funders and labs multiplied each paper into up to 3 × 3 × 2 = 18 rows, and `collect(DISTINCT …)` then dropped the duplicates. | Pattern comprehensions return each paper once, with its three lists. |
+| **Finding → Paper without the Study hop** | Queries walked `(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(:Paper)` just to reach the paper. | Findings store `paper_id`, and older findings are backfilled at startup. The funding trail drops from 5 hops to 3 and "who contradicts whom" from 7 to 4. |
 
 ## The UI
 

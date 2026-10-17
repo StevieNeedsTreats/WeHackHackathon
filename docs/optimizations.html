@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TruthGraph Graph Optimizations</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three stacked optimizations; each has a plain explanation beside a diagram that flips between Before and After. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #141821;
+  --muted: #5b6372;
+  --line: #d7dbe3;
+  --edge: #9aa3b2;
+  --accent: #5b3df5;
+  --accent-soft: #ece8ff;
+  --good: #0e8a6a;
+  --good-soft: #dcf3ec;
+  --bad: #c2410c;
+  --bad-soft: #fdebe1;
+  --ask: #3d63dd;
+  --evidence: #0e8a7a;
+  --prov: #8a5a8f;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
+    --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d;
+    --ask: #7d9bff; --evidence: #3cc7b3; --prov: #c99ad0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
+  --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d;
+  --ask: #7d9bff; --evidence: #3cc7b3; --prov: #c99ad0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 48px; }
+header { display: grid; gap: 12px; max-width: 720px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(28px, 4.2vw, 44px)/1.08 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); font-size: 17px; max-width: 62ch; }
+
+.fix { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 28px; align-items: start; border-top: 2px solid var(--fg); padding-top: 20px; }
+.copy { display: grid; gap: 12px; min-width: 0; }
+.copy .num { font: 500 12px var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { font: 500 11px/1 var(--mono); padding: 4px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); text-transform: none; letter-spacing: 0; }
+.copy h2 { margin: 0; font: 700 26px/1.15 var(--display); text-wrap: balance; }
+.copy p { margin: 0; color: var(--muted); }
+.copy p strong { color: var(--fg); font-weight: 600; }
+.copy code, .note code { font: 12.5px var(--mono); background: var(--surface); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; color: var(--fg); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 3px; background: var(--bg); }
+.seg button { font: 600 13px var(--body); border: 0; background: transparent; color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.result { font: 500 13px var(--mono); padding: 6px 10px; border-radius: 7px; font-variant-numeric: tabular-nums; }
+.result.bad { background: var(--bad-soft); color: var(--bad); }
+.result.good { background: var(--good-soft); color: var(--good); }
+.scroll { overflow-x: auto; }
+svg.d { display: block; width: 100%; min-width: 600px; height: auto; }
+.caption { padding: 12px 14px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+.caption strong { color: var(--fg); }
+
+/* diagram parts */
+.box rect { stroke-width: 2; fill: var(--surface); }
+.box .k { font: 500 10.5px var(--mono); fill: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.box .t { font: 600 14px var(--body); fill: var(--fg); }
+.wire { fill: none; stroke: var(--edge); stroke-width: 1.8; }
+.wire.good { stroke: var(--good); stroke-width: 2.4; }
+.wire.bad { stroke: var(--bad); stroke-width: 2.2; stroke-dasharray: 6 4; }
+.wire.hot { stroke: var(--accent); stroke-width: 2.8; }
+.lbl { font: 500 10.5px var(--mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.lbl.good { fill: var(--good); } .lbl.bad { fill: var(--bad); } .lbl.hot { fill: var(--accent); }
+.st-before, .st-after { transition: opacity .35s; }
+[data-state="before"] .st-after { opacity: 0; pointer-events: none; }
+[data-state="after"] .st-before { opacity: 0; pointer-events: none; }
+[data-state="after"] .dim-after { opacity: .3; }
+.dim-after { transition: opacity .35s; }
+
+/* fix 2 */
+.ctrls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 18px; padding: 14px; border-bottom: 1px solid var(--line); }
+.ctrl { display: grid; gap: 4px; }
+.ctrl label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+.ctrl label b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.ctrl input { width: 100%; accent-color: var(--accent); }
+.rows { padding: 14px; display: grid; gap: 10px; }
+.rowhead { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font: 500 11.5px var(--mono); padding: 5px 7px; border-radius: 6px; background: var(--bad-soft); color: var(--bad); white-space: nowrap; }
+.chip.ok { background: var(--good-soft); color: var(--good); white-space: normal; }
+.chip i { font-style: normal; opacity: .55; }
+.total { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; padding: 0 14px 14px; }
+.tot { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.tot span { font-size: 12px; color: var(--muted); }
+.tot b { font: 700 28px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.tot.bad b { color: var(--bad); } .tot.good b { color: var(--good); }
+
+.note { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.code { font: 12px/1.6 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre; color: var(--fg); }
+
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 860px) { .fix { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TruthGraph · FalkorDB data model</div>
+    <h1>Three optimizations to the TruthGraph graph</h1>
+    <p class="lede">These changes are live in the code. Switch each diagram between <strong>Before</strong> and <strong>After</strong> to see what changed. The examples are made up to show the idea, but the changes are real.</p>
+  </header>
+
+  <!-- FIX 1 -->
+  <section class="fix" id="fix1">
+    <div class="copy">
+      <div class="num">Optimization 1 <span class="pill">Better reuse</span></div>
+      <h2>Findings now connect to the hypothesis they're about</h2>
+      <p>Before, two different agents named the same idea. The <strong>Intake</strong> agent called the outcome "muscle mass". The <strong>Extractor</strong> read each paper and used the paper's wording, such as "lean body mass" or "fat-free mass".</p>
+      <p>Each name became its <strong>own Concept node</strong>. So a finding about "lean body mass" never linked to the hypothesis about "muscle mass", even though they mean the same thing.</p>
+      <p><strong>What changed:</strong> while the Stance agent judges each finding, it now also says whether the finding measures the hypothesis's outcome. If it does, the finding is linked to that Concept and its wording is saved as a synonym. When a new question uses a synonym, the Intake step resolves it to the existing Concept, so earlier research is reused.</p>
+    </div>
+    <div class="panel" data-state="before" id="p1">
+      <div class="bar">
+        <div class="seg" role="group" aria-label="Fix 1 view">
+          <button type="button" id="p1-before" aria-pressed="true">Before</button>
+          <button type="button" id="p1-after" aria-pressed="false">After</button>
+        </div>
+        <span class="result bad" id="p1-res">Findings about muscle mass: 1 of 3</span>
+      </div>
+      <div class="scroll">
+        <svg class="d" viewBox="0 0 760 360" role="img" aria-label="Hypothesis and findings linked to Concept nodes, before and after the fix">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--edge)"/></marker>
+            <marker id="a1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--good)"/></marker>
+            <marker id="a1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--bad)"/></marker>
+          </defs>
+          <!-- hypothesis -> concept -->
+          <path class="wire" d="M280,58 L428,58" marker-end="url(#a1)"/>
+          <text class="lbl" x="354" y="48" text-anchor="middle">OUTCOME</text>
+
+          <!-- before wires -->
+          <g class="st-before">
+            <path class="wire good" d="M150,270 L470,88" marker-end="url(#a1g)"/>
+            <path class="wire bad" d="M390,270 L408,216" marker-end="url(#a1b)"/>
+            <path class="wire bad" d="M640,270 L640,216" marker-end="url(#a1b)"/>
+            <text class="lbl" x="300" y="190" text-anchor="middle">MEASURES</text>
+          </g>
+          <!-- after wires -->
+          <g class="st-after">
+            <path class="wire good" d="M150,270 L478,88" marker-end="url(#a1g)"/>
+            <path class="wire good" d="M380,270 L522,88" marker-end="url(#a1g)"/>
+            <path class="wire good" d="M630,270 L582,88" marker-end="url(#a1g)"/>
+            <text class="lbl good" x="300" y="190" text-anchor="middle">MEASURES</text>
+            <text class="lbl good" x="530" y="112" text-anchor="middle">synonyms: lean body mass, fat-free mass</text>
+          </g>
+
+          <!-- hypothesis -->
+          <g class="box"><rect x="20" y="30" width="260" height="56" rx="10" style="stroke:var(--ask)"/>
+            <text class="k" x="36" y="50">Hypothesis</text><text class="t" x="36" y="72">Creatine increases muscle mass</text></g>
+          <!-- main concept -->
+          <g class="box"><rect x="430" y="30" width="200" height="56" rx="10" style="stroke:var(--ask)"/>
+            <text class="k" x="446" y="50">Concept</text><text class="t" x="446" y="72">muscle-mass</text></g>
+          <!-- island concepts (before only) -->
+          <g class="box st-before"><rect x="320" y="170" width="170" height="44" rx="10" style="stroke:var(--bad);stroke-dasharray:5 4"/>
+            <text class="t" x="336" y="197">lean-body-mass</text></g>
+          <g class="box st-before"><rect x="560" y="170" width="170" height="44" rx="10" style="stroke:var(--bad);stroke-dasharray:5 4"/>
+            <text class="t" x="576" y="197">fat-free-mass</text></g>
+          <text class="lbl bad st-before" x="525" y="240" text-anchor="middle">cut off from the hypothesis</text>
+
+          <!-- findings -->
+          <g class="box"><rect x="30" y="272" width="230" height="58" rx="10" style="stroke:var(--evidence)"/>
+            <text class="k" x="46" y="293">Finding · paper A</text><text class="t" x="46" y="315">Muscle mass +1.4 kg</text></g>
+          <g class="box"><rect x="270" y="272" width="230" height="58" rx="10" style="stroke:var(--evidence)"/>
+            <text class="k" x="286" y="293">Finding · paper B</text><text class="t" x="286" y="315">Lean body mass +2.1 kg</text></g>
+          <g class="box"><rect x="510" y="272" width="230" height="58" rx="10" style="stroke:var(--evidence)"/>
+            <text class="k" x="526" y="293">Finding · paper C</text><text class="t" x="526" y="315">Fat-free mass +0.9 kg</text></g>
+        </svg>
+      </div>
+      <div class="caption" id="p1-cap"><strong>Before:</strong> asking the graph "what do we know about muscle mass?" found only paper A. Papers B and C hung off separate Concept nodes that no hypothesis pointed to.</div>
+    </div>
+  </section>
+
+  <!-- FIX 2 -->
+  <section class="fix" id="fix2">
+    <div class="copy">
+      <div class="num">Optimization 2 <span class="pill">Faster canvas load</span></div>
+      <h2>The canvas now fetches each paper once</h2>
+      <p>When the canvas loads, one query fetches each paper together with its <strong>authors</strong>, <strong>funders</strong> and <strong>labs</strong>. Before, it asked for all three in one go, so FalkorDB returned every combination of them, one row each.</p>
+      <p>A paper with 3 authors, 3 funders and 2 labs came back as <strong>3 × 3 × 2 = 18 rows</strong>, and the code threw 17 of them away.</p>
+      <p><strong>What changed:</strong> the query now asks for each list separately, using pattern comprehensions. Each paper comes back as one row with three short lists, and the canvas gets exactly the same data.</p>
+      <p>Drag the sliders to see how fast the row count grows.</p>
+    </div>
+    <div class="panel">
+      <div class="ctrls">
+        <div class="ctrl"><label for="s-a">Authors <b id="v-a">3</b></label><input id="s-a" type="range" min="1" max="3" value="3"></div>
+        <div class="ctrl"><label for="s-f">Funders <b id="v-f">3</b></label><input id="s-f" type="range" min="0" max="3" value="3"></div>
+        <div class="ctrl"><label for="s-l">Labs <b id="v-l">2</b></label><input id="s-l" type="range" min="0" max="2" value="2"></div>
+        <div class="ctrl"><label for="s-p">Papers in the question <b id="v-p">40</b></label><input id="s-p" type="range" min="5" max="80" step="5" value="40"></div>
+      </div>
+      <div class="rows">
+        <div class="rowhead"><span><strong>Before:</strong> rows returned for one paper</span><span id="r-before"></span></div>
+        <div class="chips" id="chips-before"></div>
+        <div class="rowhead"><span><strong>After:</strong> rows returned for one paper</span><span>1 row</span></div>
+        <div class="chips" id="chips-after"></div>
+      </div>
+      <div class="total">
+        <div class="tot bad"><span>Rows for the whole question before</span><b id="t-before">720</b></div>
+        <div class="tot good"><span>Rows after</span><b id="t-after">40</b></div>
+      </div>
+      <div class="caption">The app keeps at most 3 authors, 3 funders and 2 labs per paper, so 18 is the most one paper can produce. The count also repeats for every hypothesis that considered the paper. The code is in <code>snapshot()</code> in <code>backend/app/graph.py</code>.</div>
+    </div>
+  </section>
+
+  <!-- FIX 3 -->
+  <section class="fix" id="fix3">
+    <div class="copy">
+      <div class="num">Optimization 3 <span class="pill">Shorter queries</span></div>
+      <h2>Findings now jump straight to their paper</h2>
+      <p>Many queries start at a <strong>Finding</strong> and need its <strong>Paper</strong>, for example to show the title or find the funder. Before, they had to step through the Study in between, every time.</p>
+      <p><strong>What changed:</strong> each finding now stores its paper's id when it's extracted, and older findings get it filled in when the app starts. Queries that only need the paper jump straight to it. Study stays in the graph for the screens that show study details.</p>
+      <p>The funding trail query went from 5 hops to 3, and "who contradicts whom" from 7 to 4.</p>
+    </div>
+    <div class="panel" data-state="before" id="p3">
+      <div class="bar">
+        <div class="seg" role="group" aria-label="Fix 3 view">
+          <button type="button" id="p3-before" aria-pressed="true">Before</button>
+          <button type="button" id="p3-after" aria-pressed="false">After</button>
+        </div>
+        <span class="result bad" id="p3-res">Finding to Paper: 2 hops</span>
+      </div>
+      <div class="scroll">
+        <svg class="d" viewBox="0 0 760 270" role="img" aria-label="Path from a Finding to its Paper and Funder, before and after the shortcut">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--edge)"/></marker>
+            <marker id="a3h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker>
+          </defs>
+          <!-- structure (always) : Funder <- Paper -> Study -> Finding -->
+          <g class="st-before">
+            <path class="wire hot" d="M218,170 L162,170" marker-end="url(#a3h)"/>
+            <path class="wire hot" d="M428,170 L372,170" marker-end="url(#a3h)"/>
+            <path class="wire hot" d="M638,170 L582,170" marker-end="url(#a3h)"/>
+            <text class="lbl hot" x="190" y="158" text-anchor="middle">FUNDED_BY</text>
+            <text class="lbl hot" x="400" y="158" text-anchor="middle">DESCRIBES</text>
+            <text class="lbl hot" x="610" y="158" text-anchor="middle">FOUND</text>
+            <text class="lbl hot" x="400" y="226" text-anchor="middle">query walks: Finding → Study → Paper → Funder</text>
+          </g>
+          <g class="st-after">
+            <path class="wire" d="M372,170 L428,170" marker-end="url(#a3)"/>
+            <path class="wire" d="M582,170 L638,170" marker-end="url(#a3)"/>
+            <path class="wire hot" d="M218,170 L162,170" marker-end="url(#a3h)"/>
+            <text class="lbl hot" x="190" y="158" text-anchor="middle">FUNDED_BY</text>
+            <path class="wire hot" d="M700,140 C700,40 300,40 300,138" marker-end="url(#a3h)" style="stroke-dasharray:7 5"/>
+            <text class="lbl hot" x="500" y="56" text-anchor="middle">finding.paper_id jumps straight to the paper</text>
+            <text class="lbl hot" x="400" y="226" text-anchor="middle">query walks: Finding → Paper → Funder</text>
+          </g>
+          <g class="box"><rect x="40" y="145" width="120" height="50" rx="10" style="stroke:var(--prov)"/><text class="t" x="100" y="175" text-anchor="middle">Funder</text></g>
+          <g class="box"><rect x="220" y="145" width="150" height="50" rx="10" style="stroke:var(--evidence)"/><text class="t" x="295" y="175" text-anchor="middle">Paper</text></g>
+          <g class="box dim-after"><rect x="430" y="145" width="150" height="50" rx="10" style="stroke:var(--evidence)"/><text class="t" x="505" y="175" text-anchor="middle">Study</text></g>
+          <g class="box"><rect x="640" y="145" width="110" height="50" rx="10" style="stroke:var(--evidence)"/><text class="t" x="695" y="175" text-anchor="middle">Finding</text></g>
+        </svg>
+      </div>
+      <div class="caption">
+        <div class="note">
+          <span id="p3-cap">The Cypher pattern before:</span>
+          <div class="code" id="p3-code">(f:Finding)&lt;-[:FOUND]-(:Study)&lt;-[:DESCRIBES]-(p:Paper)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Code: <code>backend/app/graph.py</code>, <code>agents/stance.py</code>, <code>agents/metrics.py</code> and <code>main.py</code>. Shipped in commits <code>242b995</code>, <code>0b01441</code> and <code>5edc96d</code>.</footer>
+</div>
+
+<script>
+function toggle(prefix, onState) {
+  const panel = document.getElementById(prefix);
+  const b = document.getElementById(prefix + "-before"), a = document.getElementById(prefix + "-after");
+  const set = s => {
+    panel.dataset.state = s;
+    b.setAttribute("aria-pressed", s === "before");
+    a.setAttribute("aria-pressed", s === "after");
+    onState(s);
+  };
+  b.addEventListener("click", () => set("before"));
+  a.addEventListener("click", () => set("after"));
+}
+
+toggle("p1", s => {
+  const r = document.getElementById("p1-res"), c = document.getElementById("p1-cap");
+  r.className = "result " + (s === "after" ? "good" : "bad");
+  r.textContent = s === "after" ? "Findings about muscle mass: 3 of 3" : "Findings about muscle mass: 1 of 3";
+  c.innerHTML = s === "after"
+    ? "<strong>After:</strong> all three findings point at the same Concept, so the hypothesis sees all of them. A later question about \"lean mass\" also lands on this node through its synonyms and reuses the research."
+    : "<strong>Before:</strong> asking the graph \"what do we know about muscle mass?\" found only paper A. Papers B and C hung off separate Concept nodes that no hypothesis pointed to.";
+});
+
+toggle("p3", s => {
+  const r = document.getElementById("p3-res");
+  r.className = "result " + (s === "after" ? "good" : "bad");
+  r.textContent = s === "after" ? "Finding to Paper: 1 lookup" : "Finding to Paper: 2 hops";
+  document.getElementById("p3-cap").textContent = s === "after" ? "The Cypher pattern after:" : "The Cypher pattern before:";
+  document.getElementById("p3-code").textContent = s === "after"
+    ? "MATCH (f:Finding), (p:Paper {id: f.paper_id})"
+    : "(f:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)";
+});
+
+const S = id => document.getElementById(id);
+function rows() {
+  const A = +S("s-a").value, F = +S("s-f").value, L = +S("s-l").value, P = +S("s-p").value;
+  S("v-a").textContent = A; S("v-f").textContent = F; S("v-l").textContent = L; S("v-p").textContent = P;
+  // OPTIONAL MATCH with no match still yields one row (with null)
+  const fs = F ? [...Array(F)].map((_, i) => "F" + (i + 1)) : ["—"];
+  const ls = L ? [...Array(L)].map((_, i) => "L" + (i + 1)) : ["—"];
+  const out = [];
+  for (let a = 1; a <= A; a++) for (const f of fs) for (const l of ls) out.push(`A${a} <i>·</i> ${f} <i>·</i> ${l}`);
+  S("chips-before").innerHTML = out.map(t => `<span class="chip">${t}</span>`).join("");
+  S("r-before").textContent = `${A} × ${Math.max(F, 1)} × ${Math.max(L, 1)} = ${out.length} row${out.length > 1 ? "s" : ""}`;
+  const list = (n, p) => n ? [...Array(n)].map((_, i) => p + (i + 1)).join(", ") : "none";
+  S("chips-after").innerHTML = `<span class="chip ok">authors [${list(A, "A")}] · funders [${list(F, "F")}] · labs [${list(L, "L")}]</span>`;
+  S("t-before").textContent = (out.length * P).toLocaleString();
+  S("t-after").textContent = P.toLocaleString();
+}
+["s-a", "s-f", "s-l", "s-p"].forEach(id => S(id).addEventListener("input", rows));
+rows();
+</script>
+</html>
