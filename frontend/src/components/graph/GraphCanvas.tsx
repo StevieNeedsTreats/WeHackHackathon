@@ -1,7 +1,13 @@
 "use client";
 
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node } from "@xyflow/react";
+import { Maximize, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { computeLayout, GUTTER, type Placed } from "@/lib/layout";
 import type { State } from "@/lib/store";
 import type { Consensus, EdgeType, GEdge } from "@/lib/types";
@@ -9,6 +15,7 @@ import { GraphContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
 import { DIR } from "./glyphs";
 import { nodeTypes } from "./nodes";
+import { Tip } from "../Tip";
 
 type Toggleable = "CONTRADICTS" | "SUPPORTS" | "CITES" | "FUNDED_BY" | "ABOUT";
 const TOGGLES: { type: Toggleable; label: string }[] = [
@@ -189,7 +196,14 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
       .filter((n) => display.current[n.id])
       .map((n) => {
         const p = display.current[n.id];
-        return { id: n.id, type: n.kind, position: { x: p.x, y: p.y }, data: { n, w: p.w, h: p.h }, draggable: false, zIndex: n.kind === "claim" ? 2 : 1 };
+        return {
+          id: n.id,
+          type: n.kind,
+          position: { x: p.x, y: p.y },
+          data: { n, w: p.w, h: p.h },
+          draggable: false,
+          zIndex: n.kind === "claim" ? 2 : 1,
+        };
       }),
   );
   const edges: Edge[] = Object.values(state.edges)
@@ -263,29 +277,37 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
         {!empty_ && (
           <>
             <Legend show={show} setShow={setShow} />
-            <div className="absolute bottom-4 left-4 flex items-center gap-1 rounded-[8px] border border-line bg-surface p-1 shadow-[var(--shadow-sm)]">
-              <CanvasBtn label="Zoom in" onClick={() => rf.zoomIn({ duration: 200 })}>+</CanvasBtn>
-              <CanvasBtn label="Zoom out" onClick={() => rf.zoomOut({ duration: 200 })}>−</CanvasBtn>
-              <CanvasBtn
-                label="Fit graph"
-                onClick={() => {
-                  setFollow(true);
-                  fit(400);
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
-                </svg>
-              </CanvasBtn>
-              <span className="mx-1 h-4 w-px bg-line" />
-              <button
-                onClick={() => setFollow((f) => !f)}
-                className={`mono rounded-[5px] px-2 py-1 text-[10.5px] ${follow ? "bg-ink text-white" : "text-ink-2 hover:bg-surface-3"}`}
-                aria-pressed={follow}
-              >
-                follow build
-              </button>
-            </div>
+            <Card size="sm" className="absolute bottom-4 left-4 flex-row items-center gap-1 p-1 shadow-[var(--shadow-sm)]">
+              <Tip label="Zoom in">
+                <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => rf.zoomIn({ duration: 200 })}>
+                  <Plus />
+                </Button>
+              </Tip>
+              <Tip label="Zoom out">
+                <Button variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => rf.zoomOut({ duration: 200 })}>
+                  <Minus />
+                </Button>
+              </Tip>
+              <Tip label="Fit whole graph">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Fit graph"
+                  onClick={() => {
+                    setFollow(true);
+                    fit(400);
+                  }}
+                >
+                  <Maximize />
+                </Button>
+              </Tip>
+              <Separator orientation="vertical" className="mx-0.5 h-4 self-center" />
+              <Tip label="Keep the whole graph in view while it builds">
+                <Toggle size="sm" pressed={follow} onPressedChange={setFollow} className="mono text-[10.5px] aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/85">
+                  follow build
+                </Toggle>
+              </Tip>
+            </Card>
           </>
         )}
       </div>
@@ -293,21 +315,14 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
   );
 }
 
-function CanvasBtn({ children, onClick, label }: { children: React.ReactNode; onClick: () => void; label: string }) {
-  return (
-    <button aria-label={label} title={label} onClick={onClick} className="flex h-7 w-7 items-center justify-center rounded-[5px] text-[15px] text-ink-2 hover:bg-surface-3 hover:text-ink">
-      {children}
-    </button>
-  );
-}
-
 function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow: (f: (s: Record<Toggleable, boolean>) => Record<Toggleable, boolean>) => void }) {
+  const on = TOGGLES.filter((t) => show[t.type]).map((t) => t.type);
   return (
-    <div className="absolute left-4 top-4 max-w-[calc(100%-2rem)] rounded-[10px] border border-line bg-surface/95 px-3 py-2.5 shadow-[var(--shadow-sm)] backdrop-blur">
+    <Card size="sm" className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 bg-card/95 px-3 shadow-[var(--shadow-sm)] backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px] text-ink-2">
         {(["positive", "neutral", "null"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">
-            <span className="mono flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] text-white" style={{ background: DIR[d].color }}>
+            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-white" style={{ background: DIR[d].color }}>
               {DIR[d].glyph}
             </span>
             {DIR[d].label}
@@ -318,26 +333,33 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
           Industry funded
         </span>
       </div>
-      <div className="mt-2 hidden flex-wrap gap-1 sm:flex">
+      <ToggleGroup
+        type="multiple"
+        variant="outline"
+        size="sm"
+        spacing={1}
+        value={on}
+        onValueChange={(v) => setShow(() => Object.fromEntries(TOGGLES.map((t) => [t.type, v.includes(t.type)])) as Record<Toggleable, boolean>)}
+        className="hidden flex-wrap sm:flex"
+        aria-label="Show relationships"
+      >
         {TOGGLES.map((t) => {
-          const s = EDGE_STYLE[t.type];
-          const on = show[t.type];
+          const st = EDGE_STYLE[t.type];
           return (
-            <button
+            <ToggleGroupItem
               key={t.type}
-              onClick={() => setShow((x) => ({ ...x, [t.type]: !x[t.type] }))}
-              aria-pressed={on}
-              className={`flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] transition-colors ${on ? "border-line-2 bg-surface text-ink" : "border-transparent bg-surface-3 text-ink-3 line-through decoration-ink-4"}`}
+              value={t.type}
+              className="h-6 rounded-full px-2 text-[11px] font-normal text-muted-foreground data-[state=on]:bg-card data-[state=on]:text-foreground"
             >
               <svg width="18" height="6" aria-hidden>
-                <line x1="1" y1="3" x2="17" y2="3" stroke={s.stroke} strokeWidth={Math.max(1.4, s.width)} strokeDasharray={s.dash} opacity={on ? 1 : 0.4} />
+                <line x1="1" y1="3" x2="17" y2="3" stroke={st.stroke} strokeWidth={Math.max(1.4, st.width)} strokeDasharray={st.dash} opacity={show[t.type] ? 1 : 0.35} />
               </svg>
               {t.label}
-            </button>
+            </ToggleGroupItem>
           );
         })}
-      </div>
-    </div>
+      </ToggleGroup>
+    </Card>
   );
 }
 

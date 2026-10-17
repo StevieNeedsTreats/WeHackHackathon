@@ -3,6 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
 import { CLAIM_W, PAPER_W, SPINE_X, type Row } from "@/lib/layout";
+import { Badge } from "@/components/ui/badge";
 import type { GNode } from "@/lib/types";
 import { dimClass, useGraph } from "./context";
 import { DESIGN_SHORT, DIR, DirGlyph, Icon } from "./glyphs";
@@ -20,7 +21,7 @@ function useNodeClass(id: string, base: string) {
 }
 
 export const SubstanceNode = memo(function SubstanceNode({ id, data }: NodeProps & { data: Data }) {
-  const cls = useNodeClass(id, "rounded-[10px] bg-ink px-4 py-3 text-white shadow-[var(--shadow-md)]");
+  const cls = useNodeClass(id, "rounded-lg bg-primary px-4 py-3 text-white shadow-[var(--shadow-md)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }}>
       <div className="mono text-[10px] uppercase tracking-[0.14em] text-white/55">Substance</div>
@@ -32,7 +33,7 @@ export const SubstanceNode = memo(function SubstanceNode({ id, data }: NodeProps
 
 export const PaperNode = memo(function PaperNode({ id, data }: NodeProps & { data: Data }) {
   const p = data.n;
-  const cls = useNodeClass(id, "rounded-[8px] border border-line-2 bg-surface px-3 pb-2.5 pt-2.5 shadow-[var(--shadow-sm)] hover:border-ink-3");
+  const cls = useNodeClass(id, "rounded-lg border bg-card px-3 pb-2.5 pt-2.5 border-input shadow-[var(--shadow-sm)] hover:border-ink-3");
   const cred = p.credibility;
   const flags = (p.flags ?? []).filter((f) => f !== "funding-undisclosed").length;
   const sample = p.studies ? `${p.studies} studies` : p.sample_size ? `n=${p.sample_size.toLocaleString()}` : "n=?";
@@ -43,15 +44,14 @@ export const PaperNode = memo(function PaperNode({ id, data }: NodeProps & { dat
       <H id="arc-t" type="target" pos={Position.Top} left={PAPER_W / 2 + 6} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 truncate text-[13.5px] font-semibold leading-5 tracking-[-0.005em] text-ink">{p.label}</div>
-        <span className="mono mt-[2px] shrink-0 rounded-[3px] border border-line-2 px-1 text-[9.5px] leading-[14px] tracking-[0.04em] text-ink-2">
+        <Badge variant="outline" className="mono mt-[2px] h-[15px] shrink-0 rounded-sm px-1 text-[9.5px] font-normal tracking-[0.04em] text-ink-2">
           {DESIGN_SHORT[p.design ?? "Other"] ?? p.design}
-        </span>
+        </Badge>
       </div>
-      <div className="mono mt-0.5 flex items-center gap-1.5 text-[10.5px] text-ink-3">
+      <div className="mono mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10.5px] text-ink-3">
         <span className="tabular">{sample}</span>
         <span aria-hidden>·</span>
         <span className="tabular">{(p.citations ?? 0).toLocaleString()} cites</span>
-        {p.demo && <span className="ml-auto rounded-[3px] bg-surface-3 px-1 text-[9px] uppercase tracking-wider text-ink-3">demo</span>}
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <div className="relative h-[5px] flex-1 overflow-hidden rounded-full bg-surface-3">
@@ -121,7 +121,7 @@ export const ClaimNode = memo(function ClaimNode({ id, data }: NodeProps & { dat
   const c = data.n;
   const dir = c.direction ?? "neutral";
   const d = DIR[dir];
-  const cls = useNodeClass(id, "relative overflow-hidden rounded-[7px] border bg-surface pl-3 pr-2.5 py-2 shadow-[var(--shadow-sm)]");
+  const cls = useNodeClass(id, "relative overflow-hidden rounded-md border bg-surface pl-3 pr-2.5 py-2 shadow-[var(--shadow-sm)]");
   return (
     <div className={cls} style={{ width: CLAIM_W, height: data.h, borderColor: "var(--line-2)" }} title={c.quote}>
       <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: d.color }} />
@@ -137,9 +137,9 @@ export const ClaimNode = memo(function ClaimNode({ id, data }: NodeProps & { dat
           <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-ink-3">
             <span className="truncate">{c.outcome}</span>
             {c.harm && (
-              <span className="mono shrink-0 rounded-[3px] px-1 text-[9px] uppercase tracking-wider text-neg-ink" style={{ background: "var(--neg-soft)" }}>
+              <Badge variant="destructive" className="mono h-3.5 shrink-0 rounded-sm px-1 text-[9px] uppercase tracking-wider">
                 harm
-              </span>
+              </Badge>
             )}
             {c.quote_verified === false && (
               <span className="ml-auto flex shrink-0 items-center gap-0.5 text-ink-3" title="Quote not found verbatim in abstract">
@@ -160,16 +160,16 @@ export const OutcomeNode = memo(function OutcomeNode({ id, data }: NodeProps & {
   const cons = ctx.consensus[id];
   const counts = o.counts ?? { positive: 0, neutral: 0, null: 0 };
   const total = counts.positive + counts.neutral + counts.null || 1;
-  const cls = useNodeClass(id, "rounded-[9px] border border-ink-3/40 bg-surface px-3 py-2 shadow-[var(--shadow-sm)]");
+  const cls = useNodeClass(id, "rounded-lg border border-ink-3/40 bg-surface px-3 py-2 shadow-[var(--shadow-sm)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }}>
       <H id="top" type="target" pos={Position.Top} />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-[12.5px] font-semibold text-ink">{o.name}</span>
         {cons && (
-          <span className="mono shrink-0 rounded-[3px] bg-ink px-1 text-[10px] leading-[15px] text-white" title={`Evidence grade ${cons.grade}: ${cons.verdict}`}>
+          <Badge className="mono h-4 shrink-0 rounded-sm px-1 text-[10px]" title={`Evidence grade ${cons.grade}: ${cons.verdict}`}>
             {cons.grade}
-          </span>
+          </Badge>
         )}
       </div>
       <div className="mt-1.5 flex h-[6px] gap-[2px]" aria-label={`${counts.positive} positive, ${counts.neutral} mixed, ${counts.null} negative`}>
