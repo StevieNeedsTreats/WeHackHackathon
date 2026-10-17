@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AGENT_ORDER, type AgentState, type State } from "@/lib/store";
 import type { QuestionSummary } from "@/lib/types";
+import { CollapseButton } from "./Shell";
 import { SectionLabel, Tip } from "./Tip";
 
 function StatusIcon({ s }: { s: AgentState["status"] }) {
@@ -37,12 +38,14 @@ export function AgentRail({
   onOpen,
   onFocus,
   onDelete,
+  onCollapse,
 }: {
   state: State;
   questions: QuestionSummary[];
   onOpen: (id: string, key?: string) => void;
   onFocus: (key: string) => void;
   onDelete: (id: string) => void;
+  onCollapse?: () => void;
 }) {
   const hNum = Object.fromEntries(state.hypOrder.map((k, i) => [k, i + 1]));
   const total = Object.values(state.usage).reduce(
@@ -52,12 +55,18 @@ export function AgentRail({
   const engine = state.engine === "replay" ? "recorded run" : state.engine;
 
   return (
-    <aside className="flex h-full flex-col">
+    <aside className="flex h-full flex-col" aria-label="Agents">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b pl-4 pr-2">
+        <SectionLabel>Agents</SectionLabel>
+        {state.status !== "idle" && engine && <span className="mono text-[10px] text-muted-foreground">{engine}</span>}
+        {onCollapse && (
+          <span className="ml-auto">
+            <CollapseButton side="left" onClick={onCollapse} />
+          </span>
+        )}
+      </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex items-baseline justify-between px-4 pb-2 pt-4">
-          <SectionLabel>Agents</SectionLabel>
-          {state.status !== "idle" && engine && <span className="mono text-[10px] text-muted-foreground">{engine}</span>}
-        </div>
+        <div className="pt-3" />
         <ol className="relative px-4">
           {AGENT_ORDER.map((a, i) => {
             const ag = state.agents[a.id];
