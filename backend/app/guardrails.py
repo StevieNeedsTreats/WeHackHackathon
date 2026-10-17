@@ -123,11 +123,11 @@ def verify_quote(quote: str, abstract: str) -> bool:
     return norm(quote) in norm(abstract)
 
 
-def sanitize_for_prompt(text: str) -> str:
+def sanitize_for_prompt(text: str, limit: int = MAX_ABSTRACT_CHARS) -> str:
     """Abstracts are untrusted data. Strip markup and cap length before they reach a model."""
     text = re.sub(r"<[^>]+>", " ", text or "")
     text = re.sub(r"\s+", " ", text).strip()
-    return text[:MAX_ABSTRACT_CHARS]
+    return text[:limit]
 
 
 # ---------------------------------------------------------------- read-only cypher

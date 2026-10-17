@@ -161,6 +161,48 @@ class Sources:
         data = await self.fetch(f"{CTGOV}?{urlencode({'query.term': query, 'pageSize': size, 'format': 'json'})}")
         return [p for p in (parse_ctgov(s) for s in data.get("studies", [])) if p]
 
+    # ------------------------------------------------------------------ direct lookups (papers a user names)
+
+    def _oa_params(self) -> str:
+        return f"?mailto={quote(self.settings.contact_email)}" if self.settings.contact_email else ""
+
+    async def _maybe(self, url: str):
+        try:
+            return await self.fetch(url)
+        except SourceError as e:
+            if str(e) == "not found":
+                return None
+            raise
+
+    async def work_by_doi(self, doi: str) -> dict | None:
+        w = await self._maybe(f"{OPENALEX}/doi:{quote(doi, safe='/')}{self._oa_params()}")
+        return parse_openalex(w, strict=False) if w else None
+
+    async def work_by_openalex(self, wid: str) -> dict | None:
+        w = await self._maybe(f"{OPENALEX}/{wid}{self._oa_params()}")
+        return parse_openalex(w, strict=False) if w else None
+
+    async def openalex_candidates(self, text: str, size: int = 8, title_only: bool = False) -> list[dict]:
+        """Works matching a free-text reference (title, maybe authors and year), abstract or not.
+        title_only searches titles alone, which finds a known title that a broad search buries."""
+        clean = re.sub(r"[,:|()]", " ", text)[:300]
+        params = ({"filter": f"is_paratext:false,title.search:{clean}", "per-page": size} if title_only else
+                  {"search": text[:300], "filter": "is_paratext:false", "per-page": size})
+        if self.settings.contact_email:
+            params["mailto"] = self.settings.contact_email
+        data = await self.fetch(f"{OPENALEX}?{urlencode(params)}")
+        return [p for p in (parse_openalex(w, strict=False) for w in data.get("results", [])) if p]
+
+    async def epmc_lookup(self, query: str) -> dict | None:
+        """One Europe PMC record, e.g. 'EXT_ID:123 AND SRC:MED', 'DOI:"10.1/x"' or 'PMCID:PMC123'."""
+        data = await self.fetch(f"{EPMC}/search?query={quote(query)}&resultType=core&format=json&pageSize=1")
+        rows = data.get("resultList", {}).get("result", [])
+        return parse_epmc(rows[0], strict=False) if rows else None
+
+    async def trial(self, nct: str) -> dict | None:
+        s = await self._maybe(f"{CTGOV}/{nct}?format=json")
+        return parse_ctgov(s) if s else None
+
     async def fulltext(self, paper: dict) -> str:
         """Methods and results from Europe PMC open-access full text, when available."""
         pmcid = paper.get("pmcid")
@@ -311,9 +353,10 @@ def strip_tags(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def parse_epmc(r: dict) -> dict | None:
+def parse_epmc(r: dict, strict: bool = True) -> dict | None:
+    """strict drops records with a short abstract (search results the agents can't use)."""
     abstract = strip_tags(r.get("abstractText", ""))
-    if not (r.get("pmid") or r.get("doi")) or len(abstract) < 200:
+    if not (r.get("pmid") or r.get("doi")) or (strict and len(abstract) < 200):
         return None
     pub_types = (r.get("pubTypeList") or {}).get("pubType") or []
     title = strip_tags(r.get("title", "")).rstrip(".")
@@ -363,10 +406,10 @@ _OA_DESIGNS = {"meta-analysis": "Meta-analysis", "systematic-review": "Systemati
                "observational-study": "Observational", "case-report": "Case report", "review": "Review"}
 
 
-def parse_openalex(w: dict) -> dict | None:
+def parse_openalex(w: dict, strict: bool = True) -> dict | None:
     abstract = _oa_abstract(w.get("abstract_inverted_index"))
     title = (w.get("title") or w.get("display_name") or "").strip()
-    if len(abstract) < 200 or not title:
+    if not title or (strict and len(abstract) < 200):
         return None
     oa = w["id"].rsplit("/", 1)[-1]
     pmid = ((w.get("ids") or {}).get("pmid") or "").rsplit("/", 1)[-1] or None

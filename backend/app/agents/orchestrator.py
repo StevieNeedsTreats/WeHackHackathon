@@ -646,8 +646,7 @@ class Run:
                 r = refs[ref]
                 if s.stance == "irrelevant":
                     continue
-                weight = (r["cred"] / 100) * max(0.25, s.population_match) * (1.0 if r["verified"] else 0.5)
-                evidence.append({"finding_id": r["id"], "stance": s.stance, "weight": round(weight, 3),
+                evidence.append({"finding_id": r["id"], "stance": s.stance, "weight": stance_weight(r, s.population_match),
                                  "rationale": s.rationale[:200], "cluster": cluster_of.get(r["id"]),
                                  "same_outcome": s.same_outcome})
         await self.store.write_stances(key, evidence, clusters)
@@ -823,7 +822,7 @@ class Run:
     def paper_view(self, pid: str) -> dict:
         p = self.papers[pid]
         v = {k: p.get(k) for k in ("id", "title", "label", "year", "journal", "design", "citations", "peer_reviewed", "url",
-                                   "kind", "doi", "pmid", "demo", "retracted")}
+                                   "kind", "doi", "pmid", "demo", "retracted", "added")}
         v["n"] = p.get("sample_size")
         v["authors"] = [{**a, "pos": i} for i, a in enumerate(p.get("authors", [])[:3])]
         v["funders"], v["labs"] = p.get("funders", [])[:3], p.get("labs", [])[:2]
@@ -838,6 +837,12 @@ class Run:
     def finding_view(f: dict, pid: str) -> dict:
         return {"id": f["id"], "paper_id": pid, "study_id": f["study_id"], "outcome": f["outcome"],
                 "direction": f["direction"], "effect_unit": f["unit"], **f["props"], "evidence": {}}
+
+
+def stance_weight(row: dict, population_match: float) -> float:
+    """How much one finding counts: its paper's credibility, how well its population matches the
+    hypothesis's, and half weight when its quote couldn't be found in the source."""
+    return round((row["cred"] / 100) * max(0.25, population_match) * (1.0 if row["verified"] else 0.5), 3)
 
 
 # Warnings that mean a hypothesis's verdict was reached without some of its evidence.

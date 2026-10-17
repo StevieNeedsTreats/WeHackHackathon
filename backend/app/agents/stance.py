@@ -50,7 +50,10 @@ class StanceAgent(Agent):
     system = SYSTEM
     max_tokens = 6000
 
-    async def run(self, ctx: AgentContext, hyp: dict, rows: list[dict], domain: DomainPack) -> StanceResult:
+    async def run(self, ctx: AgentContext, hyp: dict, rows: list[dict], domain: DomainPack,
+                  existing: list[dict] | None = None) -> StanceResult:
+        """existing: clusters already on the hypothesis ({label, context}); new findings that fit one
+        are put in it by giving its label exactly."""
         pop = hyp["population"]["name"] if hyp.get("population") else "not specified"
         lines = []
         for r in rows:
@@ -67,6 +70,10 @@ class StanceAgent(Agent):
             "\n\nReturn a stance for every ref, and clusters over the relevant refs. "
             "Identify findings by their ref (F1, F2, …), not by paper name."
         )
+        if existing:
+            prompt += ("\n\nThe hypothesis already has these clusters. Put a finding that fits one in it by "
+                       "repeating its label exactly; make a new cluster only for a context none of them covers:\n"
+                       + "\n".join(f"- {c['label']}: {c['context']}" for c in existing))
         return await self.ask(ctx, prompt, _result_schema([r["ref"] for r in rows]), trace=f"stance:{hyp['key']}")
 
 

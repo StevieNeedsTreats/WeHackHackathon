@@ -198,7 +198,7 @@ class GraphStore:
         rows = []
         for p in papers:
             props = {k: p.get(k) for k in ("title", "label", "year", "journal", "doi", "pmid", "url", "citations",
-                                            "peer_reviewed", "retracted", "kind", "venue_type", "demo")
+                                            "peer_reviewed", "retracted", "kind", "venue_type", "demo", "added")
                      if p.get(k) is not None}
             props["title_norm"] = title_norm(p.get("title", ""))
             rows.append({"id": p["id"], "props": props, "design": p.get("design") or "Other",
@@ -338,6 +338,11 @@ class GraphStore:
         await self.q("MATCH (:Hypothesis {key:$k})<-[e:EVIDENCE_FOR]-() DELETE e", {"k": key})
         await self.q("MATCH (c:Cluster {hypothesis:$k}) DETACH DELETE c", {"k": key})
         await self.q("MATCH ()-[m:MEASURES {hypothesis:$k}]->() DELETE m", {"k": key})
+        await self.append_stances(key, stances, clusters)
+
+    async def append_stances(self, key: str, stances: list[dict], clusters: list[dict]) -> None:
+        """Add stances and cluster memberships without clearing earlier ones (papers added later).
+        Same shapes as write_stances; a cluster that exists keeps its id and gains the findings."""
         if stances:
             await self.q(
                 """

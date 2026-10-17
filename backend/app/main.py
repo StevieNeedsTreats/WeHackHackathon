@@ -7,7 +7,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from redis.exceptions import RedisError
@@ -15,6 +15,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from . import auth
 from .agents.base import AgentContext
+from .agents.ingest import IngestRun, Item
 from .agents.intake import IntakeAgent, IntakeOut, hypothesis_key
 from .agents.metrics import QUERIES, run_benchmarks
 from .agents.orchestrator import Run
@@ -25,6 +26,7 @@ from .graph import GraphStore, slug, to_jsonable
 from .guardrails import (DISCLAIMER, INTENT_MESSAGES, VULNERABLE_NOTE, RateLimiter, mentions_vulnerable,
                          screen_cypher, screen_question)
 from .llm import LLMError, LLMRouter, LLMUnavailable, UsageMeter, llm_status
+from .papers import MAX_UPLOAD_BYTES
 from .sources import Sources
 
 settings = get_settings()
@@ -41,10 +43,12 @@ async def lifespan(app: FastAPI):
     state["limiter"] = RateLimiter(settings.rate_limit_per_min)
     state["runs"] = asyncio.Semaphore(settings.max_concurrent_runs)
     state["live"] = {}  # qid -> LiveRun
+    state["jobs"] = {}  # ingest job id -> LiveRun
+    state["ingest_locks"] = {}  # qid -> lock: papers for one question are added one batch at a time
     if not auth.enabled():
         log.warning("TG_APP_PASSWORD is not set: the API is open to anyone who can reach it")
     yield
-    for live in list(state["live"].values()):
+    for live in [*state["live"].values(), *state["jobs"].values()]:
         live.task.cancel()
     await state["sources"].close()
 
@@ -265,12 +269,16 @@ class LiveRun:
     then follows it live. Only an explicit stop cancels it.
     """
 
-    def __init__(self, qid: str, run: Run, preamble: list[dict]):
+    def __init__(self, qid: str, run: Run, preamble: list[dict], registry: dict | None = None, linger_s: float = 0,
+                 on_done=None):
         self.qid, self.run = qid, run
         self.events: list[dict] = list(preamble)
         self.done = False
         self._changed = asyncio.Event()
-        state["live"][qid] = self
+        # Ingest jobs live in their own registry and stay attachable for a while after they end,
+        # so a viewer that attaches late (or reconnects) still gets the whole story.
+        self.registry, self.linger_s, self.on_done = (state["live"] if registry is None else registry), linger_s, on_done
+        self.registry[qid] = self
         self.task = asyncio.create_task(self._main())
 
     async def _main(self) -> None:
@@ -286,7 +294,12 @@ class LiveRun:
                         work.cancel()
         finally:
             self.done = True
-            state["live"].pop(self.qid, None)
+            if self.on_done:
+                self.on_done()
+            if self.linger_s:
+                asyncio.get_running_loop().call_later(self.linger_s, self.registry.pop, self.qid, None)
+            else:
+                self.registry.pop(self.qid, None)
             self._wake()
 
     def _push(self, ev: dict) -> None:
@@ -337,6 +350,60 @@ async def stop(qid: str = Query(..., max_length=64)):
         raise HTTPException(404, "That question isn't being researched right now.")
     live.stop()
     return {"stopped": qid}
+
+
+# ====================================================================== adding papers
+
+
+MAX_ITEMS = 8
+
+
+def start_ingest(qid: str, items: list[Item]) -> str:
+    """Start adding papers to a question; returns the job id to follow. ValueError when it can't start."""
+    if qid in state["live"]:
+        raise ValueError("This question is still being researched. Add papers once it finishes.")
+    try:
+        router = LLMRouter.live(state["sources"].redis)
+    except LLMUnavailable as e:
+        raise ValueError(str(e)) from e
+    lock = state["ingest_locks"].setdefault(qid, asyncio.Lock())
+    run = IngestRun(state["store"], state["sources"], router, qid, items, lock)
+    LiveRun(run.id, run, [], registry=state["jobs"], linger_s=300)
+    return run.id
+
+
+@app.post("/api/question/{qid}/papers")
+async def add_papers(qid: str, request: Request, refs: str = Form("", max_length=5000),
+                     files: list[UploadFile] = File(default=[])):
+    """Add papers to a researched question: DOIs, links or titles (one per line in `refs`) and/or
+    PDF / text files. Returns a job id; follow it at /api/ingest/{job}/stream."""
+    _limit(request, ":add")
+    _check_id(qid)
+    items = [Item(r.strip()[:120], ref=r.strip()) for r in refs.splitlines() if r.strip()]
+    for f in files:
+        data = await f.read(MAX_UPLOAD_BYTES + 1)
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"{f.filename} is over 15 MB")
+        items.append(Item((f.filename or "upload")[:120], data=data))
+    if not items:
+        raise HTTPException(400, "Give a DOI, link or title, or upload a file")
+    if len(items) > MAX_ITEMS:
+        raise HTTPException(400, f"Add at most {MAX_ITEMS} papers at a time")
+    exists = await state["store"].ro("MATCH (q:Question {id:$id}) RETURN q.id", {"id": qid})
+    if not exists.result_set:
+        raise HTTPException(404, "Unknown question")
+    try:
+        return {"job": start_ingest(qid, items)}
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/api/ingest/{job}/stream")
+async def ingest_stream(job: str, request: Request):
+    live = state["jobs"].get(_check_id(job))
+    if not live:
+        raise HTTPException(404, "Unknown or expired job")
+    return EventSourceResponse(live.follow(request), ping=10)
 
 
 # ====================================================================== reads

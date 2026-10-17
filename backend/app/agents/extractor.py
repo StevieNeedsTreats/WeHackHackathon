@@ -17,6 +17,8 @@ from ..guardrails import sanitize_for_prompt, verify_quote
 from .base import Agent, AgentContext
 
 EXTRACT_VERSION = "v1"
+# Abstracts are well under this; it leaves room for the results of an uploaded or full-text paper.
+FULL_TEXT_CHARS = 14_000
 
 
 class FindingOut(BaseModel):
@@ -67,7 +69,7 @@ class ExtractorAgent(Agent):
         prompt = (
             f"Domain: {domain.name}. Record for each study: {domain.study_fields}.\n"
             f"Allowed designs: {', '.join(domain.design_names())}.\n{domain.extractor_notes}\n\n"
-            f"{meta}\n\n<paper>\n{sanitize_for_prompt(text)}\n</paper>"
+            f"{meta}\n\n<paper>\n{sanitize_for_prompt(text, FULL_TEXT_CHARS)}\n</paper>"
         )
         return await self.ask(ctx, prompt, ExtractionOut, trace=f"extract:{paper['id']}")
 
