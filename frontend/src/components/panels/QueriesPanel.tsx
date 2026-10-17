@@ -1,7 +1,7 @@
 "use client";
 
-import { CircleAlert, Play, RotateCw } from "lucide-react";
-import { useState } from "react";
+import { CircleAlert, Play, RotateCw, SquareTerminal } from "lucide-react";
+import { useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,8 @@ export function QueriesPanel({ state }: { state: State }) {
   const [cypher, setCypher] = useState(EXAMPLE);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const consoleRef = useRef<HTMLElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const list = metrics ?? state.metrics;
 
   const rerun = async () => {
@@ -135,14 +137,22 @@ export function QueriesPanel({ state }: { state: State }) {
     }
   };
 
-  const exec = async () => {
+  const exec = async (query = cypher) => {
     setErr(null);
     setResult(null);
     try {
-      setResult(await runQuery(cypher, state.question?.id));
+      setResult(await runQuery(query, state.question?.id));
     } catch (e) {
       setErr((e as Error).message);
     }
+  };
+
+  /** Load a benchmark query into the console, run it, and bring the console into view. */
+  const openInConsole = (query: string) => {
+    setCypher(query);
+    exec(query);
+    consoleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    editorRef.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -201,8 +211,9 @@ export function QueriesPanel({ state }: { state: State }) {
                         <div className="space-y-2 border-t p-3">
                           <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[10.5px] leading-relaxed text-ink-2">{m.cypher}</pre>
                           {m.sample.length > 0 && <ResultTable columns={m.columns} rows={m.sample} />}
-                          <Button variant="link" size="xs" className="h-auto px-0" onClick={() => setCypher(m.cypher)}>
-                            Open in console
+                          <Button variant="outline" size="xs" onClick={() => openInConsole(m.cypher)}>
+                            <SquareTerminal />
+                            Run in console
                           </Button>
                         </div>
                       </CollapsibleContent>
@@ -217,12 +228,13 @@ export function QueriesPanel({ state }: { state: State }) {
         )}
       </section>
 
-      <section>
+      <section ref={consoleRef} className="scroll-mt-4">
         <SectionLabel className="mb-1">Cypher console</SectionLabel>
         <p className="mb-2 text-[11.5px] text-muted-foreground">
           Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$q</span> is the current question.
         </p>
         <Textarea
+          ref={editorRef}
           value={cypher}
           onChange={(e) => setCypher(e.target.value)}
           spellCheck={false}
@@ -235,7 +247,7 @@ export function QueriesPanel({ state }: { state: State }) {
         />
         <div className="mt-2 flex items-center justify-between">
           <span className="mono text-[10.5px] text-muted-foreground">⌘ ↵ to run</span>
-          <Button size="sm" onClick={exec}>
+          <Button size="sm" onClick={() => exec()}>
             <Play />
             Run query
           </Button>
