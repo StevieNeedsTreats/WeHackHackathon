@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export function Header({
   onAsk,
   onDemo,
   onStop,
+  onResume,
 }: {
   state: State;
   health: Health | null;
@@ -42,6 +43,7 @@ export function Header({
   onAsk: (q: string) => void;
   onDemo: (q: string) => void;
   onStop: () => void;
+  onResume?: () => void;
 }) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,9 +103,19 @@ export function Header({
               Stop
             </Button>
           ) : (
-            <Button type="submit" size="lg" disabled={q.trim().length < 3 || busy} className="px-3.5">
-              {busy ? "Reading…" : "Interpret"}
-            </Button>
+            <>
+              <Button type="submit" size="lg" disabled={q.trim().length < 3 || busy} className="px-3.5">
+                {busy ? "Reading…" : "Interpret"}
+              </Button>
+              {onResume && (
+                <Tip label="This run didn't finish. Continue from where it stopped, reusing the papers and results already saved." side="bottom">
+                  <Button type="button" variant="outline" size="lg" onClick={onResume}>
+                    <RotateCcw />
+                    Resume run
+                  </Button>
+                </Tip>
+              )}
+            </>
           )}
         </div>
       </form>
