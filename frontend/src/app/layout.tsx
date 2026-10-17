@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter, Source_Serif_4 } from "next/font/google";
 import "@xyflow/react/dist/base.css";
 import "./globals.css";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-plex-mono", display: "swap" });
@@ -14,8 +15,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${mono.variable} ${serif.variable}`}>{children}</body>
+    <html lang="en" className="font-sans">
+      <body className={`${inter.variable} ${mono.variable} ${serif.variable}`}>
+        <TooltipProvider delayDuration={250}>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

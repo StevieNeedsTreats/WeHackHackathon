@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 /* Design tokens. Colour is reserved for meaning: blue / amber / brick encode a claim's
    direction (validated for colour-vision deficiency); everything else is ink on paper. */
@@ -28,6 +30,32 @@
   --focus: #1b1a17;
   --shadow-sm: 0 1px 0 rgba(27, 26, 23, 0.04), 0 1px 2px rgba(27, 26, 23, 0.06);
   --shadow-md: 0 1px 0 rgba(27, 26, 23, 0.04), 0 6px 18px -6px rgba(27, 26, 23, 0.14);
+
+  /* shadcn/ui semantic tokens, mapped onto the paper-and-ink palette */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--surface-3);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-3);
+  --muted-foreground: var(--ink-3);
+  --accent: var(--surface-3);
+  --accent-foreground: var(--ink);
+  --destructive: var(--neg);
+  --border: var(--line);
+  --input: var(--line-2);
+  --ring: var(--ink-3);
+  --chart-1: var(--pos);
+  --chart-2: var(--neu);
+  --chart-3: var(--neg);
+  --chart-4: var(--ink-2);
+  --chart-5: var(--ink-4);
+  --radius: 0.5rem;
 }
 
 @theme inline {
@@ -54,6 +82,37 @@
   --font-sans: var(--font-inter);
   --font-mono: var(--font-plex-mono);
   --font-serif: var(--font-serif4);
+  --font-heading: var(--font-inter);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 html,
@@ -198,5 +257,21 @@ body {
   .tg-pulse {
     animation: none !important;
     stroke-dashoffset: 0 !important;
+  }
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
   }
 }
