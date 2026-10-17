@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authRequired, signIn, useSignedIn } from "@/lib/auth";
-import { Logo } from "./Header";
+import { Logo } from "./Logo";
 
 /**
  * Shows the app once signed in (or when the server needs no password), otherwise the sign-in
@@ -43,7 +43,7 @@ function Screen({ title, description, children }: { title: string; description: 
       <Card className="w-full max-w-sm">
         <CardHeader>
           <div className="mb-2 flex items-center gap-2">
-            <Logo />
+            <Logo size={28} />
             <span className="text-[16px] font-semibold tracking-[-0.02em]">TruthGraph</span>
           </div>
           <CardTitle>{title}</CardTitle>

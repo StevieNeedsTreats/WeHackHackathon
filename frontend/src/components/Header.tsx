@@ -10,20 +10,9 @@ import { notify } from "@/lib/notify";
 import type { State } from "@/lib/store";
 import type { Health, QuestionSummary } from "@/lib/types";
 import { AskPalette } from "./AskPalette";
+import { Logo } from "./Logo";
 import { ThemeToggle } from "./theme";
 import { Tip } from "./Tip";
-
-export function Logo() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="4.5" r="2.6" fill="var(--ink)" />
-      <circle cx="5" cy="17" r="2.6" fill="none" stroke="var(--ink)" strokeWidth="1.6" />
-      <circle cx="19" cy="17" r="2.6" fill="none" stroke="var(--ink)" strokeWidth="1.6" />
-      <path d="M10.8 6.8L6.3 14.6M13.2 6.8l4.5 7.8" stroke="var(--ink)" strokeWidth="1.6" />
-      <path d="M7.6 17h8.8" stroke="var(--neg)" strokeWidth="1.6" strokeDasharray="2.2 1.8" />
-    </svg>
-  );
-}
 
 export const EXAMPLES = [
   "effects of minoxidil on hair loss, and side effects of minoxidil in pregnant women",
@@ -104,7 +93,7 @@ export function Header({
     <header className="relative z-20 grid h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b bg-card px-3 md:px-4">
       <div className="flex items-center gap-1.5">
         <div className="flex items-center gap-2">
-          <Logo />
+          <Logo size={26} />
           <span className="hidden text-[16px] font-semibold tracking-[-0.02em] sm:inline">TruthGraph</span>
         </div>
       </div>
