@@ -9,6 +9,21 @@ class Settings(BaseSettings):
     falkor_host: str = "localhost"
     falkor_port: int = 6380
     graph_name: str = "truthgraph"
+    # FalkorDB Cloud: the instance's public "host:port" and its credentials. When set, they
+    # replace falkor_host/falkor_port, so the graph and the Redis cache both live in the cloud.
+    db_instance: str | None = None
+    db_user: str | None = None
+    db_pass: str | None = None
+    db_tls: bool = False
+
+    def db_conn(self) -> dict:
+        """Connection kwargs shared by the graph client and the Redis cache."""
+        host, port = self.falkor_host, self.falkor_port
+        if self.db_instance:
+            host, _, p = self.db_instance.removeprefix("redis://").removeprefix("rediss://").rpartition(":")
+            port = int(p)
+        return {"host": host, "port": port, "username": self.db_user or None, "password": self.db_pass or None,
+                "ssl": self.db_tls, "socket_keepalive": True, "health_check_interval": 30}
 
     # LLM provider. "anthropic" uses the Anthropic SDK; "openai" is any OpenAI-compatible
     # endpoint (OpenAI, OpenRouter, Groq, vLLM, Ollama…) selected with llm_base_url.
