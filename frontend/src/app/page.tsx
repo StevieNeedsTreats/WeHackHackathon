@@ -30,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function Home() {
-  const { state, run, load, stop, reset } = useResearch();
+  const { state, run, load, detach, stop, reset } = useResearch();
   const [health, setHealth] = useState<Health | null>(null);
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
   const [interp, setInterp] = useState<Interpretation | null>(null);
@@ -48,8 +48,15 @@ export default function Home() {
   }, []);
   useEffect(() => refresh(), [refresh]);
   useEffect(() => {
-    if (state.status === "done") refresh();
+    if (state.status === "done" || state.status === "streaming") refresh();
   }, [state.status, refresh]);
+  // Runs keep going in the background; keep the sidebar's running/finished marks current.
+  const anyRunning = state.status === "streaming" || questions.some((q) => q.running);
+  useEffect(() => {
+    if (!anyRunning) return;
+    const t = setInterval(() => getQuestions().then(setQuestions).catch(() => {}), 4000);
+    return () => clearInterval(t);
+  }, [anyRunning]);
 
   // Default focus when a question's hypotheses arrive: Compare for "X vs Y", else the first.
   const qid = state.question?.id;
@@ -86,7 +93,7 @@ export default function Home() {
     if (id) setTab("details");
   };
   const ask = async (text: string) => {
-    stop();
+    detach();
     reset();
     setRefusal(null);
     setInterp(null);
@@ -133,7 +140,7 @@ export default function Home() {
       return;
     }
     if (state.question?.id === id) {
-      stop();
+      detach();
       reset();
       setFocus("all");
       setSelected(null);

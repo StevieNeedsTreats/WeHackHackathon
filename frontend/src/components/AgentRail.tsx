@@ -138,18 +138,23 @@ export function AgentRail({
                     className="h-auto min-w-0 flex-1 justify-start py-1 text-left font-normal text-ink-2 data-active:bg-muted data-active:font-medium data-active:text-foreground"
                   >
                     <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
-                    {q.id.startsWith("demo-") && (
+                    {q.running ? (
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 gap-1 rounded-sm px-1 text-[9.5px] font-normal">
+                        <LoaderCircle className="size-2.5 animate-spin" />
+                        running
+                      </Badge>
+                    ) : q.id.startsWith("demo-") ? (
                       <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
                         demo
                       </Badge>
-                    )}
+                    ) : null}
                   </Button>
-                  <Tip label="Delete this question" side="right">
+                  <Tip label={q.running ? "Stop the run before deleting" : "Delete this question"} side="right">
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={`Delete “${q.text}”`}
-                      disabled={state.status === "streaming" && state.question?.id === q.id}
+                      disabled={q.running}
                       onClick={() => {
                         if (window.confirm(`Delete “${q.text}”?\n\nIts hypotheses, stances and verdicts are removed. Papers stay cached for other questions.`)) onDelete(q.id);
                       }}

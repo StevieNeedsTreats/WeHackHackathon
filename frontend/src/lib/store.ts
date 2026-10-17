@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getQuestion, streamUrl, type Edits, type Snapshot } from "./api";
+import { attachUrl, getQuestion, stopRun, streamUrl, type Edits, type Snapshot } from "./api";
 import type {
   Cluster,
   Contradiction,
@@ -316,6 +316,8 @@ async function* sse(body: ReadableStream<Uint8Array>, signal: AbortSignal): Asyn
 
 export function useResearch() {
   const [state, dispatch] = useReducer(reducer, initial);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const abort = useRef<AbortController | null>(null);
   const pending = useRef<Ev[]>([]);
   const raf = useRef<number | null>(null);
@@ -334,19 +336,20 @@ export function useResearch() {
     }
   }, []);
 
-  const stop = useCallback(() => {
+  /** Stop watching. The run itself keeps going on the server. */
+  const detach = useCallback(() => {
     abort.current?.abort();
     abort.current = null;
   }, []);
 
-  const run = useCallback(
-    async (q: string, mode: "live" | "demo", edits?: Edits) => {
-      stop();
+  const follow = useCallback(
+    async (url: string, mode: "live" | "demo") => {
+      detach();
       const ctrl = new AbortController();
       abort.current = ctrl;
       dispatch({ type: "start", mode });
       try {
-        const r = await fetch(streamUrl(q, mode, edits), { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
+        const r = await fetch(url, { signal: ctrl.signal, headers: { accept: "text/event-stream" } });
         if (!r.ok || !r.body) {
           let msg = `Request failed (${r.status})`;
           try {
@@ -363,25 +366,40 @@ export function useResearch() {
         if ((e as Error)?.name !== "AbortError") dispatch({ type: "error", message: "Lost connection to the TruthGraph API. Is the backend running on :8100?" });
       }
     },
-    [push, stop],
+    [push, detach],
   );
 
-  /** Load a stored question from FalkorDB. */
+  const run = useCallback((q: string, mode: "live" | "demo", edits?: Edits) => follow(streamUrl(q, mode, edits), mode), [follow]);
+
+  /** Load a question: a finished one from FalkorDB, a running one by attaching to its live run. */
   const load = useCallback(
     async (id: string) => {
-      stop();
+      detach();
       try {
-        dispatch({ type: "snapshot", snap: await getQuestion(id) });
+        const snap = await getQuestion(id);
+        if (snap.running) follow(attachUrl(id), id.startsWith("demo-") ? "demo" : "live");
+        else dispatch({ type: "snapshot", snap });
       } catch (e) {
         dispatch({ type: "error", message: (e as Error)?.message ?? "Could not load question" });
       }
     },
-    [stop],
+    [detach, follow],
   );
 
-  useEffect(() => () => stop(), [stop]);
+  /** Actually stop the run on the server (not just this view of it). */
+  const stopRunning = useCallback(async () => {
+    const id = stateRef.current.question?.id;
+    if (!id) return detach();
+    try {
+      await stopRun(id);
+    } catch {
+      detach();
+    }
+  }, [detach]);
 
-  return { state, run, load, stop, reset: () => dispatch({ type: "reset" }) };
+  useEffect(() => () => detach(), [detach]);
+
+  return { state, run, load, detach, stop: stopRunning, reset: () => dispatch({ type: "reset" }) };
 }
 
 // ---------------------------------------------------------------- selectors

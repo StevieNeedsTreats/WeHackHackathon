@@ -261,5 +261,6 @@ export interface QuestionSummary {
   text: string;
   domain: string;
   created?: number;
+  running?: boolean;
   hypotheses: { key: string; statement: string; verdict?: string | null; grade?: string | null }[];
 }
