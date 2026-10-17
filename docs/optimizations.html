@@ -22,6 +22,8 @@
   --good-soft: #dcf3ec;
   --bad: #c2410c;
   --bad-soft: #fdebe1;
+  --before: #9d8cf2;
+  --after: #4a2ed8;
   --ask: #3d63dd;
   --evidence: #0e8a7a;
   --prov: #8a5a8f;
@@ -32,14 +34,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
-    --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d;
+    --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d; --before: #5747c0; --after: #917ff8;
     --ask: #7d9bff; --evidence: #3cc7b3; --prov: #c99ad0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
-  --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d;
+  --accent: #9d8bff; --accent-soft: #231d45; --good: #3cc79f; --good-soft: #0f2c25; --bad: #f08a54; --bad-soft: #36190d; --before: #5747c0; --after: #917ff8;
   --ask: #7d9bff; --evidence: #3cc7b3; --prov: #c99ad0;
   color-scheme: dark;
 }
@@ -117,6 +119,51 @@ svg.d { display: block; width: 100%; min-width: 600px; height: auto; }
 .code { font: 12px/1.6 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre; color: var(--fg); }
 
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+/* benchmark */
+.bench { display: grid; gap: 20px; border-top: 2px solid var(--fg); padding-top: 20px; }
+.bench-head { display: grid; gap: 10px; max-width: 760px; }
+.bench-head h2 { margin: 0; font: 700 26px/1.15 var(--display); text-wrap: balance; }
+.bench-head p { margin: 0; color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts b { color: var(--fg); font-weight: 500; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+.chart { padding: 16px; display: grid; gap: 12px; align-content: start; }
+.chart h3 { margin: 0; font: 600 15px var(--body); }
+.chart .sub { margin: -8px 0 0; font-size: 13px; color: var(--muted); }
+.legend2 { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
+.legend2 span { display: inline-flex; align-items: center; gap: 6px; }
+.legend2 i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.db { display: grid; gap: 14px; }
+.db-row { display: grid; gap: 4px; }
+.db-label { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+.db-label b { font-weight: 600; }
+.delta { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; padding: 2px 7px; border-radius: 5px; }
+.delta.good { background: var(--good-soft); color: var(--good); }
+.delta.bad { background: var(--bad-soft); color: var(--bad); }
+.delta.flat { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.track { position: relative; height: 34px; }
+.track .grid { position: absolute; top: 0; bottom: 12px; width: 1px; background: var(--line); }
+.track .span { position: absolute; top: 10px; height: 2px; background: var(--edge); border-radius: 1px; }
+.track .dot { position: absolute; top: 5px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--surface); box-sizing: content-box; margin-top: -2px; cursor: default; }
+.track .dot.b { background: var(--before); }
+.track .dot.a { background: var(--after); }
+.track .val { position: absolute; top: 20px; font: 500 11px var(--mono); color: var(--muted); transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.track .val.a { color: var(--fg); }
+.axis { position: relative; height: 16px; border-top: 1px solid var(--edge); font: 11px var(--mono); color: var(--muted); }
+.axis span { position: absolute; top: 3px; transform: translateX(-50%); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.axis span:first-child { transform: none; }
+.axis span:last-child { transform: translateX(-100%); }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--fg); color: var(--bg); font: 12px/1.4 var(--body); padding: 6px 9px; border-radius: 6px; max-width: 240px; }
+.tablewrap { overflow-x: auto; }
+table.nums { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+table.nums th, table.nums td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.nums th:first-child, table.nums td:first-child { text-align: left; white-space: normal; min-width: 180px; }
+table.nums th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.takeaways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px 28px; }
+.takeaways div { display: grid; gap: 4px; align-content: start; }
+.takeaways b { font: 700 22px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.takeaways span { color: var(--muted); font-size: 14px; }
 
 @media (max-width: 860px) { .fix { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -287,7 +334,66 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
     </div>
   </section>
 
-  <footer>Code: <code>backend/app/graph.py</code>, <code>agents/stance.py</code>, <code>agents/metrics.py</code> and <code>main.py</code>. Shipped in commits <code>242b995</code>, <code>0b01441</code> and <code>5edc96d</code>.</footer>
+  <section class="bench" id="benchmark">
+    <div class="bench-head">
+      <div class="num" style="font:500 12px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Benchmark <span class="pill">Measured</span></div>
+      <h2>What the changes did to query times</h2>
+      <p>We timed each changed query in its old and new form on the same graph, and checked that both return the same rows. The graph is synthetic but shaped like TruthGraph's real one.</p>
+      <div class="facts">
+        <span><b>15,795</b> nodes</span><span><b>50,002</b> edges</span>
+        <span><b>20</b> questions × <b>3</b> hypotheses × <b>40</b> papers</span>
+        <span>median of <b>40</b> runs</span><span>local FalkorDB · 17 Oct 2026</span>
+      </div>
+    </div>
+
+    <div class="takeaways">
+      <div><b>−32%</b><span>Funding trail: 4.3 ms down to 2.9 ms. It now skips the Study hop.</span></div>
+      <div><b>−30%</b><span>Who contradicts whom: 8.1 ms down to 5.6 ms. It now looks papers up by their indexed id.</span></div>
+      <div><b>18× fewer rows</b><span>The canvas paper query: 2,154 rows down to 120, at the same speed. Sending the papers themselves takes most of the time.</span></div>
+      <div><b>+4 ms</b><span>Saving stances for one hypothesis now also writes the outcome links. That's well under a second for a whole run.</span></div>
+    </div>
+
+    <div class="charts">
+      <div class="panel chart">
+        <h3>Graph queries</h3>
+        <p class="sub">Milliseconds, lower is better</p>
+        <div class="legend2"><span><i style="background:var(--before)"></i>Before</span><span><i style="background:var(--after)"></i>After</span></div>
+        <div class="db" id="db-graph"></div>
+      </div>
+      <div class="panel chart">
+        <h3>Loading the canvas</h3>
+        <p class="sub">Milliseconds, lower is better</p>
+        <div class="legend2"><span><i style="background:var(--before)"></i>Before</span><span><i style="background:var(--after)"></i>After</span></div>
+        <div class="db" id="db-canvas"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tablewrap">
+        <table class="nums">
+          <thead><tr><th>Query</th><th>Before</th><th>After</th><th>p95 before</th><th>p95 after</th><th>Rows</th><th>Same rows</th></tr></thead>
+          <tbody>
+            <tr><td>Funding trail</td><td>4.33 ms</td><td>2.93 ms</td><td>5.32 ms</td><td>3.24 ms</td><td>18</td><td>Yes</td></tr>
+            <tr><td>Who contradicts whom</td><td>8.10 ms</td><td>5.64 ms</td><td>9.82 ms</td><td>7.49 ms</td><td>25</td><td>Yes</td></tr>
+            <tr><td>Canvas papers with authors, funders, labs</td><td>40.47 ms</td><td>42.77 ms</td><td>43.77 ms</td><td>44.49 ms</td><td>2,154 → 120</td><td>Same data</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tablewrap">
+        <table class="nums">
+          <thead><tr><th>Write-side cost</th><th>Before</th><th>After</th><th>When</th></tr></thead>
+          <tbody>
+            <tr><td>Save stances for one hypothesis (120 findings)</td><td>2.7 ms</td><td>6.8 ms</td><td>Once per hypothesis</td></tr>
+            <tr><td>Match concepts through synonyms</td><td>none</td><td>0.9 ms</td><td>Once per question</td></tr>
+            <tr><td>Fill in paper_id on old findings</td><td>none</td><td>50 ms, then 1 ms</td><td>Each startup</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="caption">Network time to FalkorDB Cloud adds to every query and is larger than these differences. To reproduce: <code>cd backend &amp;&amp; uv run python -m app.bench</code>, which uses a scratch graph and deletes it after.</div>
+    </div>
+  </section>
+
+  <footer>Code: <code>backend/app/graph.py</code>, <code>agents/stance.py</code>, <code>agents/metrics.py</code> and <code>main.py</code>. Shipped in commits <code>242b995</code>, <code>0b01441</code>, <code>5edc96d</code> and <code>f11dd07</code>. Benchmark: <code>backend/app/bench.py</code>.</footer>
 </div>
 
 <script>
@@ -319,7 +425,7 @@ toggle("p3", s => {
   r.textContent = s === "after" ? "Finding to Paper: 1 lookup" : "Finding to Paper: 2 hops";
   document.getElementById("p3-cap").textContent = s === "after" ? "The Cypher pattern after:" : "The Cypher pattern before:";
   document.getElementById("p3-code").textContent = s === "after"
-    ? "MATCH (f:Finding), (p:Paper {id: f.paper_id})"
+    ? "WITH f MATCH (p:Paper) WHERE p.id = f.paper_id   // uses the Paper.id index"
     : "(f:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)";
 });
 
@@ -341,5 +447,49 @@ function rows() {
 }
 ["s-a", "s-f", "s-l", "s-p"].forEach(id => S(id).addEventListener("input", rows));
 rows();
+// Dumbbell charts: one track per query, before and after on a shared 0-based scale.
+const tip = document.createElement("div");
+tip.className = "tip"; tip.hidden = true; document.body.appendChild(tip);
+function dumbbell(el, max, ticks, rows) {
+  const pct = v => (v / max * 100) + "%";
+  rows.forEach(r => {
+    const down = (r.after - r.before) / r.before;
+    const flat = Math.abs(down) < 0.1;
+    const deltaText = flat ? "about the same" : `${Math.round(Math.abs(down) * 100)}% ${down < 0 ? "faster" : "slower"}`;
+    const row = document.createElement("div");
+    row.className = "db-row";
+    const lo = Math.min(r.before, r.after), hi = Math.max(r.before, r.after);
+    // Labels of close dots push apart: the lower value's label hangs left, the higher one's right.
+    const close = (hi - lo) / max < 0.12;
+    const place = (v, other) => !close ? "" : v <= other ? "transform:translateX(calc(-100% + 4px))" : "transform:translateX(-4px)";
+    row.innerHTML = `
+      <div class="db-label"><b>${r.name}</b><span class="delta ${flat ? "flat" : down < 0 ? "good" : "bad"}">${deltaText}</span></div>
+      <div class="track">
+        ${ticks.map(t => `<div class="grid" style="left:${pct(t)}"></div>`).join("")}
+        <div class="span" style="left:${pct(lo)};width:calc(${pct(hi)} - ${pct(lo)})"></div>
+        <div class="dot b" style="left:${pct(r.before)}" data-tip="Before: ${r.before.toFixed(2)} ms"></div>
+        <div class="dot a" style="left:${pct(r.after)}" data-tip="After: ${r.after.toFixed(2)} ms"></div>
+        <span class="val b" style="left:${pct(r.before)};${place(r.before, r.after)}">${r.before.toFixed(2)}</span>
+        <span class="val a" style="left:${pct(r.after)};${place(r.after, r.before)}">${r.after.toFixed(2)}</span>
+      </div>`;
+    el.appendChild(row);
+  });
+  const axis = document.createElement("div");
+  axis.className = "axis";
+  axis.innerHTML = ticks.map(t => `<span style="left:${pct(t)}">${t} ms</span>`).join("");
+  el.appendChild(axis);
+  el.querySelectorAll(".dot").forEach(d => {
+    d.addEventListener("pointerenter", e => { tip.textContent = d.dataset.tip; tip.hidden = false; });
+    d.addEventListener("pointermove", e => { tip.style.left = (e.clientX + 12) + "px"; tip.style.top = (e.clientY - 34) + "px"; });
+    d.addEventListener("pointerleave", () => { tip.hidden = true; });
+  });
+}
+dumbbell(document.getElementById("db-graph"), 10, [0, 2, 4, 6, 8, 10], [
+  { name: "Funding trail", before: 4.33, after: 2.93 },
+  { name: "Who contradicts whom", before: 8.10, after: 5.64 },
+]);
+dumbbell(document.getElementById("db-canvas"), 50, [0, 10, 20, 30, 40, 50], [
+  { name: "Papers with authors, funders, labs", before: 40.47, after: 42.77 },
+]);
 </script>
 </html>

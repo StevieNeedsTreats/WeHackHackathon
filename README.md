@@ -126,6 +126,21 @@ Three changes to the model and its queries. [`docs/optimizations.html`](docs/opt
 | **One row per paper in the snapshot** | Three `OPTIONAL MATCH`es for authors, funders and labs multiplied each paper into up to 3 × 3 × 2 = 18 rows, and `collect(DISTINCT …)` then dropped the duplicates. | Pattern comprehensions return each paper once, with its three lists. |
 | **Finding → Paper without the Study hop** | Queries walked `(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(:Paper)` just to reach the paper. | Findings store `paper_id`, and older findings are backfilled at startup. The funding trail drops from 5 hops to 3 and "who contradicts whom" from 7 to 4. |
 
+#### Benchmark
+
+Each changed query was timed in its old and new form on a synthetic graph shaped like the real one: 15,795 nodes and 50,002 edges, from 20 questions × 3 hypotheses × 40 papers. Times are the median of 40 runs on a local FalkorDB, measured on 17 Oct 2026. Charts are in [`docs/optimizations.html`](docs/optimizations.html#benchmark).
+
+| Query | Before | After | Change |
+|---|---:|---:|---|
+| Funding trail | 4.33 ms | 2.93 ms | 32% faster, same 18 rows |
+| Who contradicts whom | 8.10 ms | 5.64 ms | 30% faster, same 25 rows |
+| Canvas papers with authors, funders, labs | 40.47 ms | 42.77 ms | about the same; 2,154 raw rows → 120 |
+| Save stances for one hypothesis (120 findings) | 2.7 ms | 6.8 ms | +4 ms for the outcome links |
+| Match concepts through synonyms | – | 0.9 ms | once per question |
+| Fill in `paper_id` on old findings | – | 50 ms, then 1 ms | at startup |
+
+Network time to FalkorDB Cloud is larger than any of these differences. To reproduce, run `cd backend && uv run python -m app.bench`. It builds a scratch graph (`truthgraph_bench`), checks that old and new queries return the same rows, and deletes the graph afterwards.
+
 ## The UI
 
 - **Hypothesis bar:** each hypothesis gets a card with live status, verdict, grade and a support / refute balance.
