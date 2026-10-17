@@ -106,7 +106,7 @@ export default function Home() {
           <GraphCanvas state={state} selected={selected} onSelect={select} highlight={refs} empty={empty} />
         </main>
 
-        <aside className="order-2 flex min-h-0 flex-col border-t border-line bg-surface-2 lg:order-none lg:border-l lg:border-t-0" aria-label="Analysis">
+        <aside className="order-2 flex h-[72vh] min-h-0 flex-col border-t lg:h-auto border-line bg-surface-2 lg:order-none lg:border-l lg:border-t-0" aria-label="Analysis">
           <div className="flex shrink-0 gap-1 border-b border-line px-3 pt-2" role="tablist">
             {TABS.map((t) => (
               <button

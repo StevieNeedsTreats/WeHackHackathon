@@ -100,7 +100,7 @@ export function computeLayout(nodes: Record<string, GNode>, edges: Record<string
     for (const e of bySource[p.id] ?? []) {
       const t = nodes[e.target];
       if (!t || pos[t.id]) continue;
-      if (e.type === "AUTHORED_BY") pos[t.id] = { x: col.get(p.id)!, y: authorY, w: pillWidth(t.name ?? ""), h: PILL_H };
+      if (e.type === "AUTHORED_BY" && (e.position ?? 0) === 0) pos[t.id] = { x: col.get(p.id)!, y: authorY, w: pillWidth(t.name ?? ""), h: PILL_H };
       if (e.type === "FROM_LAB") pos[t.id] = { x: col.get(p.id)!, y: labY, w: pillWidth((t.name ?? "") + (t.region ?? ""), 52), h: PILL_H };
     }
   }
