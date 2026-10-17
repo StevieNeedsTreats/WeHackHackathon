@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
+import re
 from typing import Any, AsyncIterator, Callable, TypeVar
 
 import httpx
@@ -56,10 +58,15 @@ class OpenAICompatClient:
 
     async def _post(self, body: dict) -> dict:
         last: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(6):
+            wait = 0.8 * (2**attempt)
             try:
                 r = await self.http.post("/chat/completions", json=body)
-                if r.status_code == 429 or r.status_code >= 500:
+                if r.status_code == 429:
+                    # Per-minute token limits: wait as long as the provider asks, not a fixed backoff.
+                    wait = _retry_after(r) or wait
+                    raise LLMError(f"429: {r.text[:200]}")
+                if r.status_code >= 500:
                     raise LLMError(f"{r.status_code}: {r.text[:200]}")
                 if r.status_code >= 400:
                     raise _BadRequest(f"{r.status_code}: {r.text[:300]}")
@@ -68,7 +75,8 @@ class OpenAICompatClient:
                 raise
             except (httpx.HTTPError, LLMError, ValueError) as e:
                 last = e
-                await asyncio.sleep(0.8 * (2**attempt))
+                if attempt < 5:
+                    await asyncio.sleep(min(wait, 60) + random.uniform(0, 0.5))
         raise LLMError(f"openai-compatible endpoint failed: {last}")
 
     @staticmethod
@@ -185,3 +193,18 @@ def _strip_fences(text: str) -> str:
         t = t.rsplit("```", 1)[0]
     start, end = t.find("{"), t.rfind("}")
     return t[start:end + 1] if start != -1 and end > start else t
+
+
+def _retry_after(r: httpx.Response) -> float | None:
+    """Seconds to wait from a 429: the retry-after header, or 'try again in 7.5s' / '1m2.5s' in the body."""
+    h = r.headers.get("retry-after")
+    if h:
+        try:
+            return float(h)
+        except ValueError:
+            pass
+    m = re.search(r"try again in (?:(\d+)m)?([\d.]+)(ms|s)", r.text)
+    if m:
+        secs = float(m.group(2)) / (1000 if m.group(3) == "ms" else 1)
+        return secs + 60 * int(m.group(1) or 0)
+    return None
