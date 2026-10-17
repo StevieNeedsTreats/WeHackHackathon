@@ -172,8 +172,11 @@ def _event(name: str, args: dict, data: dict, error: str | None, ms: float) -> d
     if name == "add_paper" and not error:
         return {"event": "ingest", "data": {"job": data["job"], "refs": data.get("references", [])}}
     shown = {k: v for k, v in args.items() if k not in ("question_id",)}
-    return {"event": "tool", "data": {"name": name, "args": shown, "summary": data.get("summary"), "error": error,
-                                      "nodes": data.get("nodes", [])[:60], "ms": data.get("ms", ms)}}
+    out = {"name": name, "args": shown, "summary": data.get("summary"), "error": error,
+           "nodes": data.get("nodes", [])[:60], "ms": data.get("ms", ms)}
+    if name == "trace_path" and data.get("paths"):  # hop by hop, so the canvas can draw the route
+        out["paths"] = [{"nodes": p["nodes"], "rels": p.get("rels", [])} for p in data["paths"][:3]]
+    return {"event": "tool", "data": out}
 
 
 def _messages(history: list[dict]) -> list[Message]:

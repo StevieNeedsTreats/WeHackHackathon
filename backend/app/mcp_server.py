@@ -271,10 +271,11 @@ async def trace_path(
     out, nodes = [], []
     for ns, rs in found.result_set:
         steps = [f"{ns[0][1]} {_short(ns[0][3], 80)}"]
+        arrows = []
         for i, (rel, start) in enumerate(rs):
-            arrow = f"-[{rel}]->" if start == ns[i][0] else f"<-[{rel}]-"
-            steps.append(f"{arrow} {ns[i + 1][1]} {_short(ns[i + 1][3], 80)}")
-        out.append({"hops": len(rs), "path": " ".join(steps),
+            arrows.append(f"-[{rel}]->" if start == ns[i][0] else f"<-[{rel}]-")
+            steps.append(f"{arrows[-1]} {ns[i + 1][1]} {_short(ns[i + 1][3], 80)}")
+        out.append({"hops": len(rs), "path": " ".join(steps), "rels": arrows,
                     "nodes": [{"kind": k, "id": ident, "name": _short(name, 120)} for _, k, ident, name in ns]})
         nodes += [f"{k}:{ident}" for _, k, ident, _ in ns if k in ("paper", "finding")]
     return {"paths": out, "nodes": list(dict.fromkeys(nodes)),
