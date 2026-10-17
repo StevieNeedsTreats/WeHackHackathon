@@ -41,6 +41,8 @@ export default function Home() {
   const [selected, setSelected] = useState<string | null>(null);
   const [refs, setRefs] = useState<string[] | null>(null);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  // What the last run was started with, so Retry can repeat it exactly.
+  const [last, setLast] = useState<{ text: string; mode: "live" | "demo"; edits?: Edits } | null>(null);
 
   const refresh = useCallback(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
@@ -107,6 +109,7 @@ export default function Home() {
     setInterp(null);
     setSelected(null);
     setTab("verdict");
+    setLast({ text, mode: "live", edits });
     run(text, "live", edits);
   };
   const demo = (text: string) => {
@@ -114,8 +117,20 @@ export default function Home() {
     setRefusal(null);
     setSelected(null);
     setTab("verdict");
+    setLast({ text, mode: "demo" });
     run(text, "demo");
   };
+  /** Run the whole flow again for the current question, ignoring cached research. */
+  const retry = () => {
+    const text = last?.text ?? state.question?.text;
+    if (!text) return;
+    setRefusal(null);
+    setSelected(null);
+    setTab("verdict");
+    if (last?.mode === "demo") run(text, "demo");
+    else run(text, "live", { ...(last?.text === text ? last.edits : {}), fresh: true });
+  };
+  const canRetry = state.status !== "streaming" && !asking && !!(last?.text ?? state.question?.text);
   const open = (id: string, key?: string) => {
     setInterp(null);
     setRefusal(null);
@@ -163,7 +178,7 @@ export default function Home() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <Header state={state} health={health} busy={asking} onAsk={ask} onDemo={demo} onStop={stop} />
+      <Header state={state} health={health} busy={asking} onAsk={ask} onDemo={demo} onStop={stop} onRetry={canRetry ? retry : undefined} />
       <HypothesisBar
         state={state}
         focus={focus}
@@ -182,6 +197,11 @@ export default function Home() {
                 {guard ? "guardrail" : "error"}
               </Badge>
               {guard ? guard.message : state.error}
+              {!guard && canRetry && (
+                <Button size="xs" variant="outline" className="ml-auto bg-card" onClick={retry}>
+                  Retry
+                </Button>
+              )}
             </AlertTitle>
             {guard?.checks && (
               <AlertDescription className="mono flex flex-wrap gap-x-3 text-[11px] text-ink-2">
