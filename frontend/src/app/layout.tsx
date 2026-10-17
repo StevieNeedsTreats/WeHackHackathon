@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Inter, Source_Serif_4 } from "next/font/google";
 import "@xyflow/react/dist/base.css";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${inter.variable} ${mono.variable} ${serif.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <TooltipProvider delayDuration={250}>{children}</TooltipProvider>
+          <Toaster position="bottom-center" closeButton toastOptions={{ className: "text-[13px]" }} />
         </ThemeProvider>
       </body>
     </html>

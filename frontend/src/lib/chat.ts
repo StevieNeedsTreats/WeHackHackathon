@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { forgetQuestion } from "./api";
 import { API, authFetch } from "./auth";
+import { notify as toast } from "./notify";
 import { sse, type Ev } from "./store";
 
 /*
@@ -243,5 +244,23 @@ async function follow(qid: string, job: string, labels: string[]) {
     patchJob(qid, job, (j) => (j.status === "running" ? { ...j, status: "done" } : j));
     forgetQuestion(qid); // the cached snapshot no longer matches the graph
     sink?.changed(qid);
+    const j = convs.get(qid)?.jobs[job];
+    if (j) announce(j);
   }
+}
+
+/** One toast per finished job: how many papers made it in, and why the others didn't. */
+function announce(j: Job) {
+  if (j.status === "failed") return toast("error", "Couldn't add papers", { description: j.detail });
+  const count = (s: string) => j.items.filter((it) => it.status === s).length;
+  const added = j.added ?? count("added");
+  const why = [
+    count("rejected") && `${count("rejected")} not relevant`,
+    count("duplicate") && `${count("duplicate")} already in the graph`,
+    count("failed") && `${count("failed")} not found`,
+  ].filter(Boolean);
+  const papers = (n: number) => `${n} paper${n === 1 ? "" : "s"}`;
+  toast(added ? "success" : "info", added ? `Added ${papers(added)} to the graph` : "No papers added", {
+    description: why.length ? why.join(" · ") : undefined,
+  });
 }
