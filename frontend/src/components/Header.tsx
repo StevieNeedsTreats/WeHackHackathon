@@ -1,11 +1,12 @@
 "use client";
 
-import { Search, Square } from "lucide-react";
+import { Link2, Search, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { isTyping } from "@/lib/keys";
+import { notify } from "@/lib/notify";
 import type { State } from "@/lib/store";
 import type { Health, QuestionSummary } from "@/lib/types";
 import { AskPalette } from "./AskPalette";
@@ -57,6 +58,21 @@ function useModKey() {
     if (/Mac|iPhone|iPad/.test(navigator.platform)) setMod("⌘");
   }, []);
   return mod;
+}
+
+/** Copy the deep link to the open question (and hypothesis, already in the address bar once it loads). */
+async function share(qid: string) {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("q") !== qid) {
+    url.search = "";
+    url.searchParams.set("q", qid);
+  }
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    notify("info", "Link copied", { description: "Anyone with the link and the password can open this question." });
+  } catch {
+    notify("error", "Couldn't copy the link", { description: url.toString() });
+  }
 }
 
 export function Header({
@@ -130,6 +146,14 @@ export function Header({
             )}
           </Badge>
         </Tip>
+        {state.question && (
+          <Tip label="Copy a link to this question" side="bottom">
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-ink-2" onClick={() => share(state.question!.id)}>
+              <Link2 />
+              <span className="hidden md:inline">Share</span>
+            </Button>
+          </Tip>
+        )}
         <ThemeToggle />
       </div>
 
