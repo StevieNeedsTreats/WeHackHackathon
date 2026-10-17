@@ -1,272 +1,269 @@
 "use client";
 
-import { Info } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import type { State } from "@/lib/store";
-import type { GNode } from "@/lib/types";
-import { DESIGN_SHORT, DIR, DirGlyph, Icon } from "../graph/glyphs";
+import type { Finding } from "@/lib/types";
+import { designShort, DIRECTION, Icon, STANCE, StanceGlyph } from "../graph/glyphs";
 import { SectionLabel } from "../Tip";
-import { GradeBadge } from "./InsightsPanel";
 
 const H = ({ children }: { children: React.ReactNode }) => <SectionLabel className="mb-1.5 mt-5">{children}</SectionLabel>;
 
-function ClaimRow({ c, onSelect, note }: { c: GNode; onSelect: (id: string) => void; note?: string }) {
+const FLAG_TEXT: Record<string, string> = {
+  "small-sample": "Fewer than 30 participants",
+  preprint: "Not peer reviewed",
+  "no-results-posted": "Registered trial with no results posted",
+  "industry-funded": "Industry funding disclosed",
+  "funding-undisclosed": "No funder listed",
+  "animal-study": "Animal or lab study",
+  retracted: "Retracted",
+  "low-credibility": "Credibility below 40",
+};
+
+function FindingLink({ f, state, hk, onSelect }: { f: Finding; state: State; hk: string | null; onSelect: (id: string) => void }) {
+  const e = hk ? f.evidence[hk] : null;
   return (
-    <Button variant="ghost" onClick={() => onSelect(c.id)} className="h-auto w-full items-start justify-start gap-2 px-2 py-1.5 text-left font-normal">
-      <DirGlyph dir={c.direction ?? "neutral"} size={15} />
+    <Button variant="ghost" onClick={() => onSelect(`f:${f.id}`)} className="h-auto w-full items-start justify-start gap-2 px-2 py-1.5 text-left font-normal">
+      {e ? <StanceGlyph stance={e.stance} size={15} /> : <span className="mono w-[15px] text-center text-ink-3">{DIRECTION[f.direction]?.arrow}</span>}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] text-ink">{c.text}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">{note ?? c.outcome}</span>
+        <span className="block truncate text-[12.5px] text-ink">{f.text}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {f.outcome.name} · {state.papers[f.paper_id]?.label}
+        </span>
       </span>
     </Button>
   );
 }
 
-function Highlighted({ text, quotes }: { text: string; quotes: { q: string; dir: string }[] }) {
-  // Mark every verified quote inside the abstract.
-  const marks: { start: number; end: number; dir: string }[] = [];
-  const low = text.toLowerCase();
-  for (const { q, dir } of quotes) {
-    const i = low.indexOf(q.toLowerCase());
-    if (i >= 0 && !marks.some((m) => i < m.end && i + q.length > m.start)) marks.push({ start: i, end: i + q.length, dir });
-  }
-  marks.sort((a, b) => a.start - b.start);
-  const out: React.ReactNode[] = [];
-  let at = 0;
-  marks.forEach((m, k) => {
-    out.push(text.slice(at, m.start));
-    out.push(
-      <mark key={k} className="rounded-[2px] px-[1px] text-ink" style={{ background: DIR[m.dir as keyof typeof DIR].soft, boxShadow: `inset 0 -1.5px 0 ${DIR[m.dir as keyof typeof DIR].color}` }}>
-        {text.slice(m.start, m.end)}
-      </mark>,
-    );
-    at = m.end;
-  });
-  out.push(text.slice(at));
-  return <p className="font-serif text-[13.5px] leading-[1.65] text-ink-2">{out}</p>;
-}
+export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: string | null; hk: string | null; onSelect: (id: string) => void }) {
+  if (!id) return <p className="p-5 text-[13px] text-muted-foreground">Click a paper, finding or contradiction on the graph to inspect it.</p>;
 
-export function DetailsPanel({ state, id, onSelect }: { state: State; id: string | null; onSelect: (id: string) => void }) {
-  if (!id) return <p className="p-5 text-[13px] text-muted-foreground">Click any node or contradiction on the graph to inspect it.</p>;
-  const nodes = state.nodes;
-  const edges = Object.values(state.edges);
-
-  const edge = state.edges[id];
-  if (edge) {
-    const a = nodes[edge.source];
-    const b = nodes[edge.target];
+  if (id.startsWith("c:")) {
+    // Finding ids contain colons, so look the pair up rather than splitting the id.
+    const c = Object.values(state.contradictions).flat().find((x) => `c:${x.a}:${x.b}` === id);
+    const fa = c && state.findings[c.a];
+    const fb = c && state.findings[c.b];
     return (
       <div className="p-5">
-        <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-neg-ink">{edge.type}</div>
-        <h3 className="mt-1 text-[16px] font-semibold text-ink">{edge.reason ?? "Relationship"}</h3>
-        {edge.severity && <p className="mt-1 text-[12px] text-ink-3">Severity {edge.severity} — set by the lower credibility of the two papers.</p>}
+        <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-neg-ink">Contradiction</div>
+        <h3 className="mt-1 text-[16px] font-semibold text-ink">{c?.reason ?? "Conflict"}</h3>
+        {c?.explained_by ? (
+          <p className="mt-1 text-[12.5px] text-ink-2">Probably explained by a study difference: {c.explained_by}</p>
+        ) : (
+          <p className="mt-1 text-[12.5px] text-ink-2">No study difference explains it: a real disagreement in the literature.</p>
+        )}
+        {c?.severity && <p className="mt-1 text-[11.5px] text-ink-3">Severity {c.severity}, set by the lower credibility of the two papers.</p>}
         <H>Between</H>
-        {a && <ClaimRow c={a} onSelect={onSelect} note={nodes[`p:${a.paper_id}`]?.label} />}
-        {b && <ClaimRow c={b} onSelect={onSelect} note={nodes[`p:${b.paper_id}`]?.label} />}
+        {fa && <FindingLink f={fa} state={state} hk={hk} onSelect={onSelect} />}
+        {fb && <FindingLink f={fb} state={state} hk={hk} onSelect={onSelect} />}
       </div>
     );
   }
 
-  const n = nodes[id];
-  if (!n) return <p className="p-5 text-[13px] text-ink-3">That item is no longer on the graph.</p>;
-
-  if (n.kind === "paper") {
-    const claims = edges.filter((e) => e.type === "REPORTS" && e.source === id).map((e) => nodes[e.target]).filter(Boolean);
-    const funders = edges.filter((e) => e.type === "FUNDED_BY" && e.source === id).map((e) => nodes[e.target]).filter(Boolean);
-    const total = (n.cred_reasons ?? []).reduce((s, r) => s + r.points, 0);
+  if (id.startsWith("f:")) {
+    const f = state.findings[id.slice(2)];
+    if (!f) return <p className="p-5 text-[13px] text-ink-3">That finding is no longer on the graph.</p>;
+    const p = state.papers[f.paper_id];
+    const st = state.studies[f.study_id];
+    const evid = Object.entries(f.evidence);
     return (
       <div className="p-5">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="mono h-4 rounded-sm px-1 text-[10px] font-normal">
-            {DESIGN_SHORT[n.design ?? "Other"]}
-          </Badge>
-          <span className="text-[12px] text-ink-3">
-            {n.journal} · {n.year}
-          </span>
+        <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3">Finding · {f.outcome.name}</div>
+        <h3 className="mt-1 text-[16px] font-semibold leading-snug text-ink">{f.text}</h3>
+        <div className="mono mt-1 text-[11.5px] text-ink-2">
+          {DIRECTION[f.direction]?.arrow} {DIRECTION[f.direction]?.label}
+          {f.effect_text ? ` · ${f.effect_text}` : f.effect_value != null ? ` · ${f.effect_value} ${f.effect_unit ?? ""}` : ""}
         </div>
-        <h3 className="mt-2 font-serif text-[18px] font-semibold leading-snug text-ink">{n.title}</h3>
-        <div className="mt-1 text-[12px] text-ink-2">{(n.first_authors ?? []).join(", ")}</div>
-        {n.url && (
-          <Button asChild variant="link" size="xs" className="mt-1 h-auto px-0 text-[12px]">
-            <a href={n.url} target="_blank" rel="noreferrer noopener">
-              {n.pmid ? `PubMed ${n.pmid}` : "Source"} <Icon name="link" size={11} />
-            </a>
-          </Button>
-        )}
-        {n.demo && (
-          <Alert className="mt-2 bg-muted/60">
-            <Info />
-            <AlertDescription className="text-[11.5px]">Demo record: the abstract is an illustrative summary written for the demo, not the published text.</AlertDescription>
-          </Alert>
-        )}
-
-        <H>Credibility {n.credibility ?? "—"} / 100</H>
-        <ul className="space-y-1.5">
-          {(n.cred_reasons ?? []).map((r) => (
-            <li key={r.label} className="grid grid-cols-[96px_1fr_36px] items-center gap-2 text-[12px]">
-              <span className="text-ink-2">{r.label}</span>
-              <span className="relative h-[6px] rounded-full bg-surface-3">
-                {r.points >= 0 ? (
-                  <span className="absolute inset-y-0 left-0 rounded-full bg-ink-2" style={{ width: `${Math.min(100, (r.points / 40) * 100)}%` }} />
-                ) : (
-                  <span className="tg-hatch absolute inset-y-0 left-0 rounded-full border border-ink-3" style={{ width: `${Math.min(100, (-r.points / 40) * 100)}%` }} />
-                )}
-              </span>
-              <span className="mono tabular text-right text-ink">{r.points > 0 ? `+${r.points}` : r.points}</span>
-              <span className="col-span-3 -mt-1 text-[11px] text-ink-3">{r.detail}</span>
-            </li>
-          ))}
-        </ul>
-        {n.cred_reasons && <p className="mono mt-1 text-[10.5px] text-ink-3">sum {total} → clamped 0–100. Scored from metadata only, never from the result.</p>}
-
-        {(n.flags?.length ?? 0) > 0 && (
+        {f.quote && (
           <>
-            <H>Flags</H>
-            <div className="flex flex-wrap gap-1">
-              {n.flags!.map((f) => (
-                <Badge key={f} variant="outline" className="mono rounded-sm text-[10.5px] font-normal text-ink-2">
-                  {f}
-                </Badge>
+            <H>Quote</H>
+            <p className="border-l-2 border-line-2 pl-3 font-serif text-[13.5px] leading-[1.6] text-ink-2">“{f.quote}”</p>
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-3">
+              {f.quote_verified ? <Icon name="check" size={11} /> : <Icon name="alert" size={11} />}
+              {f.quote_verified ? "Found verbatim in the source text" : "Not found verbatim in the source; its weight is halved"}
+            </p>
+          </>
+        )}
+        {evid.length > 0 && (
+          <>
+            <H>Stance per hypothesis</H>
+            <ul className="space-y-2">
+              {evid.map(([k, e]) => (
+                <li key={k} className="rounded-md border border-line bg-surface px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <StanceGlyph stance={e.stance} size={14} />
+                    <span className="text-[12px] font-medium" style={{ color: STANCE[e.stance].ink }}>
+                      {STANCE[e.stance].label}
+                    </span>
+                    <span className="mono ml-auto text-[10.5px] text-ink-3">weight {e.weight.toFixed(2)}</span>
+                  </div>
+                  <div className="mt-0.5 text-[11.5px] text-ink-3">{state.hyps[k]?.statement}</div>
+                  {e.rationale && <div className="mt-1 text-[12px] text-ink-2">{e.rationale}</div>}
+                </li>
               ))}
-            </div>
+            </ul>
           </>
         )}
-
-        <H>Provenance</H>
-        <dl className="grid grid-cols-[80px_1fr] gap-y-1 text-[12px]">
-          <dt className="text-ink-3">Lab</dt>
-          <dd className="text-ink-2">{n.lab ?? "—"}</dd>
-          <dt className="text-ink-3">Region</dt>
-          <dd className="text-ink-2">{n.region || "—"}</dd>
-          <dt className="text-ink-3">Funding</dt>
-          <dd className="text-ink-2">{funders.length ? funders.map((f) => `${f.name} (${f.type})`).join("; ") : "None listed"}</dd>
-          <dt className="text-ink-3">Sample</dt>
-          <dd className="mono text-ink-2">{n.studies ? `${n.studies} studies` : ""}{n.studies && n.sample_size ? " · " : ""}{n.sample_size ? `n=${n.sample_size.toLocaleString()}` : n.studies ? "" : "not stated"}</dd>
-          <dt className="text-ink-3">Citations</dt>
-          <dd className="mono text-ink-2">{(n.citations ?? 0).toLocaleString()}</dd>
-        </dl>
-
-        <H>Claims ({claims.length})</H>
-        {claims.map((c) => (
-          <ClaimRow key={c.id} c={c} onSelect={onSelect} />
-        ))}
-
-        {n.abstract && (
+        {st && (
           <>
-            <H>Abstract</H>
-            <Highlighted text={n.abstract} quotes={claims.filter((c) => c.quote_verified && c.quote).map((c) => ({ q: c.quote!, dir: c.direction ?? "neutral" }))} />
+            <H>Study</H>
+            <dl className="grid grid-cols-[96px_1fr] gap-x-2 gap-y-1 text-[12px]">
+              {(
+                [
+                  ["Design", st.design],
+                  ["Participants", st.n?.toLocaleString()],
+                  ["Pooled studies", st.pooled_studies],
+                  ["Population", st.population],
+                  ["Exposure", st.exposure],
+                  ["Comparator", st.comparator],
+                  ["Duration", st.duration],
+                  ["Setting", st.setting],
+                ] as [string, unknown][]
+              )
+                .filter(([, v]) => v != null && v !== "")
+                .map(([k, v]) => (
+                  <div key={k} className="contents">
+                    <dt className="text-ink-3">{k}</dt>
+                    <dd className="text-ink-2">{String(v)}</dd>
+                  </div>
+                ))}
+            </dl>
           </>
         )}
-      </div>
-    );
-  }
-
-  if (n.kind === "claim") {
-    const p = nodes[`p:${n.paper_id}`];
-    const rel = edges.filter((e) => (e.type === "CONTRADICTS" || e.type === "SUPPORTS") && (e.source === id || e.target === id));
-    const d = DIR[n.direction ?? "neutral"];
-    return (
-      <div className="p-5">
-        <div className="flex items-center gap-2">
-          <DirGlyph dir={n.direction ?? "neutral"} size={18} />
-          <span className="text-[12px] font-medium" style={{ color: d.ink }}>
-            {d.label}
-            {n.harm ? " · harm" : ""}
-          </span>
-          <span className="mono ml-auto text-[10.5px] text-ink-3">{n.extractor === "claude" ? "claude-haiku-5-5" : "rule extractor"}</span>
-        </div>
-        <h3 className="mt-2 text-[18px] font-semibold leading-snug text-ink">{n.text}</h3>
-        <div className="mt-1 text-[12.5px] text-ink-2">
-          {n.outcome}
-          {n.effect ? <span className="mono"> · {n.effect}</span> : null}
-        </div>
-
-        <H>Evidence</H>
-        <blockquote className="rounded-[8px] border-l-[3px] bg-surface p-3 font-serif text-[14px] leading-[1.6] text-ink" style={{ borderColor: d.color }}>
-          “{n.quote}”
-        </blockquote>
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-2">
-          {n.quote_verified ? <Icon name="check" size={12} className="text-ok" /> : <Icon name="alert" size={12} />}
-          {n.quote_verified ? "Found verbatim in the abstract" : "Not found verbatim — counted at half weight"}
-        </div>
-
         {p && (
           <>
-            <H>Source</H>
-            <Card size="sm" role="button" tabIndex={0} onClick={() => onSelect(p.id)} onKeyDown={(e) => e.key === "Enter" && onSelect(p.id)} className="cursor-pointer gap-0.5 px-3 shadow-none hover:ring-ink-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[13px] font-semibold text-ink">{p.label}</span>
-                <span className="mono text-[11px] text-ink-2">cred {p.credibility ?? "—"}</span>
-              </div>
-              <div className="line-clamp-2 text-[12px] text-ink-2">{p.title}</div>
-            </Card>
+            <H>Paper</H>
+            <Button variant="ghost" onClick={() => onSelect(`p:${p.id}`)} className="h-auto w-full justify-start px-2 py-1.5 text-left font-normal">
+              <span className="min-w-0">
+                <span className="block truncate text-[12.5px] text-ink">{p.title}</span>
+                <span className="mono block text-[11px] text-ink-3">
+                  {p.label} · credibility {p.credibility ?? "…"}
+                </span>
+              </span>
+            </Button>
           </>
         )}
-
-        <H>Relationships ({rel.length})</H>
-        {rel.length === 0 && <p className="text-[12px] text-ink-3">No other paper speaks to this outcome in a conflicting or corroborating way.</p>}
-        {rel.map((e) => {
-          const other = nodes[e.source === id ? e.target : e.source];
-          if (!other) return null;
-          return (
-            <div key={e.id} className="mb-1">
-              <div className="mono px-2 text-[10px] uppercase tracking-[0.08em]" style={{ color: e.type === "CONTRADICTS" ? DIR.null.ink : DIR.positive.ink }}>
-                {e.type === "CONTRADICTS" ? `contradicts · ${e.reason}` : "supported by"}
-              </div>
-              <ClaimRow c={other} onSelect={onSelect} note={nodes[`p:${other.paper_id}`]?.label} />
-            </div>
-          );
-        })}
       </div>
     );
   }
 
-  // outcome, funder, author, lab: list what hangs off them
-  const linkedPapers = (() => {
-    if (n.kind === "outcome") return [];
-    const t = n.kind === "funder" ? "FUNDED_BY" : n.kind === "author" ? "AUTHORED_BY" : "FROM_LAB";
-    return edges.filter((e) => e.type === t && e.target === id).map((e) => nodes[e.source]).filter(Boolean);
-  })();
-  const claims =
-    n.kind === "outcome"
-      ? edges.filter((e) => e.type === "ABOUT" && e.target === id).map((e) => nodes[e.source]).filter(Boolean)
-      : linkedPapers.flatMap((p) => edges.filter((e) => e.type === "REPORTS" && e.source === p.id).map((e) => nodes[e.target])).filter(Boolean);
-  const cons = state.insights?.consensus.find((c) => `o:${c.outcome_key}` === id);
-
+  const pid = id.startsWith("p:") ? id.slice(2) : id;
+  const p = state.papers[pid];
+  if (!p) return <p className="p-5 text-[13px] text-ink-3">Click a paper, finding or contradiction to inspect it.</p>;
+  const findings = Object.values(state.findings).filter((f) => f.paper_id === pid);
+  const studies = Object.values(state.studies).filter((s) => s.paper_id === pid);
+  const total = (p.reasons ?? []).reduce((s, r) => s + r.points, 0);
   return (
     <div className="p-5">
-      <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3">
-        {n.kind}
-        {n.type ? ` · ${n.type}` : ""}
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="mono rounded-sm text-[10px]">
+          {designShort(p.design)}
+        </Badge>
+        <span className="mono text-[11px] text-ink-3">
+          {p.year} · {p.journal ?? p.kind}
+        </span>
       </div>
-      <h3 className="mt-1 text-[18px] font-semibold leading-snug text-ink">{n.name}</h3>
-      {n.region && <div className="text-[12.5px] text-ink-2">{n.region}</div>}
-      {cons && (
-        <p className="mt-2 text-[12.5px] text-ink-2">
-          <span className="mr-1.5 inline-block align-middle">
-            <GradeBadge grade={cons.grade} verdict={cons.verdict} />
-          </span>
-          {cons.verdict} — {Math.round(cons.share.positive * 100)}% positive by credibility weight across {cons.papers} paper{cons.papers !== 1 ? "s" : ""}.
-        </p>
+      <h3 className="mt-1.5 text-[15.5px] font-semibold leading-snug text-ink">{p.title}</h3>
+      <div className="mt-1 text-[12px] text-ink-2">
+        {p.authors.map((a) => a.name).join(", ")}
+        {p.authors.length >= 3 ? " et al." : ""}
+      </div>
+      {p.url && (
+        <a href={p.url} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] text-ink underline decoration-line-2 underline-offset-2 hover:decoration-ink">
+          Open source <Icon name="link" size={11} />
+        </a>
       )}
-      {linkedPapers.length > 0 && (
+
+      <H>Credibility · {p.credibility ?? "…"} / 100</H>
+      {p.reasons?.length ? (
+        <ul className="space-y-1">
+          {p.reasons.map((r) => (
+            <li key={r.id ?? r.label} className="grid grid-cols-[1fr_auto] gap-x-2 text-[12px]">
+              <span className="text-ink-2">
+                {r.label}
+                {r.judged && <span className="mono ml-1 text-[9.5px] text-ink-4">LLM</span>}
+              </span>
+              <span className={`mono tabular text-right ${r.points < 0 ? "text-neg-ink" : "text-ink"}`}>
+                {r.points > 0 ? "+" : ""}
+                {r.points}
+              </span>
+              <span className="col-span-2 text-[11px] leading-snug text-ink-3">{r.detail}</span>
+            </li>
+          ))}
+          <li className="mono flex justify-between border-t border-line pt-1 text-[11px] text-ink-3">
+            <span>sum (clamped 0–100)</span>
+            <span>{total}</span>
+          </li>
+        </ul>
+      ) : (
+        <p className="text-[12px] text-ink-3">Not scored yet.</p>
+      )}
+      {(p.flags ?? []).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {p.flags!.map((f) => (
+            <Badge key={f} variant="secondary" className="rounded-sm text-[10.5px] font-normal">
+              {FLAG_TEXT[f] ?? f}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {(p.funders.length > 0 || p.labs.length > 0) && (
         <>
-          <H>Papers ({linkedPapers.length})</H>
-          {linkedPapers.map((p) => (
-            <Button key={p.id} variant="ghost" onClick={() => onSelect(p.id)} className="h-auto w-full justify-between px-2 py-1.5 font-normal">
-              <span className="truncate text-[12.5px] text-ink">{p.label}</span>
-              <span className="mono text-[11px] text-muted-foreground">cred {p.credibility ?? "—"}</span>
-            </Button>
+          <H>Funding & affiliations</H>
+          <ul className="space-y-0.5 text-[12px] text-ink-2">
+            {p.funders.map((f) => (
+              <li key={f.id}>
+                <span className="mono mr-1.5 text-[10px] uppercase text-ink-3">{f.type}</span>
+                {f.name}
+              </li>
+            ))}
+            {p.labs.map((l) => (
+              <li key={l.id} className="text-ink-3">
+                {l.name}
+                {l.country ? ` · ${l.country}` : ""}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {studies.length > 0 && (
+        <>
+          <H>Studies</H>
+          {studies.map((s) => (
+            <p key={s.id} className="text-[12px] text-ink-2">
+              {s.design}
+              {s.n ? ` · n=${s.n.toLocaleString()}` : ""}
+              {s.population ? ` · ${s.population}` : ""}
+              {s.exposure ? ` · ${s.exposure}` : ""}
+            </p>
           ))}
         </>
       )}
-      <H>Claims ({claims.length})</H>
-      {claims.map((c) => (
-        <ClaimRow key={c.id} c={c} onSelect={onSelect} note={nodes[`p:${c.paper_id}`]?.label} />
-      ))}
+
+      {findings.length > 0 && (
+        <>
+          <H>Findings · {findings.length}</H>
+          {findings.map((f) => (
+            <FindingLink key={f.id} f={f} state={state} hk={hk} onSelect={onSelect} />
+          ))}
+        </>
+      )}
+
+      {Object.keys(p.considered).length > 0 && (
+        <>
+          <H>Considered for</H>
+          <ul className="space-y-0.5 text-[12px] text-ink-2">
+            {Object.entries(p.considered).map(([k, c]) => (
+              <li key={k} className="flex justify-between gap-2">
+                <span className="truncate">{state.hyps[k]?.statement ?? k}</span>
+                <span className="mono shrink-0 text-[10.5px] text-ink-3">rel {c.relevance?.toFixed?.(2) ?? c.relevance}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

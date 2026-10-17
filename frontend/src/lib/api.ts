@@ -1,4 +1,18 @@
-import type { GEdge, GNode, Health, Insights, Metric, Stats, SubstanceSummary, Flag } from "./types";
+import type {
+  Cluster,
+  Contradiction,
+  Finding,
+  Flag,
+  Health,
+  Hypothesis,
+  Interpretation,
+  Metric,
+  Paper,
+  QuestionSummary,
+  Stats,
+  Study,
+  Verdict,
+} from "./types";
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8100";
 
@@ -15,23 +29,31 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getHealth = () => json<Health>("/api/health");
-export const getSubstances = () => json<SubstanceSummary[]>("/api/substances");
-export const screen = (q: string) =>
-  json<{ ok: boolean; message: string; code: string }>("/api/screen", { method: "POST", body: JSON.stringify({ q }) });
+export const getQuestions = () => json<QuestionSummary[]>("/api/questions");
+export const interpret = (text: string, mode: "live" | "demo") =>
+  json<Interpretation>("/api/interpret", { method: "POST", body: JSON.stringify({ text, mode }) });
 
 export interface Snapshot {
-  key: string;
-  name: string;
-  nodes: GNode[];
-  edges: GEdge[];
-  insights: Insights | null;
+  question: { id: string; text: string; domain: string };
+  hypotheses: Hypothesis[];
+  papers: (Paper & { cred_reasons?: Paper["reasons"]; sample_size?: number })[];
+  studies: Study[];
+  findings: Finding[];
+  clusters: Cluster[];
+  contradictions: Contradiction[];
+  cites: [string, string][];
+  verdicts: Record<string, Verdict | null>;
   metrics: Metric[] | null;
   stats: Stats | null;
-  flags: Flag[] | null;
+  flags: Flag[];
+  disclaimer: string;
+  running: boolean;
   ms: number;
 }
-export const getSnapshot = (key: string) => json<Snapshot>(`/api/graph/${encodeURIComponent(key)}`);
-export const getBenchmarks = (key: string) => json<Metric[]>(`/api/benchmarks/${encodeURIComponent(key)}`);
+export const getQuestion = (id: string) => json<Snapshot>(`/api/question/${encodeURIComponent(id)}`);
+export const deleteQuestion = (id: string) =>
+  json<{ deleted: string; hypotheses: string[] }>(`/api/question/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const getBenchmarks = (id: string) => json<Metric[]>(`/api/benchmarks/${encodeURIComponent(id)}`);
 
 export interface QueryResult {
   columns: string[];
@@ -39,9 +61,19 @@ export interface QueryResult {
   truncated: boolean;
   ms: number;
 }
-export const runQuery = (cypher: string, key?: string) =>
-  json<QueryResult>("/api/query", { method: "POST", body: JSON.stringify({ cypher, key }) });
+export const runQuery = (cypher: string, qid?: string) =>
+  json<QueryResult>("/api/query", { method: "POST", body: JSON.stringify({ cypher, qid }) });
 
-export function streamUrl(q: string, mode: "live" | "demo") {
-  return `${API}/api/research/stream?q=${encodeURIComponent(q)}&mode=${mode}`;
+export interface Edits {
+  keep?: string[];
+  population?: Record<string, string | null>;
+  fresh?: boolean;
 }
+
+export function streamUrl(q: string, mode: "live" | "demo", edits?: Edits) {
+  const e = edits && Object.keys(edits).length ? `&edits=${encodeURIComponent(JSON.stringify(edits))}` : "";
+  return `${API}/api/research/stream?q=${encodeURIComponent(q)}&mode=${mode}${e}`;
+}
+
+export const attachUrl = (qid: string) => `${API}/api/research/attach?qid=${encodeURIComponent(qid)}`;
+export const stopRun = (qid: string) => json<{ stopped: string }>(`/api/research/stop?qid=${encodeURIComponent(qid)}`, { method: "POST" });

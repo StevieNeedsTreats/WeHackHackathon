@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { screen } from "@/lib/api";
 import type { State } from "@/lib/store";
 import type { Health } from "@/lib/types";
 import { Tip } from "./Tip";
@@ -22,42 +21,37 @@ export function Logo() {
   );
 }
 
-const SUGGESTIONS = ["Creatine", "Vitamin D", "Minoxidil", "Melatonin", "Omega-3", "Ashwagandha"];
+export const EXAMPLES = [
+  "effects of minoxidil on hair loss, and side effects of minoxidil in pregnant women",
+  "creatine on intelligence vs muscle gain",
+  "Does raising the minimum wage reduce employment?",
+  "what happens if a pregnant woman takes melatonin",
+];
 
 export function Header({
   state,
   health,
-  onRun,
+  busy,
+  onAsk,
   onDemo,
   onStop,
 }: {
   state: State;
   health: Health | null;
-  onRun: (q: string) => void;
-  onDemo: () => void;
+  busy: boolean;
+  onAsk: (q: string) => void;
+  onDemo: (q: string) => void;
   onStop: () => void;
 }) {
   const [q, setQ] = useState("");
-  const [warn, setWarn] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streaming = state.status === "streaming";
+  const demo = health?.demos?.[0];
 
-  // Live guardrail pre-check while typing (the server re-checks on submit).
   useEffect(() => {
-    if (q.trim().length < 2) {
-      setWarn(null);
-      return;
-    }
-    const t = setTimeout(async () => {
-      try {
-        const r = await screen(q);
-        setWarn(r.ok ? null : r.message);
-      } catch {
-        setWarn(null);
-      }
-    }, 280);
-    return () => clearTimeout(t);
-  }, [q]);
+    if (state.question?.text && state.question.text !== q) setQ(state.question.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when a new question loads
+  }, [state.question?.text]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -71,8 +65,7 @@ export function Header({
   }, []);
 
   const submit = () => {
-    if (!q.trim() || warn) return;
-    onRun(q.trim());
+    if (q.trim().length >= 3) onAsk(q.trim());
   };
 
   return (
@@ -83,7 +76,7 @@ export function Header({
       </div>
 
       <form
-        className="relative order-3 w-full md:order-none md:w-auto md:max-w-[560px] md:flex-1"
+        className="relative order-3 w-full md:order-none md:w-auto md:max-w-[720px] md:flex-1"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -96,10 +89,9 @@ export function Header({
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              maxLength={60}
-              placeholder="Substance or intervention, e.g. creatine"
-              aria-label="Substance or intervention"
-              aria-invalid={!!warn}
+              maxLength={400}
+              placeholder="Ask about any claim, e.g. does creatine improve memory?"
+              aria-label="Question or claim"
               className="h-9 bg-surface-2 pl-8 pr-8 text-[14px]"
             />
             <kbd className="mono pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-sm border px-1.5 text-[10.5px] text-muted-foreground sm:block">/</kbd>
@@ -109,34 +101,21 @@ export function Header({
               Stop
             </Button>
           ) : (
-            <Button type="submit" size="lg" disabled={!q.trim() || !!warn} className="px-3.5">
-              Build graph
+            <Button type="submit" size="lg" disabled={q.trim().length < 3 || busy} className="px-3.5">
+              {busy ? "Reading…" : "Interpret"}
             </Button>
           )}
         </div>
-        {warn && (
-          <div role="alert" className="absolute left-0 top-full z-30 mt-1.5 flex max-w-full items-start gap-2 rounded-lg border border-destructive bg-popover px-3 py-2 text-[12px] text-foreground shadow-[var(--shadow-md)]">
-            <Badge variant="destructive" className="mono rounded-sm text-[10px] uppercase">
-              guardrail
-            </Badge>
-            {warn}
-          </div>
-        )}
-        {!q && state.status === "idle" && (
-          <div className="mt-1.5 hidden flex-wrap gap-1 md:absolute md:left-0 md:top-full md:flex">
-            {SUGGESTIONS.map((s) => (
-              <Button key={s} type="button" variant="outline" size="xs" className="rounded-full bg-card font-normal text-ink-2" onClick={() => onRun(s)}>
-                {s}
-              </Button>
-            ))}
-          </div>
-        )}
       </form>
 
       <div className="ml-auto flex items-center gap-3">
-        <Button variant="outline" onClick={onDemo} disabled={streaming}>
-          Load demo
-        </Button>
+        {demo && (
+          <Tip label={`Replays a recorded run: “${demo.text}”`} side="bottom">
+            <Button variant="outline" onClick={() => onDemo(demo.text)} disabled={streaming}>
+              Load demo
+            </Button>
+          </Tip>
+        )}
         <Tip label={health?.falkordb ? `Connected to graph “${health.graph}”` : "FalkorDB unreachable"} side="bottom">
           <Badge variant="outline" className="mono hidden h-7 gap-2 rounded-md px-2.5 font-normal text-ink-2 lg:inline-flex">
             <span className={`size-2 rounded-full ${health?.falkordb ? "bg-ok" : "bg-destructive"}`} />

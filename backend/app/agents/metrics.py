@@ -16,63 +16,72 @@ QUERIES = [
     {
         "id": "funding-trail",
         "title": "Funding trail",
-        "question": "Which outcomes does each funder type's money reach, and in which direction?",
-        "hops": 3,
-        "cypher": """MATCH (s:Substance {key:$k})-[:STUDIED_IN]->(p:Paper)-[:REPORTS]->(c:Claim {substance:$k})-[:ABOUT]->(o:Outcome)
+        "question": "For each hypothesis, which kinds of funder paid for the supporting vs refuting evidence?",
+        "hops": 5,
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)
 OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
-RETURN coalesce(f.type, 'undisclosed') AS funding, o.name AS outcome, c.direction AS direction, count(*) AS claims
-ORDER BY claims DESC LIMIT 25""",
+RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funder_type, e.stance AS stance,
+       count(DISTINCT p) AS papers
+ORDER BY hypothesis, papers DESC""",
     },
     {
-        "id": "contradiction-chains",
+        "id": "who-contradicts-whom",
         "title": "Who contradicts whom",
-        "question": "For every contradiction, which labs and funders sit on each side?",
-        "hops": 6,
-        "cypher": """MATCH (f1)<-[:FUNDED_BY|FROM_LAB]-(p1:Paper)-[:REPORTS]->(c1:Claim {substance:$k})-[r:CONTRADICTS]->(c2:Claim)<-[:REPORTS]-(p2:Paper)-[:FUNDED_BY|FROM_LAB]->(f2)
-RETURN p1.label AS paper_a, f1.name AS backer_a, c1.text AS claim_a, r.reason AS reason, c2.text AS claim_b, p2.label AS paper_b, f2.name AS backer_b
+        "question": "Which labs' findings contradict which other labs' findings, and why?",
+        "hops": 7,
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
+MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
+MATCH (a)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pa:Paper), (b)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pb:Paper)
+OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
+OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
+RETURN pa.label AS paper_a, la.name AS lab_a, pb.label AS paper_b, lb.name AS lab_b, c.reason AS reason,
+       c.explained_by AS explained_by
+LIMIT 25""",
+    },
+    {
+        "id": "cross-hypothesis",
+        "title": "Evidence reused across hypotheses",
+        "question": "Which papers inform more than one hypothesis anywhere in the graph?",
+        "hops": 3,
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(p:Paper)
+MATCH (p)<-[:CONSIDERED]-(h:Hypothesis)
+WITH p, collect(DISTINCT h.statement) AS hypotheses
+WHERE size(hypotheses) > 1
+RETURN p.label AS paper, p.title AS title, hypotheses
 LIMIT 25""",
     },
     {
         "id": "citation-reach",
         "title": "Citation reach",
-        "question": "Which papers in this set build on each other, up to three citations deep?",
-        "hops": "1–3",
-        "cypher": """MATCH (s:Substance {key:$k})-[:STUDIED_IN]->(a:Paper)
-MATCH path = (a)-[:CITES*1..3]->(b:Paper)
-WHERE (s)-[:STUDIED_IN]->(b)
-RETURN a.label AS citing, b.label AS cited, length(path) AS depth, b.credibility AS cited_credibility
-ORDER BY depth, cited_credibility DESC LIMIT 25""",
-    },
-    {
-        "id": "corroboration",
-        "title": "Corroborated claims",
-        "question": "Which claims are backed by a more credible paper, and how credible is that backing?",
+        "question": "Which considered papers are reached through chains of up to 3 citations?",
         "hops": 4,
-        "cypher": """MATCH (p1:Paper)-[:REPORTS]->(c1:Claim {substance:$k})-[:SUPPORTS]->(c2:Claim)<-[:REPORTS]-(p2:Paper)
-MATCH (c1)-[:ABOUT]->(o:Outcome)
-RETURN o.name AS outcome, c1.text AS claim, p1.label AS paper, p2.label AS backed_by, p2.credibility AS backer_credibility
-ORDER BY backer_credibility DESC LIMIT 25""",
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(a:Paper)
+MATCH (a)-[:CITES*1..3]->(b:Paper)
+RETURN b.label AS paper, count(DISTINCT a) AS reached_from, max(b.credibility) AS credibility
+ORDER BY reached_from DESC
+LIMIT 15""",
     },
     {
-        "id": "shared-authors",
+        "id": "shared-researchers",
         "title": "Shared researchers",
-        "question": "Which authors appear across this substance and others already in the graph?",
-        "hops": 4,
-        "cypher": """MATCH (s:Substance {key:$k})-[:STUDIED_IN]->(:Paper)-[:AUTHORED_BY]->(a:Author)<-[:AUTHORED_BY]-(:Paper)<-[:STUDIED_IN]-(t:Substance)
-WHERE t.key <> $k
-RETURN a.name AS author, collect(DISTINCT t.name) AS also_studied
-LIMIT 25""",
+        "question": "Which authors also published on other hypotheses in the graph?",
+        "hops": 5,
+        "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)-[:CONSIDERED]->(:Paper)-[:AUTHORED_BY]->(a:Author)
+MATCH (a)<-[:AUTHORED_BY]-(:Paper)<-[:CONSIDERED]-(o:Hypothesis)
+WHERE o.key <> h.key
+RETURN a.name AS author, collect(DISTINCT o.statement)[..3] AS other_hypotheses
+LIMIT 15""",
     },
 ]
 
 
-async def run_benchmarks(store: GraphStore, key: str, repeats: int = 7) -> list[dict]:
+async def run_benchmarks(store: GraphStore, qid: str, repeats: int = 7) -> list[dict]:
     out = []
     for q in QUERIES:
         timings, rows, header = [], [], []
         for _ in range(repeats):
             t0 = time.perf_counter()
-            res = await store.ro(q["cypher"], {"k": key})
+            res = await store.ro(q["cypher"], {"q": qid})
             timings.append((time.perf_counter() - t0) * 1000)
             rows, header = res.result_set, res.header
         timings.sort()

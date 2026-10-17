@@ -20,11 +20,9 @@ DISCLAIMER = (
     "replace a clinician. Evidence grades reflect the papers found, not certainty about you."
 )
 
-ALLOWED_HOSTS = {"www.ebi.ac.uk", "api.openalex.org"}
+ALLOWED_HOSTS = {"www.ebi.ac.uk", "api.openalex.org", "clinicaltrials.gov"}
 MAX_RESPONSE_BYTES = 6_000_000
 MAX_ABSTRACT_CHARS = 6_000
-
-_SUBSTANCE_RE = re.compile(r"^[a-z0-9][a-z0-9 \-+,.'()/&αβγω]{1,59}$", re.IGNORECASE)
 
 # Requests that are about causing harm rather than understanding evidence.
 _HARM_PATTERNS = [
@@ -63,8 +61,25 @@ class GuardrailResult:
     checks: list[dict] | None = None
 
 
-def screen_substance(raw: str) -> GuardrailResult:
-    """Validate the one free-text input the product accepts."""
+VULNERABLE_NOTE = (
+    "This question involves pregnancy, children or another vulnerable group. Research in these groups is often "
+    "limited or comes from animal studies; talk to a doctor or pharmacist before acting on anything here."
+)
+
+INTENT_MESSAGES = {
+    "harm_seeking": "TruthGraph maps published evidence. It can't help with requests aimed at causing harm.",
+    "self_harm": _CRISIS_MESSAGE,
+    "injection": "That input looks like instructions rather than a question about the world.",
+    "off_topic": "Ask about a claim research could test, e.g. “Does creatine improve memory?”.",
+}
+
+_VULNERABLE_RE = re.compile(r"pregn|pregr|breast ?feed|lactat|fetal|foetal|infant|child|kids?\b|toddler|newborn|elderly",
+                            re.IGNORECASE)
+
+
+def screen_question(raw: str) -> GuardrailResult:
+    """Cheap checks on the free-text question before any LLM sees it. The Intake agent
+    then classifies intent; these patterns only catch the obvious cases early."""
     checks: list[dict] = []
     text = unicodedata.normalize("NFKC", raw or "").strip()
     text = re.sub(r"\s+", " ", text)
@@ -73,35 +88,28 @@ def screen_substance(raw: str) -> GuardrailResult:
         checks.append({"name": name, "passed": passed, "detail": detail})
         return passed
 
-    if not check("length", 2 <= len(text) <= 60, f"{len(text)} characters (2–60 allowed)"):
-        return GuardrailResult(False, code="length", message="Enter a substance or intervention name between 2 and 60 characters.", checks=checks)
+    if not check("length", 3 <= len(text) <= 400, f"{len(text)} characters (3–400 allowed)"):
+        return GuardrailResult(False, code="length", message="Ask a question or claim between 3 and 400 characters.", checks=checks)
 
     lowered = text.lower()
     harmful = next((p for p in _HARM_PATTERNS if re.search(p, lowered)), None)
     if not check("harm intent", harmful is None, "no harm-seeking phrasing" if harmful is None else "harm-seeking phrasing"):
         crisis = re.search(r"suicide|self[- ]harm|kill (my|him|her)|overdose", lowered)
-        return GuardrailResult(
-            False,
-            code="harm",
-            message=_CRISIS_MESSAGE if crisis else "TruthGraph maps published evidence about substances. It can't help with requests aimed at causing harm.",
-            checks=checks,
-        )
+        return GuardrailResult(False, code="harm", message=_CRISIS_MESSAGE if crisis else INTENT_MESSAGES["harm_seeking"],
+                               checks=checks)
 
     injected = next((p for p in _INJECTION_PATTERNS if re.search(p, lowered)), None)
     if not check("prompt / query injection", injected is None, "clean" if injected is None else "instruction-like text"):
-        return GuardrailResult(False, code="injection", message="That input looks like instructions or a query rather than a substance name.", checks=checks)
+        return GuardrailResult(False, code="injection", message=INTENT_MESSAGES["injection"], checks=checks)
 
-    if not check("character set", bool(_SUBSTANCE_RE.match(text)), "letters, digits and - + , . ' ( ) / & only"):
-        return GuardrailResult(False, code="charset", message="Use plain words for the substance, e.g. “creatine” or “vitamin D”.", checks=checks)
-
-    if not check("not a URL or email", not re.search(r"https?:|www\.|@", lowered), "plain term"):
-        return GuardrailResult(False, code="url", message="Enter a substance name, not a link.", checks=checks)
+    if not check("not a URL or email", not re.search(r"https?:|www\.|\S+@\S+\.", lowered), "plain text"):
+        return GuardrailResult(False, code="url", message="Type a question, not a link.", checks=checks)
 
     return GuardrailResult(True, value=text, checks=checks)
 
 
-def substance_key(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+def mentions_vulnerable(*texts: str | None) -> bool:
+    return any(t and _VULNERABLE_RE.search(t) for t in texts)
 
 
 # ---------------------------------------------------------------- model output

@@ -4,6 +4,9 @@ services:
     container_name: truthgraph-falkordb
     ports:
       - "6380:6379"
+    environment:
+      # Room in the plan cache for every constant query the agents use.
+      FALKORDB_ARGS: "CACHE_SIZE 100"
     volumes:
       - truthgraph-data:/var/lib/falkordb/data
     restart: unless-stopped

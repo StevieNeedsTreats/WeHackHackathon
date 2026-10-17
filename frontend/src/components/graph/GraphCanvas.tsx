@@ -8,78 +8,67 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { computeLayout, GUTTER, type Placed } from "@/lib/layout";
+import { allLayout, focusLayout, type EdgeKind, type LNode } from "@/lib/layout";
 import type { State } from "@/lib/store";
-import type { Consensus, EdgeType, GEdge } from "@/lib/types";
 import { GraphContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
-import { DIR } from "./glyphs";
+import { STANCE } from "./glyphs";
 import { nodeTypes } from "./nodes";
 import { Tip } from "../Tip";
 
-type Toggleable = "CONTRADICTS" | "SUPPORTS" | "CITES" | "FUNDED_BY" | "ABOUT";
-const TOGGLES: { type: Toggleable; label: string }[] = [
-  { type: "CONTRADICTS", label: "Contradicts" },
-  { type: "SUPPORTS", label: "Supports" },
-  { type: "CITES", label: "Cites" },
-  { type: "FUNDED_BY", label: "Funded by" },
-  { type: "ABOUT", label: "About outcome" },
+type Toggleable = "contradicts" | "cites" | "considered";
+const TOGGLES: { kind: Toggleable; label: string }[] = [
+  { kind: "contradicts", label: "Contradicts" },
+  { kind: "cites", label: "Cites" },
+  { kind: "considered", label: "Other hypotheses" },
 ];
 
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+type Box = { x: number; y: number; w: number; h: number };
 
-function handlesFor(e: GEdge, pos: Record<string, Placed>): { sourceHandle: string; targetHandle: string } {
-  switch (e.type) {
-    case "STUDIED_IN":
-      return { sourceHandle: "b", targetHandle: "top" };
-    case "AUTHORED_BY":
-    case "FROM_LAB":
-    case "FUNDED_BY":
-      return { sourceHandle: "meta", targetHandle: "top" };
-    case "REPORTS":
-      return { sourceHandle: "spine", targetHandle: "spine" };
-    case "ABOUT":
-      return { sourceHandle: "b", targetHandle: "top" };
-    case "CITES":
-      return { sourceHandle: "arc-s", targetHandle: "arc-t" };
-    default: {
-      const right = (pos[e.target]?.x ?? 0) >= (pos[e.source]?.x ?? 0);
-      return right ? { sourceHandle: "r-s", targetHandle: "l-t" } : { sourceHandle: "l-s", targetHandle: "r-t" };
-    }
-  }
+/** Pick the pair of sides that face each other. */
+function handles(a: Box | undefined, b: Box | undefined) {
+  if (!a || !b) return { sourceHandle: "bottom-s", targetHandle: "top-t" };
+  const dx = b.x + b.w / 2 - (a.x + a.w / 2);
+  const dy = b.y + b.h / 2 - (a.y + a.h / 2);
+  const horizontal = Math.abs(dx) - (a.w + b.w) / 4 > Math.abs(dy) - (a.h + b.h) / 4;
+  if (horizontal) return dx > 0 ? { sourceHandle: "right-s", targetHandle: "left-t" } : { sourceHandle: "left-s", targetHandle: "right-t" };
+  return dy > 0 ? { sourceHandle: "bottom-s", targetHandle: "top-t" } : { sourceHandle: "top-s", targetHandle: "bottom-t" };
 }
 
 interface Props {
   state: State;
+  focus: string | null;
   selected: string | null;
   onSelect: (id: string | null) => void;
+  onFocus: (key: string) => void;
   highlight: string[] | null;
   empty?: React.ReactNode;
 }
 
-function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
+function Canvas({ state, focus, selected, onSelect, onFocus, highlight, empty }: Props) {
   const rf = useReactFlow();
-  const layout = useMemo(() => computeLayout(state.nodes, state.edges, state.order), [state.nodes, state.edges, state.order]);
-  const [show, setShow] = useState<Record<Toggleable, boolean>>({ CONTRADICTS: true, SUPPORTS: false, CITES: true, FUNDED_BY: true, ABOUT: true });
+  const layout = useMemo(() => (focus && state.hyps[focus] ? focusLayout(state, focus) : allLayout(state)), [state, focus]);
+  const [show, setShow] = useState<Record<Toggleable, boolean>>({ contradicts: true, cites: false, considered: false });
   const [hover, setHover] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
 
-  // ---- position tween: nodes glide to new slots when papers re-sort by credibility
-  const display = useRef<Record<string, Placed>>({});
+  // ---- position tween: nodes glide to new slots when the layout changes
+  const target = useMemo(() => Object.fromEntries(layout.nodes.map((n) => [n.id, n])), [layout]);
+  const display = useRef<Record<string, Box>>({});
   const [, setFrame] = useState(0);
   useEffect(() => {
-    const from: Record<string, Placed> = {};
-    const to = layout.pos;
+    const from: Record<string, Box> = {};
     let moving = false;
-    for (const id of Object.keys(to)) {
+    for (const [id, n] of Object.entries(target)) {
       const cur = display.current[id];
-      if (!cur) display.current[id] = to[id];
-      else if (cur.x !== to[id].x || cur.y !== to[id].y) {
+      if (!cur) display.current[id] = n;
+      else if (cur.x !== n.x || cur.y !== n.y) {
         from[id] = cur;
         moving = true;
-      } else display.current[id] = to[id];
+      } else display.current[id] = n;
     }
-    for (const id of Object.keys(display.current)) if (!to[id]) delete display.current[id];
+    for (const id of Object.keys(display.current)) if (!target[id]) delete display.current[id];
     if (!moving) {
       setFrame((f) => f + 1);
       return;
@@ -87,10 +76,10 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
     const t0 = performance.now();
     let raf = 0;
     const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / 460);
+      const t = Math.min(1, (now - t0) / 480);
       const k = ease(t);
       for (const [id, a] of Object.entries(from)) {
-        const b = to[id];
+        const b = target[id];
         if (b) display.current[id] = { ...b, x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
       }
       setFrame((f) => f + 1);
@@ -98,7 +87,7 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [layout]);
+  }, [target]);
 
   // ---- controlled flow: keep React Flow's measurements, or it re-hides nodes on every rebuild
   const measured = useRef<Record<string, { width: number; height: number }>>({});
@@ -118,13 +107,11 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   useEffect(() => {
-    const ids = [...Object.keys(state.nodes), ...Object.keys(state.edges)];
-    if (ids.length < known.current.size) known.current = new Set();
+    const ids = [...layout.nodes.map((n) => n.id), ...layout.edges.map((e) => e.id)];
     const added = ids.filter((id) => !known.current.has(id));
     if (!added.length) return;
     added.forEach((id) => known.current.add(id));
     setFresh((f) => new Set([...f, ...added]));
-    // Not cancelled on the next batch: each batch's ids expire on their own clock.
     const t = setTimeout(() => {
       timers.current.delete(t);
       setFresh((f) => {
@@ -134,131 +121,115 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
       });
     }, 900);
     timers.current.add(t);
-  }, [state.nodes, state.edges]);
+  }, [layout]);
   useEffect(() => {
     const ts = timers.current;
     return () => ts.forEach(clearTimeout);
   }, []);
+  useEffect(() => {
+    known.current = new Set();
+  }, [state.version]);
 
   // ---- neighbourhood for hover / selection / insight refs
   const adjacency = useMemo(() => {
-    const adj: Record<string, { node: string; edge: string; type: EdgeType }[]> = {};
-    for (const e of Object.values(state.edges)) {
-      if (e.type === "STUDIED_IN") continue;
-      (adj[e.source] ??= []).push({ node: e.target, edge: e.id, type: e.type });
-      (adj[e.target] ??= []).push({ node: e.source, edge: e.id, type: e.type });
+    const adj: Record<string, { node: string; edge: string; kind: EdgeKind }[]> = {};
+    for (const e of layout.edges) {
+      (adj[e.source] ??= []).push({ node: e.target, edge: e.id, kind: e.kind });
+      (adj[e.target] ??= []).push({ node: e.source, edge: e.id, kind: e.kind });
     }
     return adj;
-  }, [state.edges]);
+  }, [layout]);
 
+  const kindOf = useCallback((id: string) => target[id]?.kind, [target]);
   const neighbourhood = useCallback(
-    (seeds: string[], depth: number) => {
+    (seeds: string[]) => {
       const out = new Set<string>(seeds);
-      let frontier = seeds;
-      for (let d = 0; d < depth; d++) {
-        const next: string[] = [];
-        for (const id of frontier) {
-          for (const nb of adjacency[id] ?? []) {
-            // Don't fan out through shared hubs (outcomes, funders) on the second hop.
-            if (d > 0 && (nb.type === "ABOUT" || nb.type === "FUNDED_BY" || nb.type === "SUPPORTS" || nb.type === "CONTRADICTS") && state.nodes[id]?.kind !== "claim") continue;
-            out.add(nb.edge);
-            if (!out.has(nb.node)) {
-              out.add(nb.node);
-              next.push(nb.node);
+      for (const id of seeds) {
+        for (const nb of adjacency[id] ?? []) {
+          // Don't light up the whole graph through the hypothesis hub.
+          if (kindOf(nb.node) === "hypothesis" && kindOf(id) !== "finding") continue;
+          out.add(nb.edge);
+          out.add(nb.node);
+          if (kindOf(id) === "paper" && kindOf(nb.node) === "finding") {
+            for (const nb2 of adjacency[nb.node] ?? []) {
+              out.add(nb2.edge);
+              out.add(nb2.node);
             }
           }
         }
-        frontier = next;
       }
       return out;
     },
-    [adjacency, state.nodes],
+    [adjacency, kindOf],
   );
 
   const active = useMemo(() => {
-    if (hover) return neighbourhood([hover], state.nodes[hover]?.kind === "claim" ? 1 : 2);
-    if (highlight?.length) return neighbourhood(highlight, 1);
-    if (selected && state.nodes[selected]) return neighbourhood([selected], state.nodes[selected].kind === "claim" ? 1 : 2);
+    const valid = (id: string | null) => id && target[id] && target[id].kind !== "hypothesis" && target[id].kind !== "label";
+    if (valid(hover)) return neighbourhood([hover!]);
+    if (highlight?.length) return neighbourhood(highlight.map((f) => `f:${f}`).filter((id) => target[id]));
+    if (valid(selected)) return neighbourhood([selected!]);
     return null;
-  }, [hover, highlight, selected, neighbourhood, state.nodes]);
+  }, [hover, highlight, selected, neighbourhood, target]);
 
-  const consensus = useMemo(() => {
-    const m: Record<string, Consensus> = {};
-    for (const c of state.insights?.consensus ?? []) m[`o:${c.outcome_key}`] = c;
-    return m;
-  }, [state.insights]);
-
-  const ctx: GraphCtx = useMemo(() => ({ active, selected, consensus, fresh }), [active, selected, consensus, fresh]);
+  const hNum = useMemo(() => Object.fromEntries(state.hypOrder.map((k, i) => [k, i + 1])), [state.hypOrder]);
+  const ctx: GraphCtx = useMemo(() => ({ state, focus, active, selected, fresh, hNum }), [state, focus, active, selected, fresh, hNum]);
 
   // ---- React Flow elements
-  const hasPapers = Object.values(state.nodes).some((n) => n.kind === "paper");
-  const rows: Node[] = (hasPapers ? layout.rows : []).map((r) => ({
-    id: r.id,
-    type: "row",
-    position: { x: -GUTTER, y: r.y },
-    data: { row: r, w: layout.width + GUTTER + 36 },
-    width: layout.width + GUTTER + 36,
-    height: r.h,
-    draggable: false,
-    selectable: false,
-    focusable: false,
-    zIndex: -1,
-  }));
-  const nodes: Node[] = rows.concat(
-    Object.values(state.nodes)
-      .filter((n) => display.current[n.id])
-      .map((n) => {
-        const p = display.current[n.id];
-        return {
-          id: n.id,
-          type: n.kind,
-          position: { x: p.x, y: p.y },
-          data: { n, w: p.w, h: p.h },
-          measured: measured.current[n.id],
-          draggable: false,
-          zIndex: n.kind === "claim" ? 2 : 1,
-        };
-      }),
-  );
-  const edges: Edge[] = Object.values(state.edges)
+  const nodes: Node[] = layout.nodes
+    .filter((n) => display.current[n.id])
+    .map((n: LNode) => {
+      const p = display.current[n.id];
+      return {
+        id: n.id,
+        type: n.kind,
+        position: { x: p.x, y: p.y },
+        data: { ...n.data, w: n.w, h: n.h },
+        measured: measured.current[n.id],
+        draggable: false,
+        selectable: n.kind !== "label",
+        // The hypothesis sits above everything, contradiction lines included: they span the
+        // canvas between findings and must never cover its title or verdict.
+        zIndex: n.kind === "finding" ? 2 : n.kind === "hypothesis" ? 5 : 1,
+      };
+    });
+  const edges: Edge[] = layout.edges
     .filter((e) => display.current[e.source] && display.current[e.target])
-    .filter((e) => !(e.type in show) || show[e.type as Toggleable])
+    .filter((e) => !(e.kind in show) || show[e.kind as Toggleable])
     .map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
       type: "tg",
-      ...handlesFor(e, layout.pos),
-      data: { type: e.type, reason: e.reason, severity: e.severity },
-      zIndex: e.type === "CONTRADICTS" || e.type === "SUPPORTS" ? 3 : 0,
-      selectable: e.type === "CONTRADICTS",
+      ...handles(target[e.source], target[e.target]),
+      data: { kind: e.kind, stance: e.stance, weight: e.weight, reason: e.reason, severity: e.severity, explained: e.explained },
+      zIndex: e.kind === "contradicts" ? 4 : 0,
+      selectable: e.kind === "contradicts",
     }));
 
-  // ---- follow the build: keep the whole graph in view while it grows.
-  // Fit to the computed layout bounds, which are known before React Flow measures nodes.
-  const boundsRef = useRef({ w: 0, h: 0 });
-  boundsRef.current = { w: layout.width, h: layout.height };
+  // ---- follow the build: keep the whole graph in view while it grows
+  const boundsRef = useRef(layout.bounds);
+  boundsRef.current = layout.bounds;
   const fit = useCallback(
     (duration: number) => {
-      const { w, h } = boundsRef.current;
-      rf.fitBounds({ x: -GUTTER, y: -40, width: w + GUTTER + 40, height: h + 60 }, { padding: 0.04, duration });
+      const b = boundsRef.current;
+      rf.fitBounds({ x: b.x - 30, y: b.y - 30, width: b.w + 60, height: b.h + 60 }, { padding: 0.04, duration });
     },
     [rf],
   );
   const lastFit = useRef(0);
-  const bounds = `${Math.round(layout.width / 50)}:${Math.round(layout.height / 50)}`;
+  const sig = `${Math.round(layout.bounds.w / 60)}:${Math.round(layout.bounds.h / 60)}:${focus}`;
   useEffect(() => {
-    if (!follow || !Object.keys(state.nodes).length) return;
-    const now = Date.now();
-    const wait = Math.max(0, 650 - (now - lastFit.current));
+    if (!follow || !layout.nodes.length) return;
+    const wait = Math.max(0, 650 - (Date.now() - lastFit.current));
     const t = setTimeout(() => {
       lastFit.current = Date.now();
       fit(520);
     }, wait + 60);
     return () => clearTimeout(t);
-  }, [bounds, follow, fit, state.status, state.nodes]);
+  }, [sig, follow, fit, layout.nodes.length]);
+  useEffect(() => setFollow(true), [focus]);
 
-  const empty_ = !hasPapers;
+  const isEmpty = !state.question;
 
   return (
     <GraphContext.Provider value={ctx}>
@@ -268,16 +239,19 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          minZoom={0.12}
+          minZoom={0.1}
           maxZoom={2}
-          onlyRenderVisibleElements={nodes.length > 400}
+          onlyRenderVisibleElements={nodes.length > 300}
           onNodesChange={onNodesChange}
           nodesConnectable={false}
           nodesDraggable={false}
           proOptions={{ hideAttribution: true }}
-          onNodeMouseEnter={(_, n) => n.type !== "row" && n.type !== "substance" && setHover(n.id)}
+          onNodeMouseEnter={(_, n) => n.type !== "label" && n.type !== "hypothesis" && setHover(n.id)}
           onNodeMouseLeave={() => setHover(null)}
-          onNodeClick={(_, n) => n.type !== "row" && onSelect(n.id)}
+          onNodeClick={(_, n) => {
+            if (n.type === "other" || (n.type === "hypothesis" && !focus)) onFocus((n.data as { key: string }).key);
+            else if (n.type !== "label") onSelect(n.id);
+          }}
           onEdgeClick={(_, e) => onSelect(e.id)}
           onPaneClick={() => onSelect(null)}
           onMoveStart={(ev) => {
@@ -287,9 +261,9 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#dcd8ce" />
         </ReactFlow>
 
-        {empty_ && <div className="pointer-events-none absolute inset-0 flex items-center justify-center">{empty}</div>}
+        {isEmpty && <div className="pointer-events-none absolute inset-0 flex items-center justify-center">{empty}</div>}
 
-        {!empty_ && (
+        {!isEmpty && (
           <>
             <Legend show={show} setShow={setShow} />
             <Card size="sm" className="absolute bottom-4 left-4 flex-row items-center gap-1 p-1 shadow-[var(--shadow-sm)]">
@@ -331,22 +305,23 @@ function Canvas({ state, selected, onSelect, highlight, empty }: Props) {
 }
 
 function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow: (f: (s: Record<Toggleable, boolean>) => Record<Toggleable, boolean>) => void }) {
-  const on = TOGGLES.filter((t) => show[t.type]).map((t) => t.type);
+  const on = TOGGLES.filter((t) => show[t.kind]).map((t) => t.kind);
   return (
     <Card size="sm" className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 bg-card/95 px-3 shadow-[var(--shadow-sm)] backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px] text-ink-2">
-        {(["positive", "neutral", "null"] as const).map((d) => (
+        {(["supports", "mixed", "refutes"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">
-            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-white" style={{ background: DIR[d].color }}>
-              {DIR[d].glyph}
+            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-white" style={{ background: STANCE[d].color }}>
+              {STANCE[d].glyph}
             </span>
-            {DIR[d].label}
+            {STANCE[d].label}
           </span>
         ))}
         <span className="flex items-center gap-1.5">
           <span className="tg-hatch h-3 w-4 rounded-[3px] border border-ink-3" />
           Industry funded
         </span>
+        <span className="text-ink-3">edge width = credibility × relevance</span>
       </div>
       <ToggleGroup
         type="multiple"
@@ -354,20 +329,20 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
         size="sm"
         spacing={1}
         value={on}
-        onValueChange={(v) => setShow(() => Object.fromEntries(TOGGLES.map((t) => [t.type, v.includes(t.type)])) as Record<Toggleable, boolean>)}
+        onValueChange={(v) => setShow(() => Object.fromEntries(TOGGLES.map((t) => [t.kind, v.includes(t.kind)])) as Record<Toggleable, boolean>)}
         className="hidden flex-wrap sm:flex"
         aria-label="Show relationships"
       >
         {TOGGLES.map((t) => {
-          const st = EDGE_STYLE[t.type];
+          const st = EDGE_STYLE[t.kind];
           return (
             <ToggleGroupItem
-              key={t.type}
-              value={t.type}
+              key={t.kind}
+              value={t.kind}
               className="h-6 rounded-full px-2 text-[11px] font-normal text-muted-foreground data-[state=on]:bg-card data-[state=on]:text-foreground"
             >
               <svg width="18" height="6" aria-hidden>
-                <line x1="1" y1="3" x2="17" y2="3" stroke={st.stroke} strokeWidth={Math.max(1.4, st.width)} strokeDasharray={st.dash} opacity={show[t.type] ? 1 : 0.35} />
+                <line x1="1" y1="3" x2="17" y2="3" stroke={st.stroke} strokeWidth={Math.max(1.4, st.width)} strokeDasharray={st.dash} opacity={show[t.kind] ? 1 : 0.35} />
               </svg>
               {t.label}
             </ToggleGroupItem>
