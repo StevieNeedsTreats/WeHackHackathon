@@ -12,15 +12,21 @@ import {
   Info,
   Link2,
   LoaderCircle,
+  Maximize2,
   MessageSquare,
+  Minimize2,
+  Plus,
   Search,
   Square,
   Trash2,
   X,
 } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -46,12 +52,15 @@ interface Props {
   onRefs: (ids: string[] | null) => void;
 }
 
-export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Props) {
+export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, onRefs }: Props) {
   const qid = state.question?.id ?? null;
   const conv = useConversation(qid);
   const [mode, setMode] = useState<"ask" | "add">("ask");
   const [text, setText] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [full, setFull] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const ctx = useContextItems(qid, hk ? `h:${hk}` : null, selected);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -75,7 +84,35 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
     return () => el.removeEventListener("scroll", on);
   }, []);
 
+  // Esc leaves full screen (unless it is closing the context picker).
+  useEffect(() => {
+    if (!full) return;
+    const on = (e: KeyboardEvent) => e.key === "Escape" && !picking && setFull(false);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [full, picking]);
+
+  // The composer remounts when moving in or out of full screen; keep the cursor in it.
+  const toggled = useRef(false);
+  useEffect(() => {
+    if (toggled.current) inputRef.current?.focus();
+    toggled.current = true;
+  }, [full]);
+
+  // Showing something on the graph needs the graph, so those leave full screen first.
+  const onPeek = (id: string) => {
+    setFull(false);
+    peek(id);
+  };
+  const onFocus = (key: string) => {
+    setFull(false);
+    focus(key);
+  };
   const h: CiteHandlers = { state, hk, onPeek, onFocus, onRefs };
+  const payload = () => ({
+    hypotheses: ctx.items.filter((x) => x.startsWith("h:")).map((x) => x.slice(2)),
+    selected: ctx.items.filter((x) => !x.startsWith("h:")),
+  });
 
   const submit = () => {
     const v = text.trim();
@@ -86,7 +123,7 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
       setMode("ask");
     } else {
       if (busy) return;
-      void send(qid, v, { hypothesis: hk, selected });
+      void send(qid, v, payload());
     }
     setText("");
   };
@@ -102,12 +139,9 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
       <Empty icon={<MessageSquare className="size-5" />} title="Chat with the evidence" body="Open or research a question, then ask about its studies, verdicts and contradictions, or add papers to it." />
     );
 
-  const sel = selected ? describeSelected(state, selected) : null;
-  const hyp = hk ? state.hyps[hk] : null;
-
-  return (
+  const panel = (
     <div
-      className="relative flex h-full min-h-0 flex-col"
+      className={full ? "fixed inset-0 z-50 flex flex-col bg-background" : "relative flex h-full min-h-0 flex-col"}
       onDragOver={(e) => {
         if (!ready || !e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
@@ -123,7 +157,7 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
       }}
     >
       <ScrollArea ref={viewport} className="min-h-0 flex-1">
-        <div className="space-y-4 px-4 py-4">
+        <div className={`space-y-4 px-4 py-4 ${full ? "mx-auto w-full max-w-3xl py-8" : ""}`}>
           {conv.messages.length === 0 ? (
             <div className="pt-2">
               <p className="text-[13px] leading-[1.6] text-ink-2">
@@ -140,7 +174,7 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
                     className="h-auto whitespace-normal rounded-full bg-card py-1 text-left font-normal text-ink-2"
                     onClick={() => {
                       stick.current = true;
-                      void send(qid, s, { hypothesis: hk, selected });
+                      void send(qid, s, payload());
                     }}
                   >
                     {s}
@@ -159,24 +193,62 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
         </div>
       </ScrollArea>
 
-      <div className="shrink-0 border-t bg-card px-3 pb-3 pt-2">
-        <div className="mb-1.5 flex min-h-5 items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="shrink-0">Context</span>
-          <span className="min-w-0 truncate rounded bg-muted px-1.5 py-px text-ink-2" title={hyp?.statement ?? "All hypotheses"}>
-            {hyp ? `H${state.hypOrder.indexOf(hk!) + 1} · ${hyp.statement}` : "All hypotheses"}
-          </span>
-          {sel && (
-            <span className="min-w-0 max-w-[40%] truncate rounded bg-muted px-1.5 py-px text-ink-2" title={sel}>
-              {sel}
-            </span>
-          )}
-          {conv.messages.length > 0 && (
-            <Tip label="Clear conversation">
-              <Button variant="ghost" size="icon" className="ml-auto size-5 shrink-0 text-muted-foreground" onClick={() => clearConversation(qid)} aria-label="Clear conversation">
-                <Trash2 className="size-3" />
+      <div className={`shrink-0 border-t bg-card px-3 pb-3 pt-2 ${full ? "px-4 pb-5" : ""}`}>
+        <div className={full ? "mx-auto w-full max-w-3xl" : ""}>
+        <div className="mb-1.5 flex items-start gap-1.5 text-[11px] text-muted-foreground">
+          <span className="shrink-0 py-px leading-5">Context</span>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            {ctx.items.length === 0 && <span className="rounded bg-muted/60 px-1.5 py-px italic leading-4">Whole question</span>}
+            {ctx.items.map((id) => {
+              const label = describeItem(state, id);
+              return (
+                <span key={id} className="flex h-5 min-w-0 max-w-full items-center gap-0.5 rounded bg-muted pl-1.5 text-ink-2" title={label}>
+                  <span className="truncate">{label}</span>
+                  <button
+                    type="button"
+                    className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-line-2/60 hover:text-ink"
+                    onClick={() => ctx.remove(id)}
+                    aria-label={`Remove ${label} from context`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+            <Popover open={picking} onOpenChange={setPicking}>
+              <Tip label="Add to context">
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-5 rounded text-muted-foreground" aria-label="Add to context">
+                    <Plus className="size-3.5" />
+                  </Button>
+                </PopoverTrigger>
+              </Tip>
+              <PopoverContent align="start" side="top" className="w-80 p-0">
+                <ContextPicker
+                  state={state}
+                  exclude={ctx.items}
+                  onPick={(id) => {
+                    ctx.add(id);
+                    setPicking(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex shrink-0 items-center">
+            {conv.messages.length > 0 && (
+              <Tip label="Clear conversation">
+                <Button variant="ghost" size="icon" className="size-5 text-muted-foreground" onClick={() => clearConversation(qid)} aria-label="Clear conversation">
+                  <Trash2 className="size-3" />
+                </Button>
+              </Tip>
+            )}
+            <Tip label={full ? "Exit full screen (Esc)" : "Full screen"}>
+              <Button variant="ghost" size="icon" className="size-5 text-muted-foreground" onClick={() => setFull((f) => !f)} aria-label={full ? "Exit full screen" : "Full screen"} aria-pressed={full}>
+                {full ? <Minimize2 className="size-3" /> : <Maximize2 className="size-3" />}
               </Button>
             </Tip>
-          )}
+          </div>
         </div>
         <div className="rounded-lg border bg-background focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
           <Textarea
@@ -245,6 +317,7 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
             )}
           </div>
         </div>
+        </div>
       </div>
 
       {dragging && (
@@ -256,13 +329,103 @@ export function ChatPanel({ state, hk, selected, onPeek, onFocus, onRefs }: Prop
       )}
     </div>
   );
+  // Full screen covers the page from <body>, clear of the resizable panel around this one.
+  return full ? createPortal(panel, document.body) : panel;
 }
 
-function describeSelected(state: State, id: string): string | null {
-  if (id.startsWith("p:")) return state.papers[id.slice(2)]?.label ?? null;
-  if (id.startsWith("f:")) return state.findings[id.slice(2)]?.text ?? null;
-  if (id.startsWith("c:")) return "Contradiction";
-  return null;
+/**
+ * The chat's context: the focused hypothesis and the selected graph node join it as they change
+ * (and leave when they change again), and the user adds items with + and removes any with x.
+ */
+function useContextItems(qid: string | null, focused: string | null, selected: string | null) {
+  const [pinned, setPinned] = useState<string[]>([]);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [seen, setSeen] = useState({ qid, focused, selected });
+  // Reset during render when the inputs change, so a new focus or selection shows at once.
+  if (seen.qid !== qid || seen.focused !== focused || seen.selected !== selected) {
+    if (seen.qid !== qid) setPinned([]);
+    setHidden((h) => h.filter((x) => x !== focused && x !== selected && seen.qid === qid));
+    setSeen({ qid, focused, selected });
+  }
+  const auto = [focused, selected && /^[pfc]:/.test(selected) ? selected : null].filter((x): x is string => !!x && !hidden.includes(x));
+  const items = [...new Set([...auto, ...pinned])];
+  return {
+    items,
+    add: (id: string) => {
+      setPinned((p) => (p.includes(id) ? p : [...p, id]));
+      setHidden((h) => h.filter((x) => x !== id));
+    },
+    remove: (id: string) => {
+      setPinned((p) => p.filter((x) => x !== id));
+      if (id === focused || id === selected) setHidden((h) => [...h, id]);
+    },
+  };
+}
+
+function describeItem(state: State, id: string): string {
+  const rest = id.slice(2);
+  if (id.startsWith("h:")) {
+    const hyp = state.hyps[rest];
+    return hyp ? `H${state.hypOrder.indexOf(rest) + 1} · ${hyp.statement}` : "Hypothesis";
+  }
+  if (id.startsWith("p:")) return state.papers[rest]?.label ?? "Paper";
+  if (id.startsWith("f:")) return state.findings[rest]?.text ?? "Finding";
+  return "Contradiction";
+}
+
+const PICK_LIMIT = 150;
+
+function ContextPicker({ state, exclude, onPick }: { state: State; exclude: string[]; onPick: (id: string) => void }) {
+  const [query, setQuery] = useState("");
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const out = new Set(exclude);
+  const hyps = state.hypOrder.filter((k) => state.hyps[k] && !out.has(`h:${k}`));
+  const papers = Object.values(state.papers).filter((p) => !out.has(`p:${p.id}`));
+  const findings = Object.values(state.findings)
+    .filter((f) => !out.has(`f:${f.id}`) && words.every((w) => `${f.text} ${state.papers[f.paper_id]?.label ?? ""}`.toLowerCase().includes(w)))
+    .slice(0, PICK_LIMIT); // the list is capped, so narrow by the query first
+  return (
+    <Command>
+      <CommandInput value={query} onValueChange={setQuery} placeholder="Hypotheses, papers, findings…" className="text-[12.5px]" />
+      <CommandList className="max-h-72">
+        <CommandEmpty>Nothing matches.</CommandEmpty>
+        {hyps.length > 0 && (
+          <CommandGroup heading="Hypotheses">
+            {hyps.map((k) => (
+              <CommandItem key={k} value={`h:${k} ${state.hyps[k].statement}`} onSelect={() => onPick(`h:${k}`)} className="text-[12.5px]">
+                <span className="mono shrink-0 text-[10.5px] text-ink-3">H{state.hypOrder.indexOf(k) + 1}</span>
+                <span className="line-clamp-2">{state.hyps[k].statement}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {papers.length > 0 && (
+          <CommandGroup heading="Papers">
+            {papers.map((p) => (
+              <CommandItem key={p.id} value={`p:${p.id} ${p.label} ${p.title}`} onSelect={() => onPick(`p:${p.id}`)} className="text-[12.5px]">
+                <span className="min-w-0">
+                  <span className="block truncate text-ink">{p.label}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{p.title}</span>
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {findings.length > 0 && (
+          <CommandGroup heading="Findings">
+            {findings.map((f) => (
+              <CommandItem key={f.id} value={`f:${f.id} ${f.text} ${state.papers[f.paper_id]?.label ?? ""}`} onSelect={() => onPick(`f:${f.id}`)} className="text-[12.5px]">
+                <span className="min-w-0">
+                  <span className="line-clamp-2">{f.text}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{state.papers[f.paper_id]?.label}</span>
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandList>
+    </Command>
+  );
 }
 
 function Empty({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {

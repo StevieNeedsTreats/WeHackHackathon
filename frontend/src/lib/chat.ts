@@ -124,9 +124,10 @@ const textOf = (m: Msg) =>
 
 // ---- chat
 
+/** What the user put in context: hypothesis keys, and graph ids ("p:…", "f:…", "c:…"). */
 export interface ChatContext {
-  hypothesis: string | null;
-  selected: string | null;
+  hypotheses: string[];
+  selected: string[];
 }
 
 export async function send(qid: string, text: string, ctx: ChatContext) {
@@ -149,7 +150,7 @@ export async function send(qid: string, text: string, ctx: ChatContext) {
       method: "POST",
       signal: ctrl.signal,
       headers: { "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify({ qid, hypothesis: ctx.hypothesis, selected: ctx.selected, messages: history }),
+      body: JSON.stringify({ qid, hypotheses: ctx.hypotheses, selected: ctx.selected, messages: history }),
     });
     if (!r.ok || !r.body) throw new Error(await errorOf(r));
     for await (const ev of sse(r.body, ctrl.signal)) {
