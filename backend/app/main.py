@@ -3,15 +3,17 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from redis.exceptions import RedisError
 from sse_starlette.sse import EventSourceResponse
 
+from . import auth
 from .agents.base import AgentContext
 from .agents.intake import IntakeAgent, IntakeOut, hypothesis_key
 from .agents.metrics import QUERIES, run_benchmarks
@@ -27,6 +29,7 @@ from .sources import Sources
 
 settings = get_settings()
 state: dict = {}
+log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -38,13 +41,15 @@ async def lifespan(app: FastAPI):
     state["limiter"] = RateLimiter(settings.rate_limit_per_min)
     state["runs"] = asyncio.Semaphore(settings.max_concurrent_runs)
     state["live"] = {}  # qid -> LiveRun
+    if not auth.enabled():
+        log.warning("TG_APP_PASSWORD is not set: the API is open to anyone who can reach it")
     yield
     for live in list(state["live"].values()):
         live.task.cancel()
     await state["sources"].close()
 
 
-app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan)
+app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan, dependencies=[Depends(auth.require)])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -61,6 +66,37 @@ def _limit(request: Request, suffix: str = "") -> None:
     allowed, retry = state["limiter"].allow(_client(request) + suffix)
     if not allowed:
         raise HTTPException(429, f"Rate limit reached. Try again in {int(retry) + 1}s.")
+
+
+class LoginIn(BaseModel):
+    password: str = Field(max_length=200)
+
+
+class RefreshIn(BaseModel):
+    refresh: str = Field(max_length=1000)
+
+
+@app.get("/api/auth")
+async def auth_status():
+    return {"required": auth.enabled()}
+
+
+@app.post("/api/login")
+async def login(body: LoginIn, request: Request):
+    _limit(request, ":login")  # slows password guessing
+    if not auth.enabled():
+        raise HTTPException(400, "Sign-in is not enabled on this server")
+    if not auth.check_password(body.password):
+        raise HTTPException(401, "Wrong password")
+    return auth.issue()
+
+
+@app.post("/api/refresh")
+async def refresh(body: RefreshIn, request: Request):
+    _limit(request, ":refresh")
+    if not auth.enabled() or not auth.valid(body.refresh, "refresh"):
+        raise HTTPException(401, "Session expired, sign in again")
+    return auth.issue()
 
 
 @app.get("/api/health")

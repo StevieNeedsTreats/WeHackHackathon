@@ -43,6 +43,17 @@ FalkorDB holds only the evidence graph. The side storage (abstracts, verdicts, r
 
 All backend settings use the `TG_` prefix; see `backend/app/config.py`.
 
+### Access password
+
+Set `TG_APP_PASSWORD` in `backend/.env` to require a password. The frontend shows a sign-in screen, and every API route except sign-in needs a token.
+
+| Setting | Effect |
+|---|---|
+| `TG_APP_PASSWORD` | The shared password. Leave it empty only for local development: the API is then open to anyone who can reach it. |
+| `TG_AUTH_ACCESS_MINUTES` | Lifetime of the access token sent with each request (default 30). |
+| `TG_AUTH_REFRESH_DAYS` | Lifetime of the refresh token (default 30). Each refresh issues a new one, so you stay signed in while you keep using it. |
+| `TG_AUTH_SECRET` | Optional signing key for tokens. By default it is derived from the password, so changing the password signs everyone out. |
+
 ### Swapping the LLM
 
 Every agent talks to one `LLMClient` interface (`backend/app/llm/`).

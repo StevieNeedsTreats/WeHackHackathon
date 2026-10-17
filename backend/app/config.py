@@ -72,6 +72,12 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3100", "http://127.0.0.1:3100"]
 
+    # Shared-password sign-in (see auth.py). Empty password = auth off, for local development only.
+    app_password: str = ""
+    auth_secret: str = ""  # optional token-signing key; derived from the password when empty
+    auth_access_minutes: int = 30  # bearer token sent with every request
+    auth_refresh_days: int = 30  # exchanged for new tokens; rotated on each use (sliding)
+
 
 @lru_cache
 def get_settings() -> Settings:
