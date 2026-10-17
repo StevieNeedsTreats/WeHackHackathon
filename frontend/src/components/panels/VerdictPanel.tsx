@@ -4,7 +4,7 @@ import { Info, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { balance, papersFor, type State } from "@/lib/store";
+import { balance, explanation, papersFor, type State } from "@/lib/store";
 import type { Hypothesis, Insight, Verdict } from "@/lib/types";
 import { STANCE, TONE } from "../graph/glyphs";
 import { BalanceBar } from "../graph/nodes";
@@ -191,7 +191,7 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                     <div className="mt-0.5 truncate text-[12px] text-ink-2">
                       {state.papers[a?.paper_id ?? ""]?.label ?? "?"} vs {state.papers[bf?.paper_id ?? ""]?.label ?? "?"}
                     </div>
-                    {c.explained_by && <div className="text-[11.5px] text-ink-3">Explained by: {c.explained_by}</div>}
+                    {c.explained_by && <div className="text-[11.5px] text-ink-3">{explanation(c) ? `Explained by: ${explanation(c)}` : "Explained by this study difference"}</div>}
                   </button>
                 </li>
               );

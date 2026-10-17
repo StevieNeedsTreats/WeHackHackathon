@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { balance, evidenceFor, papersFor, type State } from "@/lib/store";
+import { balance, evidenceFor, explanation, papersFor, type State } from "@/lib/store";
 import { designShort, STANCE } from "./graph/glyphs";
 import { BalanceBar } from "./graph/nodes";
 import { GradeBadge } from "./panels/VerdictPanel";
@@ -54,7 +54,7 @@ export function CompareView({ state, onFocus }: { state: State; onFocus: (key: s
                 <dt className="text-ink-3">Key conflict</dt>
                 <dd className="text-ink-2">
                   {contra
-                    ? `${state.papers[state.findings[contra.a]?.paper_id]?.label ?? "?"} vs ${state.papers[state.findings[contra.b]?.paper_id]?.label ?? "?"}: ${contra.reason}${contra.explained_by ? ` (${contra.explained_by})` : ""}`
+                    ? `${state.papers[state.findings[contra.a]?.paper_id]?.label ?? "?"} vs ${state.papers[state.findings[contra.b]?.paper_id]?.label ?? "?"}: ${contra.reason}${contra.explained_by ? ` (explained${explanation(contra) ? `: ${explanation(contra)}` : ""})` : ""}`
                     : "None found"}
                 </dd>
                 <dt className="text-ink-3">Shared papers</dt>

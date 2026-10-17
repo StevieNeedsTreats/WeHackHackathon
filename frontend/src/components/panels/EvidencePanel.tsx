@@ -53,14 +53,13 @@ export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: strin
   if (!hk) return <p className="p-5 text-[13px] text-muted-foreground">Pick a hypothesis to see its evidence.</p>;
   const rows = evidenceFor(state, hk);
   const flags = state.flags.filter((f) => f.target.startsWith("h:" + hk) || f.target.startsWith("q:"));
-  if (!rows.length)
-    return (
-      <p className="p-5 text-[13px] text-muted-foreground">
-        {state.status === "streaming" ? "Findings appear here once the Stance agent has judged them." : "No findings were judged relevant to this hypothesis."}
-      </p>
-    );
   return (
     <div className="space-y-5 p-5">
+      {!rows.length && (
+        <p className="text-[13px] text-muted-foreground">
+          {state.status === "streaming" ? "Findings appear here once the Stance agent has judged them." : "No findings were judged relevant to this hypothesis."}
+        </p>
+      )}
       {(["supports", "refutes", "mixed"] as Stance[]).map((st) => {
         const list = rows.filter((r) => r.stance.stance === st);
         if (!list.length) return null;

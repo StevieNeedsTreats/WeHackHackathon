@@ -206,7 +206,7 @@ const LABELS: Record<string, { title: string; hint: string; color: string }> = {
   refutes: { title: "Refutes", hint: "evidence it is false, incl. null results", color: STANCE.refutes.ink },
   mixed: { title: "Mixed", hint: "partly supports, partly refutes", color: STANCE.mixed.ink },
   pending: { title: "Being read", hint: "found, not yet judged", color: "var(--ink-3)" },
-  unused: { title: "No usable findings", hint: "read, but nothing measured for this hypothesis (e.g. trials without posted results)", color: "var(--ink-3)" },
+  unused: { title: "No usable findings", hint: "read, but nothing measured for this hypothesis", color: "var(--ink-3)" },
 };
 
 export const LabelNode = memo(function LabelNode({ data }: NodeProps & { data: Data }) {

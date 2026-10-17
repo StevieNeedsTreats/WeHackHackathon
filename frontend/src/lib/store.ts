@@ -427,6 +427,12 @@ export function papersFor(s: State, key: string): Paper[] {
   return s.paperOrder.map((id) => s.papers[id]).filter((p) => p && p.considered[key]);
 }
 
+/** The specific study difference behind an explained contradiction; null when the model only repeated the reason. */
+export function explanation(c: Contradiction): string | null {
+  const e = c.explained_by?.trim();
+  return e && e.toLowerCase() !== c.reason.toLowerCase() ? e : null;
+}
+
 /** Live balance from stances when no verdict has landed yet. */
 export function balance(s: State, key: string): { support: number; refute: number; mixed: number; total: number } {
   const v = s.verdicts[key];

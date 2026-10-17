@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { State } from "@/lib/store";
+import { explanation, type State } from "@/lib/store";
 import type { Finding } from "@/lib/types";
 import { designShort, DIRECTION, Icon, STANCE, StanceGlyph } from "../graph/glyphs";
 import { SectionLabel } from "../Tip";
@@ -45,10 +45,14 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
     const fb = c && state.findings[c.b];
     return (
       <div className="p-5">
-        <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-neg-ink">Contradiction</div>
+        <div className={`mono text-[10.5px] uppercase tracking-[0.1em] ${c?.explained_by ? "text-ink-3" : "text-neg-ink"}`}>
+          {c?.explained_by ? "Explained contradiction" : "Contradiction"}
+        </div>
         <h3 className="mt-1 text-[16px] font-semibold text-ink">{c?.reason ?? "Conflict"}</h3>
         {c?.explained_by ? (
-          <p className="mt-1 text-[12.5px] text-ink-2">Probably explained by a study difference: {c.explained_by}</p>
+          <p className="mt-1 text-[12.5px] text-ink-2">
+            The findings disagree, but the studies differ{explanation(c) ? `: ${explanation(c)}` : " in this way"}, so it is probably not a real conflict.
+          </p>
         ) : (
           <p className="mt-1 text-[12.5px] text-ink-2">No study difference explains it: a real disagreement in the literature.</p>
         )}
