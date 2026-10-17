@@ -48,13 +48,38 @@ All backend settings use the `TG_` prefix; see `backend/app/config.py`.
 The **Chat** tab answers questions about the open question and anything else in the graph. Answers cite the hypotheses, papers and findings they rest on; click a citation to see it on the graph.
 
 - **Context:** each message carries a compact summary of the question with short refs (`H1`, `P3`, `F12`), so most answers need no query. The summary is the cached part of the prompt.
-- **Queries:** for the rest, the model writes read-only Cypher that starts from indexed keys, and uses the full-text indexes to find papers and topics by name. Each query shows under the answer with its row count and time.
+- **Tools over MCP:** for the rest, the chat gets its tools from TruthGraph's MCP server (below) and the model picks among whatever the server lists. Each tool call shows under the answer with its result summary and time; hover one to light up the findings it rests on.
 - **Model:** chat uses `TG_MODEL_CHAT`. If that's unset, it uses `claude-opus-5-5` on Anthropic, or the orchestrator's model on other providers.
 
 To add papers to a researched question, switch the composer to **Add paper**, or ask in the chat. You can give a DOI, a link (DOI, PubMed, PMC, arXiv, OpenAlex, a publisher page or a PDF) or a title with authors. You can also upload or drop up to 8 PDF or text files.
 
 - **Screening:** each paper is checked against the question's hypotheses and turned away if it isn't evidence on any of them. A paper already in the graph is reported as a duplicate.
 - **Graph update:** accepted papers are extracted and scored like discovered ones. Only their findings are judged and checked for contradictions, then each affected verdict is rewritten. The graph updates live.
+
+### MCP server
+
+`/mcp` serves TruthGraph's tools to any MCP client (Claude Code, Claude Desktop and others) over streamable HTTP. It lives in the same FastAPI app, so deploying needs nothing extra. The chat uses the same server through an in-process session.
+
+| Tool | What it does |
+|---|---|
+| `list_questions`, `question_overview` | The questions researched so far, and a compact digest of one: verdicts, papers, findings, contradictions |
+| `graph_query` | One read-only Cypher query (the schema and indexed keys are in its description); writes are refused |
+| `find_in_graph` | Full-text search of paper titles and topics |
+| `explain_verdict` | Multi-hop: hypothesis ← findings ← studies ← papers → funders, by stance, with the heaviest findings and unexplained contradictions |
+| `trace_path` | Shortest paths between any two nodes, in either direction (`algo.SPpaths`), spelled out hop by hop |
+| `influential_papers` | PageRank, betweenness or harmonic centrality over the citation network |
+| `contradiction_clusters` | Groups of findings joined by contradictions (`algo.WCC`): where the evidence splits |
+| `add_paper` | Adds papers to a question; they are screened for relevance, read and scored, and verdicts update |
+
+With a password set, `/mcp` needs a bearer token. Get a long-lived one (90 days, `TG_AUTH_MCP_DAYS`), then add the server to Claude Code:
+
+```bash
+ACCESS=$(curl -s -X POST $API/api/login -H 'content-type: application/json' -d '{"password":"…"}' | jq -r .access)
+TOKEN=$(curl -s -X POST $API/api/mcp/token -H "Authorization: Bearer $ACCESS" | jq -r .token)
+claude mcp add --transport http truthgraph $API/mcp --header "Authorization: Bearer $TOKEN"
+```
+
+MCP tokens only work at `/mcp`, not on the rest of the API.
 
 ### Access password
 
