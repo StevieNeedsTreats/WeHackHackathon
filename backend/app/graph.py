@@ -389,12 +389,10 @@ class GraphStore:
         papers_res = await self.ro(
             """
             MATCH (:Question {id:$id})-[:ASKS]->(h:Hypothesis)-[c:CONSIDERED]->(p:Paper)
-            OPTIONAL MATCH (p)-[ra:AUTHORED_BY]->(a:Author)
-            OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
-            OPTIONAL MATCH (p)-[:AFFILIATED]->(l:Lab)
             RETURN h.key, c.relevance, c.slice, p,
-                   collect(DISTINCT [a.id, a.name, ra.pos]), collect(DISTINCT [f.id, f.name, f.type]),
-                   collect(DISTINCT [l.id, l.name, l.country])
+                   [(p)-[ra:AUTHORED_BY]->(a:Author) | [a.id, a.name, ra.pos]],
+                   [(p)-[:FUNDED_BY]->(f:Funder) | [f.id, f.name, f.type]],
+                   [(p)-[:AFFILIATED]->(l:Lab) | [l.id, l.name, l.country]]
             """,
             {"id": qid},
         )
