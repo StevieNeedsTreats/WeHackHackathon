@@ -1,20 +1,27 @@
 "use client";
 
+import { Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import type { State } from "@/lib/store";
 import type { GNode } from "@/lib/types";
 import { DESIGN_SHORT, DIR, DirGlyph, Icon } from "../graph/glyphs";
+import { SectionLabel } from "../Tip";
+import { GradeBadge } from "./InsightsPanel";
 
-const H = ({ children }: { children: React.ReactNode }) => <h4 className="mb-1.5 mt-5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{children}</h4>;
+const H = ({ children }: { children: React.ReactNode }) => <SectionLabel className="mb-1.5 mt-5">{children}</SectionLabel>;
 
 function ClaimRow({ c, onSelect, note }: { c: GNode; onSelect: (id: string) => void; note?: string }) {
   return (
-    <button onClick={() => onSelect(c.id)} className="flex w-full items-start gap-2 rounded-[6px] px-2 py-1.5 text-left hover:bg-surface-3">
+    <Button variant="ghost" onClick={() => onSelect(c.id)} className="h-auto w-full items-start justify-start gap-2 px-2 py-1.5 text-left font-normal">
       <DirGlyph dir={c.direction ?? "neutral"} size={15} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] text-ink">{c.text}</span>
-        <span className="block truncate text-[11px] text-ink-3">{note ?? c.outcome}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">{note ?? c.outcome}</span>
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -43,7 +50,7 @@ function Highlighted({ text, quotes }: { text: string; quotes: { q: string; dir:
 }
 
 export function DetailsPanel({ state, id, onSelect }: { state: State; id: string | null; onSelect: (id: string) => void }) {
-  if (!id) return <p className="p-5 text-[13px] text-ink-3">Click any node or contradiction on the graph to inspect it.</p>;
+  if (!id) return <p className="p-5 text-[13px] text-muted-foreground">Click any node or contradiction on the graph to inspect it.</p>;
   const nodes = state.nodes;
   const edges = Object.values(state.edges);
 
@@ -73,7 +80,9 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
     return (
       <div className="p-5">
         <div className="flex items-center gap-2">
-          <span className="mono rounded-[3px] border border-line-2 px-1 text-[10px] text-ink-2">{DESIGN_SHORT[n.design ?? "Other"]}</span>
+          <Badge variant="outline" className="mono h-4 rounded-sm px-1 text-[10px] font-normal">
+            {DESIGN_SHORT[n.design ?? "Other"]}
+          </Badge>
           <span className="text-[12px] text-ink-3">
             {n.journal} · {n.year}
           </span>
@@ -81,11 +90,18 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
         <h3 className="mt-2 font-serif text-[18px] font-semibold leading-snug text-ink">{n.title}</h3>
         <div className="mt-1 text-[12px] text-ink-2">{(n.first_authors ?? []).join(", ")}</div>
         {n.url && (
-          <a href={n.url} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex items-center gap-1 text-[12px] text-ink underline decoration-line-2 underline-offset-2 hover:decoration-ink">
-            {n.pmid ? `PubMed ${n.pmid}` : "Source"} <Icon name="link" size={11} />
-          </a>
+          <Button asChild variant="link" size="xs" className="mt-1 h-auto px-0 text-[12px]">
+            <a href={n.url} target="_blank" rel="noreferrer noopener">
+              {n.pmid ? `PubMed ${n.pmid}` : "Source"} <Icon name="link" size={11} />
+            </a>
+          </Button>
         )}
-        {n.demo && <p className="mt-2 rounded-[6px] bg-surface-3 px-2.5 py-1.5 text-[11.5px] text-ink-2">Demo record: the abstract is an illustrative summary written for the demo, not the published text.</p>}
+        {n.demo && (
+          <Alert className="mt-2 bg-muted/60">
+            <Info />
+            <AlertDescription className="text-[11.5px]">Demo record: the abstract is an illustrative summary written for the demo, not the published text.</AlertDescription>
+          </Alert>
+        )}
 
         <H>Credibility {n.credibility ?? "—"} / 100</H>
         <ul className="space-y-1.5">
@@ -111,9 +127,9 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
             <H>Flags</H>
             <div className="flex flex-wrap gap-1">
               {n.flags!.map((f) => (
-                <span key={f} className="mono rounded-[4px] border border-line-2 bg-surface px-1.5 py-0.5 text-[10.5px] text-ink-2">
+                <Badge key={f} variant="outline" className="mono rounded-sm text-[10.5px] font-normal text-ink-2">
                   {f}
-                </span>
+                </Badge>
               ))}
             </div>
           </>
@@ -180,13 +196,13 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
         {p && (
           <>
             <H>Source</H>
-            <button onClick={() => onSelect(p.id)} className="w-full rounded-[8px] border border-line bg-surface p-3 text-left hover:border-ink-3">
+            <Card size="sm" role="button" tabIndex={0} onClick={() => onSelect(p.id)} onKeyDown={(e) => e.key === "Enter" && onSelect(p.id)} className="cursor-pointer gap-0.5 px-3 shadow-none hover:ring-ink-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-[13px] font-semibold text-ink">{p.label}</span>
                 <span className="mono text-[11px] text-ink-2">cred {p.credibility ?? "—"}</span>
               </div>
-              <div className="mt-0.5 line-clamp-2 text-[12px] text-ink-2">{p.title}</div>
-            </button>
+              <div className="line-clamp-2 text-[12px] text-ink-2">{p.title}</div>
+            </Card>
           </>
         )}
 
@@ -230,7 +246,9 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
       {n.region && <div className="text-[12.5px] text-ink-2">{n.region}</div>}
       {cons && (
         <p className="mt-2 text-[12.5px] text-ink-2">
-          <span className="mono mr-1.5 rounded-[3px] bg-ink px-1 text-[10px] text-white">{cons.grade}</span>
+          <span className="mr-1.5 inline-block align-middle">
+            <GradeBadge grade={cons.grade} verdict={cons.verdict} />
+          </span>
           {cons.verdict} — {Math.round(cons.share.positive * 100)}% positive by credibility weight across {cons.papers} paper{cons.papers !== 1 ? "s" : ""}.
         </p>
       )}
@@ -238,10 +256,10 @@ export function DetailsPanel({ state, id, onSelect }: { state: State; id: string
         <>
           <H>Papers ({linkedPapers.length})</H>
           {linkedPapers.map((p) => (
-            <button key={p.id} onClick={() => onSelect(p.id)} className="flex w-full items-baseline justify-between rounded-[6px] px-2 py-1.5 text-left hover:bg-surface-3">
+            <Button key={p.id} variant="ghost" onClick={() => onSelect(p.id)} className="h-auto w-full justify-between px-2 py-1.5 font-normal">
               <span className="truncate text-[12.5px] text-ink">{p.label}</span>
-              <span className="mono text-[11px] text-ink-3">cred {p.credibility ?? "—"}</span>
-            </button>
+              <span className="mono text-[11px] text-muted-foreground">cred {p.credibility ?? "—"}</span>
+            </Button>
           ))}
         </>
       )}
