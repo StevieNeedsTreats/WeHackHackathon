@@ -1,143 +1,94 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { State } from "@/lib/store";
-import type { Direction } from "@/lib/types";
-import { DirGlyph, Icon } from "../graph/glyphs";
+import { evidenceFor, type Row, type State } from "@/lib/store";
+import type { Stance } from "@/lib/types";
+import { designShort, Icon, STANCE, StanceGlyph } from "../graph/glyphs";
 import { SectionLabel } from "../Tip";
 
-const FLAG_LABEL: Record<string, string> = {
-  "small-sample": "Small sample (<30)",
-  "sample-unreported": "Sample size not stated",
-  preprint: "Preprint",
-  "industry-funded": "Industry funded",
-  "funding-undisclosed": "No funder listed",
-  "animal-study": "Animal study",
-  retracted: "Retracted",
-  "low-credibility": "Credibility < 45",
-  "unverified-quote": "Quote not verbatim",
-  "no-effect-size": "No effect size",
-  "source-error": "Source error",
-};
-
-type Filter = Direction | "all" | "flagged";
-
-export function EvidencePanel({ state, onSelect }: { state: State; onSelect: (id: string) => void }) {
-  const [filter, setFilter] = useState<Filter>("all");
-  const claims = useMemo(() => Object.values(state.nodes).filter((n) => n.kind === "claim"), [state.nodes]);
-  const papers = state.nodes;
-  const contradicted = useMemo(() => {
-    const s = new Set<string>();
-    for (const e of Object.values(state.edges)) {
-      if (e.type === "CONTRADICTS") {
-        s.add(e.source);
-        s.add(e.target);
-      }
-    }
-    return s;
-  }, [state.edges]);
-
-  const rows = claims
-    .filter((c) => (filter === "all" ? true : filter === "flagged" ? (c.flags?.length ?? 0) > 0 || contradicted.has(c.id) : c.direction === filter))
-    .sort((a, b) => (papers[`p:${b.paper_id}`]?.credibility ?? 0) - (papers[`p:${a.paper_id}`]?.credibility ?? 0));
-
-  const flagCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const f of state.flags) m[f.code] = (m[f.code] ?? 0) + 1;
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [state.flags]);
-
+function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void }) {
+  const f = r.finding;
   return (
-    <div className="p-5">
-      <section className="mb-5">
-        <SectionLabel className="mb-2">Validation</SectionLabel>
-        {flagCounts.length === 0 ? (
-          <p className="text-[12.5px] text-muted-foreground">No flags raised.</p>
-        ) : (
-          <ul className="grid grid-cols-2 gap-1.5">
-            {flagCounts.map(([code, n]) => (
-              <li key={code}>
-                <Card size="sm" className="flex-row items-center justify-between gap-2 px-2.5 py-1.5 shadow-none">
-                  <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-2">
-                    <Icon name="flag" size={11} className="shrink-0 text-muted-foreground" />
-                    <span className="truncate">{FLAG_LABEL[code] ?? code}</span>
-                  </span>
-                  <span className="mono tabular text-[12px] text-foreground">{n}</span>
-                </Card>
+    <button type="button" onClick={() => onSelect(`f:${f.id}`)} className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-ink-3">
+      <div className="flex items-start gap-2">
+        <StanceGlyph stance={r.stance.stance} size={15} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] font-medium leading-snug text-ink">{f.text}</div>
+          <div className="mono mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10.5px] text-ink-3">
+            <span className="text-ink-2">{r.paper.label}</span>
+            <span>·</span>
+            <span>{designShort(r.study?.design ?? r.paper.design)}</span>
+            {r.study?.n ? (
+              <>
+                <span>·</span>
+                <span>n={r.study.n.toLocaleString()}</span>
+              </>
+            ) : null}
+            <span>·</span>
+            <span>cred {r.paper.credibility ?? "…"}</span>
+            {f.harm && (
+              <Badge variant="destructive" className="h-3.5 rounded-sm px-1 text-[9px] uppercase">
+                harm
+              </Badge>
+            )}
+          </div>
+          {f.quote && (
+            <p className="mt-1.5 border-l-2 border-line-2 pl-2 font-serif text-[12px] italic leading-snug text-ink-2">
+              “{f.quote.length > 220 ? f.quote.slice(0, 217) + "…" : f.quote}”
+              {f.quote_verified === false && (
+                <span className="ml-1 inline-flex items-center gap-0.5 not-italic text-ink-3" title="Not found verbatim in the source">
+                  <Icon name="alert" size={10} /> unverified
+                </span>
+              )}
+            </p>
+          )}
+          {r.stance.rationale && <p className="mt-1 text-[11.5px] leading-snug text-ink-3">Why: {r.stance.rationale}</p>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: string | null; onSelect: (id: string) => void }) {
+  if (!hk) return <p className="p-5 text-[13px] text-muted-foreground">Pick a hypothesis to see its evidence.</p>;
+  const rows = evidenceFor(state, hk);
+  const flags = state.flags.filter((f) => f.target.startsWith("h:" + hk) || f.target.startsWith("q:"));
+  if (!rows.length)
+    return (
+      <p className="p-5 text-[13px] text-muted-foreground">
+        {state.status === "streaming" ? "Findings appear here once the Stance agent has judged them." : "No findings were judged relevant to this hypothesis."}
+      </p>
+    );
+  return (
+    <div className="space-y-5 p-5">
+      {(["supports", "refutes", "mixed"] as Stance[]).map((st) => {
+        const list = rows.filter((r) => r.stance.stance === st);
+        if (!list.length) return null;
+        return (
+          <section key={st}>
+            <SectionLabel className="mb-2">
+              <span style={{ color: STANCE[st].ink }}>{STANCE[st].label}</span> · {list.length}
+            </SectionLabel>
+            <div className="space-y-1.5">
+              {list.map((r) => (
+                <FindingRow key={r.finding.id} r={r} onSelect={onSelect} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {flags.length > 0 && (
+        <section>
+          <SectionLabel className="mb-2">Run notes</SectionLabel>
+          <ul className="space-y-1 text-[12px] text-ink-2">
+            {flags.map((f, i) => (
+              <li key={i}>
+                <span className="mono text-[10.5px] text-ink-3">{f.code}</span> {f.detail}
               </li>
             ))}
           </ul>
-        )}
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-          Every claim&apos;s quote is checked verbatim against its abstract. Unverified claims count half in consensus.
-        </p>
-      </section>
-
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        spacing={1}
-        value={filter}
-        onValueChange={(v) => v && setFilter(v as Filter)}
-        className="mb-3 flex-wrap"
-        aria-label="Filter claims"
-      >
-        <ToggleGroupItem value="all" className="rounded-full px-2.5 text-[11.5px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-          All {claims.length}
-        </ToggleGroupItem>
-        {(
-          [
-            ["positive", "Positive"],
-            ["neutral", "Mixed"],
-            ["null", "Negative"],
-            ["flagged", "Flagged"],
-          ] as const
-        ).map(([v, label]) => (
-          <ToggleGroupItem key={v} value={v} className="rounded-full px-2.5 text-[11.5px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-            {label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-
-      <Card className="gap-0 py-0 shadow-none">
-        <ul className="divide-y">
-          {rows.map((c) => {
-            const p = papers[`p:${c.paper_id}`];
-            return (
-              <li key={c.id}>
-                <Button variant="ghost" onClick={() => onSelect(c.id)} className="h-auto w-full items-start justify-start gap-2.5 rounded-none px-3 py-2.5 text-left font-normal">
-                  <DirGlyph dir={c.direction ?? "neutral"} size={16} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[12.5px] font-medium text-foreground">{c.text}</span>
-                      {contradicted.has(c.id) && (
-                        <Badge variant="destructive" className="mono h-4 shrink-0 rounded-sm px-1 text-[9.5px] uppercase">
-                          contested
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span className="truncate">{p?.label}</span>
-                      <span>·</span>
-                      <span className="mono tabular">cred {p?.credibility ?? "—"}</span>
-                      <span className="ml-auto flex shrink-0 items-center gap-1">
-                        {c.quote_verified ? <Icon name="check" size={11} className="text-ok" /> : <Icon name="alert" size={11} />}
-                        <span>{c.quote_verified ? "verified" : "unverified"}</span>
-                      </span>
-                    </div>
-                  </div>
-                </Button>
-              </li>
-            );
-          })}
-          {rows.length === 0 && <li className="px-3 py-4 text-[12.5px] text-muted-foreground">No claims match.</li>}
-        </ul>
-      </Card>
+        </section>
+      )}
     </div>
   );
 }
