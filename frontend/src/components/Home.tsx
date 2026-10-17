@@ -222,7 +222,6 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
         onDemo={demo}
         onStop={stop}
       />
-      <Hyps state={state} focus={focus} onFocus={focusHyp} />
 
       {showError && (
         <div className="border-b bg-card px-4 py-2.5 md:px-5">
@@ -251,19 +250,24 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
         defaultLayout={defaultLayout}
         left={(collapse) => <Rail state={state} questions={questions} onOpen={open} onFocus={setFocus} onDelete={remove} onCollapse={collapse} />}
         main={
-          focus === "compare" && state.hypOrder.length > 1 ? (
-            <Compare state={state} onFocus={setFocus} />
-          ) : (
-            <Graph
-              state={state}
-              focus={focus === "all" || focus === "compare" ? null : focus}
-              selected={selected}
-              onSelect={select}
-              onFocus={setFocus}
-              highlight={refs}
-              empty={empty}
-            />
-          )
+          <div className="flex h-full flex-col">
+            <div className="relative min-h-0 flex-1">
+              {focus === "compare" && state.hypOrder.length > 1 ? (
+                <Compare state={state} onFocus={setFocus} />
+              ) : (
+                <Graph
+                  state={state}
+                  focus={focus === "all" || focus === "compare" ? null : focus}
+                  selected={selected}
+                  onSelect={select}
+                  onFocus={setFocus}
+                  highlight={refs}
+                  empty={empty}
+                />
+              )}
+            </div>
+            <Hyps state={state} focus={focus} onFocus={focusHyp} />
+          </div>
         }
         right={(collapse) => (
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="h-full min-h-0 gap-0" aria-label="Analysis">
