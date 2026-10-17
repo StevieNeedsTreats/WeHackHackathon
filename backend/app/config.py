@@ -19,9 +19,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None  # kept for backwards compatibility
     # Record every live answer to this fixture file (for offline replay later).
     llm_record: str | None = None
-    # Legacy single-extractor settings, removed once every agent uses the router.
-    extract_model: str = "claude-haiku-5-5"
-    use_llm: bool = True
 
     # Per-agent model overrides; unset agents use llm_model. The orchestrator plans and
     # judges coverage, so it gets a stronger model by default when on Anthropic.
@@ -38,6 +35,8 @@ class Settings(BaseSettings):
     max_hypotheses: int = 3
     max_papers: int = 12  # per hypothesis
     paper_concurrency: int = 6
+    # Max LLM requests in flight per run; set to 1 for a local server that serves one at a time.
+    llm_concurrency: int = 8
     orchestrator_max_steps: int = 24
     run_token_budget: int = 600_000
     run_timeout_s: int = 420

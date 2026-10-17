@@ -158,20 +158,21 @@ class Run:
 
             todo = [k for k in self.hyps if not self.state[k]["reused"]]
             if todo:
-                async with asyncio.timeout(self.settings.run_timeout_s):
-                    try:
-                        await self.orchestrate()
-                    except BudgetExceeded:
-                        await self.flag(f"q:{self.qid}", "budget", "Token budget reached; finishing with what was found")
-                    except LLMError as e:
-                        await self.flag(f"q:{self.qid}", "orchestrator-error", str(e)[:200])
-                    await self.ensure_complete()
+                try:
+                    async with asyncio.timeout(self.settings.run_timeout_s):
+                        try:
+                            await self.orchestrate()
+                        except BudgetExceeded:
+                            await self.flag(f"q:{self.qid}", "budget", "Token budget reached; finishing with what was found")
+                        except LLMError as e:
+                            await self.flag(f"q:{self.qid}", "orchestrator-error", str(e)[:200])
+                        await self.ensure_complete()
+                except TimeoutError:
+                    await self.flag(f"q:{self.qid}", "timeout", "The run hit its time limit; partial results are saved")
             await self.benchmark()
             await self.finish()
         except asyncio.CancelledError:
             raise
-        except TimeoutError:
-            await self.emit("error", {"code": "timeout", "message": "The run hit its time limit. Partial results are saved."})
         except Exception as e:  # surface, never crash the stream
             await self.emit("error", {"code": "internal", "message": f"Pipeline stopped: {type(e).__name__}: {e}"[:300]})
         finally:
