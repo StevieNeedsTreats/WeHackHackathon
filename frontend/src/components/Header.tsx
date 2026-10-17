@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,6 @@ export function Header({
   onAsk,
   onDemo,
   onStop,
-  onRetry,
 }: {
   state: State;
   health: Health | null;
@@ -43,7 +42,6 @@ export function Header({
   onAsk: (q: string) => void;
   onDemo: (q: string) => void;
   onStop: () => void;
-  onRetry?: () => void;
 }) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,19 +101,9 @@ export function Header({
               Stop
             </Button>
           ) : (
-            <>
-              <Button type="submit" size="lg" disabled={q.trim().length < 3 || busy} className="px-3.5">
-                {busy ? "Reading…" : "Interpret"}
-              </Button>
-              {onRetry && (
-                <Tip label="Run every agent again for this question, ignoring cached research" side="bottom">
-                  <Button type="button" variant="outline" size="lg" onClick={onRetry} aria-label="Retry">
-                    <RotateCcw />
-                    Retry
-                  </Button>
-                </Tip>
-              )}
-            </>
+            <Button type="submit" size="lg" disabled={q.trim().length < 3 || busy} className="px-3.5">
+              {busy ? "Reading…" : "Interpret"}
+            </Button>
           )}
         </div>
       </form>
