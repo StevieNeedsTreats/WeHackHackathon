@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheck, CircleDashed, CircleX, LoaderCircle } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, LoaderCircle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,11 +36,13 @@ export function AgentRail({
   questions,
   onOpen,
   onFocus,
+  onDelete,
 }: {
   state: State;
   questions: QuestionSummary[];
   onOpen: (id: string, key?: string) => void;
   onFocus: (key: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const hNum = Object.fromEntries(state.hypOrder.map((k, i) => [k, i + 1]));
   const total = Object.values(state.usage).reduce(
@@ -127,20 +129,36 @@ export function AgentRail({
           <ul className="space-y-1">
             {questions.map((q) => (
               <li key={q.id}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpen(q.id)}
-                  data-active={state.question?.id === q.id || undefined}
-                  className="h-auto w-full justify-start py-1 text-left font-normal text-ink-2 data-active:bg-muted data-active:font-medium data-active:text-foreground"
-                >
-                  <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
-                  {q.id.startsWith("demo-") && (
-                    <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
-                      demo
-                    </Badge>
-                  )}
-                </Button>
+                <div className="group flex items-start gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onOpen(q.id)}
+                    data-active={state.question?.id === q.id || undefined}
+                    className="h-auto min-w-0 flex-1 justify-start py-1 text-left font-normal text-ink-2 data-active:bg-muted data-active:font-medium data-active:text-foreground"
+                  >
+                    <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
+                    {q.id.startsWith("demo-") && (
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
+                        demo
+                      </Badge>
+                    )}
+                  </Button>
+                  <Tip label="Delete this question" side="right">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Delete “${q.text}”`}
+                      disabled={state.status === "streaming" && state.question?.id === q.id}
+                      onClick={() => {
+                        if (window.confirm(`Delete “${q.text}”?\n\nIts hypotheses, stances and verdicts are removed. Papers stay cached for other questions.`)) onDelete(q.id);
+                      }}
+                      className="mt-0.5 shrink-0 text-ink-4 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </Tip>
+                </div>
                 <ul className="ml-3 border-l border-line pl-2">
                   {q.hypotheses.map((h) => (
                     <li key={h.key}>

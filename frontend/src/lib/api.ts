@@ -50,6 +50,8 @@ export interface Snapshot {
   ms: number;
 }
 export const getQuestion = (id: string) => json<Snapshot>(`/api/question/${encodeURIComponent(id)}`);
+export const deleteQuestion = (id: string) =>
+  json<{ deleted: string; hypotheses: string[] }>(`/api/question/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const getBenchmarks = (id: string) => json<Metric[]>(`/api/benchmarks/${encodeURIComponent(id)}`);
 
 export interface QueryResult {
