@@ -10,15 +10,43 @@ class Settings(BaseSettings):
     falkor_port: int = 6380
     graph_name: str = "truthgraph"
 
-    # Extraction / summarisation run on the cheapest model (per the design board).
-    anthropic_api_key: str | None = None
+    # LLM provider. "anthropic" uses the Anthropic SDK; "openai" is any OpenAI-compatible
+    # endpoint (OpenAI, OpenRouter, Groq, vLLM, Ollama…) selected with llm_base_url.
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-haiku-5-5"
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    anthropic_api_key: str | None = None  # kept for backwards compatibility
+    # Record every live answer to this fixture file (for offline replay later).
+    llm_record: str | None = None
+    # Legacy single-extractor settings, removed once every agent uses the router.
     extract_model: str = "claude-haiku-5-5"
     use_llm: bool = True
 
-    max_papers: int = 12
+    # Per-agent model overrides; unset agents use llm_model. The orchestrator plans and
+    # judges coverage, so it gets a stronger model by default when on Anthropic.
+    model_orchestrator: str | None = None
+    model_intake: str | None = None
+    model_discovery: str | None = None
+    model_extractor: str | None = None
+    model_credibility: str | None = None
+    model_stance: str | None = None
+    model_contradictions: str | None = None
+    model_verdict: str | None = None
+
+    # Run budgets.
+    max_hypotheses: int = 3
+    max_papers: int = 12  # per hypothesis
     paper_concurrency: int = 6
+    orchestrator_max_steps: int = 24
+    run_token_budget: int = 600_000
+    run_timeout_s: int = 420
+
+    fulltext: bool = False
+    contact_email: str | None = None  # sent to OpenAlex's polite pool when set
+
     http_timeout_s: float = 12.0
-    cache_ttl_s: int = 60 * 60 * 24
+    cache_ttl_s: int = 60 * 60 * 24 * 7
 
     rate_limit_per_min: int = 12
     max_concurrent_runs: int = 4
