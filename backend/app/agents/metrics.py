@@ -32,7 +32,9 @@ ORDER BY hypothesis, papers DESC""",
         "hops": 4,
         "cypher": """MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
 MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
-MATCH (pa:Paper {id:a.paper_id}), (pb:Paper {id:b.paper_id})
+WITH a, b, c
+MATCH (pa:Paper) WHERE pa.id = a.paper_id
+MATCH (pb:Paper) WHERE pb.id = b.paper_id
 OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
 OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
 RETURN pa.label AS paper_a, la.name AS lab_a, pb.label AS paper_b, lb.name AS lab_b, c.reason AS reason,
