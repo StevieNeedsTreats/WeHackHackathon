@@ -1,99 +1,191 @@
 "use client";
 
+import { CircleAlert, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AgentRail } from "@/components/AgentRail";
+import { CompareView } from "@/components/CompareView";
 import GraphCanvas from "@/components/graph/GraphCanvas";
-import { Header } from "@/components/Header";
+import { EXAMPLES, Header } from "@/components/Header";
+import { HypothesisBar, type Focus } from "@/components/HypothesisBar";
+import { InterpretationCard } from "@/components/InterpretationCard";
 import { DetailsPanel } from "@/components/panels/DetailsPanel";
 import { EvidencePanel } from "@/components/panels/EvidencePanel";
-import { InsightsPanel } from "@/components/panels/InsightsPanel";
 import { QueriesPanel } from "@/components/panels/QueriesPanel";
-import { StatStrip } from "@/components/StatStrip";
+import { VerdictPanel } from "@/components/panels/VerdictPanel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CircleAlert, ShieldAlert } from "lucide-react";
-import { getHealth, getSubstances } from "@/lib/api";
+import { getHealth, getQuestions, interpret, type Edits } from "@/lib/api";
 import { useResearch } from "@/lib/store";
-import type { Health, SubstanceSummary } from "@/lib/types";
+import type { Guardrail, Health, Interpretation, QuestionSummary } from "@/lib/types";
 
-type Tab = "insights" | "evidence" | "queries" | "details";
+type Tab = "verdict" | "evidence" | "queries" | "details";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "insights", label: "Insights" },
+  { id: "verdict", label: "Verdict" },
   { id: "evidence", label: "Evidence" },
   { id: "queries", label: "Queries" },
   { id: "details", label: "Details" },
 ];
 
 export default function Home() {
-  const { state, run, load, stop } = useResearch();
+  const { state, run, load, stop, reset } = useResearch();
   const [health, setHealth] = useState<Health | null>(null);
-  const [subs, setSubs] = useState<SubstanceSummary[]>([]);
-  const [tab, setTab] = useState<Tab>("insights");
+  const [questions, setQuestions] = useState<QuestionSummary[]>([]);
+  const [interp, setInterp] = useState<Interpretation | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [refusal, setRefusal] = useState<Guardrail | null>(null);
+  const [focus, setFocus] = useState<Focus>("all");
+  const [tab, setTab] = useState<Tab>("verdict");
   const [selected, setSelected] = useState<string | null>(null);
   const [refs, setRefs] = useState<string[] | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     getHealth().then(setHealth).catch(() => setHealth(null));
-    getSubstances().then(setSubs).catch(() => {});
+    getQuestions().then(setQuestions).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => refresh(), [refresh]);
   useEffect(() => {
     if (state.status === "done") refresh();
   }, [state.status, refresh]);
+
+  // Default focus when a question's hypotheses arrive: Compare for "X vs Y", else the first.
+  const qid = state.question?.id;
+  const nHyps = state.hypOrder.length;
+  useEffect(() => {
+    if (!nHyps) return;
+    if (pendingFocus && state.hyps[pendingFocus]) {
+      setFocus(pendingFocus);
+      setPendingFocus(null);
+    } else setFocus(state.question?.compare && nHyps > 1 ? "compare" : state.hypOrder[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when a new question arrives
+  }, [qid, nHyps > 0]);
+
+  // Deep links: /?q=<question id>&h=<hypothesis key>
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const q = p.get("q");
+    if (q) {
+      setPendingFocus(p.get("h"));
+      load(q);
+    }
+  }, [load]);
+  useEffect(() => {
+    if (!qid || state.status !== "done") return;
+    const p = new URLSearchParams({ q: qid });
+    if (focus !== "all" && focus !== "compare") p.set("h", focus);
+    window.history.replaceState(null, "", `?${p}`);
+  }, [qid, focus, state.status]);
+
+  const hk = focus !== "all" && focus !== "compare" ? focus : (state.hypOrder[0] ?? null);
 
   const select = (id: string | null) => {
     setSelected(id);
     if (id) setTab("details");
   };
-  const start = (q: string, mode: "live" | "demo" = "live") => {
+  const ask = async (text: string) => {
+    stop();
+    reset();
+    setRefusal(null);
+    setInterp(null);
+    setAsking(true);
+    try {
+      const r = await interpret(text, "live");
+      if (r.ok) setInterp(r);
+      else setRefusal(r);
+    } catch (e) {
+      setRefusal({ ok: false, code: "error", message: (e as Error).message });
+    } finally {
+      setAsking(false);
+    }
+  };
+  const research = (edits: Edits) => {
+    if (!interp?.question) return;
+    const text = interp.question.text;
+    setInterp(null);
     setSelected(null);
-    setTab("insights");
-    run(q, mode);
+    setTab("verdict");
+    run(text, "live", edits);
+  };
+  const demo = (text: string) => {
+    setInterp(null);
+    setRefusal(null);
+    setSelected(null);
+    setTab("verdict");
+    run(text, "demo");
+  };
+  const open = (id: string, key?: string) => {
+    setInterp(null);
+    setRefusal(null);
+    setSelected(null);
+    setTab("verdict");
+    setPendingFocus(key ?? null);
+    load(id);
   };
 
-  const empty = (
-    <div className="pointer-events-auto max-w-[520px] px-6 text-center">
+  const demos = health?.demos ?? [];
+  const empty = interp ? (
+    <InterpretationCard interp={interp} onRun={research} onCancel={() => setInterp(null)} />
+  ) : (
+    <div className="pointer-events-auto max-w-[600px] px-6 text-center">
       <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">What does the research actually say?</h1>
-      <p className="mx-auto mt-3 max-w-[440px] text-[14px] leading-[1.6] text-ink-2">
-        Name a supplement, drug or intervention. Agents find the papers, pull out every claim, score each source&apos;s credibility, and map where the
-        evidence agrees and where it contradicts itself, live into a FalkorDB graph.
+      <p className="mx-auto mt-3 max-w-[500px] text-[14px] leading-[1.6] text-ink-2">
+        Ask about any claim in plain language. Agents split it into testable hypotheses, find supporting and refuting studies, score each source&apos;s credibility and map where
+        the evidence agrees and contradicts itself, live into a FalkorDB graph. Tuned for medicine, but the same agents work for economics or any field.
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Button size="lg" className="px-4" onClick={() => start("Creatine", "demo")}>
-          Watch the creatine demo
-        </Button>
-        <Button size="lg" variant="outline" className="bg-card px-4" onClick={() => start("Vitamin D")}>
-          Build vitamin D live
-        </Button>
+      <div className="mt-5 flex flex-col items-center gap-1.5">
+        {EXAMPLES.map((e) => (
+          <Button key={e} variant="outline" size="sm" className="h-auto max-w-full whitespace-normal rounded-full bg-card py-1 font-normal text-ink-2" onClick={() => ask(e)} disabled={asking}>
+            {e}
+          </Button>
+        ))}
       </div>
-      <p className="mono mt-4 text-[11px] text-muted-foreground">Press / to search</p>
+      {demos.length > 0 && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {demos.map((d) => (
+            <Button key={d.id} size="lg" className="px-4" onClick={() => demo(d.text)}>
+              Watch demo: {d.text.length > 40 ? d.text.slice(0, 38) + "…" : d.text}
+            </Button>
+          ))}
+        </div>
+      )}
+      {health && !health.llm.available && (
+        <p className="mt-4 text-[12px] text-ink-3">No LLM configured on the server: live research is off{demos.length ? "; demos still work" : ""}.</p>
+      )}
+      <p className="mono mt-4 text-[11px] text-muted-foreground">{asking ? "Reading your question…" : "Press / to ask"}</p>
     </div>
   );
 
+  const guard = refusal ?? (state.status === "refused" ? state.guard : null);
+  const showError = guard || state.status === "error";
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <Header state={state} health={health} onRun={(q) => start(q)} onDemo={() => start("Creatine", "demo")} onStop={stop} />
-      {state.status !== "idle" && <StatStrip state={state} />}
+      <Header state={state} health={health} busy={asking} onAsk={ask} onDemo={demo} onStop={stop} />
+      <HypothesisBar
+        state={state}
+        focus={focus}
+        onFocus={(f) => {
+          setFocus(f);
+          setSelected(null);
+        }}
+      />
 
-      {(state.status === "refused" || state.status === "error") && (
+      {showError && (
         <div className="border-b bg-card px-4 py-2.5 md:px-5">
           <Alert variant="destructive" className="border-destructive/40 bg-neg-soft/50">
-            {state.status === "refused" ? <ShieldAlert /> : <CircleAlert />}
+            {guard ? <ShieldAlert /> : <CircleAlert />}
             <AlertTitle className="flex flex-wrap items-center gap-2 text-foreground">
               <Badge variant="destructive" className="mono rounded-sm text-[10px] uppercase">
-                {state.status === "refused" ? "guardrail" : "error"}
+                {guard ? "guardrail" : "error"}
               </Badge>
-              {state.status === "refused" ? state.guard?.message : state.error}
+              {guard ? guard.message : state.error}
             </AlertTitle>
-            {state.status === "refused" && state.guard?.checks && (
+            {guard?.checks && (
               <AlertDescription className="mono flex flex-wrap gap-x-3 text-[11px] text-ink-2">
-                {state.guard.checks.map((c) => (
+                {guard.checks.map((c) => (
                   <span key={c.name}>
                     {c.passed ? "✓" : "✗"} {c.name}
                   </span>
@@ -104,17 +196,25 @@ export default function Home() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[264px_minmax(0,1fr)_400px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[272px_minmax(0,1fr)_400px] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
         <div className="order-3 border-t bg-background lg:order-none lg:min-h-0 lg:border-r lg:border-t-0">
-          <AgentRail state={state} substances={subs} onOpen={(k) => {
-            setSelected(null);
-            setTab("insights");
-            load(k);
-          }} />
+          <AgentRail state={state} questions={questions} onOpen={open} onFocus={setFocus} />
         </div>
 
         <main className="order-1 h-[64vh] min-h-[420px] lg:order-none lg:h-auto lg:min-h-0" aria-label="Evidence graph">
-          <GraphCanvas state={state} selected={selected} onSelect={select} highlight={refs} empty={empty} />
+          {focus === "compare" && state.hypOrder.length > 1 ? (
+            <CompareView state={state} onFocus={setFocus} />
+          ) : (
+            <GraphCanvas
+              state={state}
+              focus={focus === "all" || focus === "compare" ? null : focus}
+              selected={selected}
+              onSelect={select}
+              onFocus={setFocus}
+              highlight={refs}
+              empty={empty}
+            />
+          )}
         </main>
 
         <aside className="order-2 flex h-[72vh] min-h-0 flex-col border-t bg-surface-2 lg:order-none lg:h-auto lg:border-l lg:border-t-0" aria-label="Analysis">
@@ -123,26 +223,21 @@ export default function Home() {
               {TABS.map((t) => (
                 <TabsTrigger key={t.id} value={t.id} className="flex-none px-2.5 text-[13px]">
                   {t.label}
-                  {t.id === "evidence" && state.flags.length > 0 && (
-                    <Badge variant="secondary" className="mono h-4 rounded-sm px-1 text-[10px] font-normal">
-                      {state.flags.length}
-                    </Badge>
-                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
             <ScrollArea key={tab} className="min-h-0 flex-1">
-              <TabsContent value="insights">
-                <InsightsPanel state={state} onRefs={setRefs} disclaimer={health?.disclaimer} />
+              <TabsContent value="verdict">
+                <VerdictPanel state={state} hk={hk} onRefs={setRefs} onSelect={select} />
               </TabsContent>
               <TabsContent value="evidence">
-                <EvidencePanel state={state} onSelect={select} />
+                <EvidencePanel state={state} hk={hk} onSelect={select} />
               </TabsContent>
               <TabsContent value="queries">
                 <QueriesPanel state={state} />
               </TabsContent>
               <TabsContent value="details">
-                <DetailsPanel state={state} id={selected} onSelect={select} />
+                <DetailsPanel state={state} id={selected} hk={hk} onSelect={select} />
               </TabsContent>
             </ScrollArea>
           </Tabs>

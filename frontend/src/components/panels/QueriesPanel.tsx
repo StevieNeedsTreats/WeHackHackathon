@@ -72,34 +72,43 @@ function Schema() {
     </g>
   );
   return (
-    <svg viewBox="0 0 340 250" className="w-full" role="img" aria-label="Graph schema">
+    <svg viewBox="0 0 340 260" className="w-full" role="img" aria-label="Graph schema">
       <defs>
         <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M0,0 L8,4 L0,8z" fill="var(--ink-3)" />
         </marker>
       </defs>
-      <E d="M170,31 L170,72" label="STUDIED_IN" lx={208} ly={55} />
-      <E d="M130,86 L66,124" label="AUTHORED_BY" lx={70} ly={100} />
-      <E d="M170,95 L170,124" label="FROM_LAB" lx={196} ly={113} />
-      <E d="M210,86 L274,124" label="FUNDED_BY" lx={272} ly={100} />
-      <E d="M150,95 C110,150 120,170 120,183" label="REPORTS" lx={102} ly={158} />
-      <E d="M160,195 L230,195" label="ABOUT" lx={195} ly={188} />
-      <E d="M210,78 C250,60 250,100 212,90" label="CITES" lx={262} ly={74} dash="2 3" />
-      <E d="M100,205 C80,245 160,245 135,206" label="CONTRADICTS · SUPPORTS" lx={120} ly={244} color="var(--neg)" dash="5 3" />
-      <N x={170} y={20} label="Substance" dark />
-      <N x={170} y={84} label="Paper" />
-      <N x={40} y={136} label="Author" />
-      <N x={170} y={136} label="Lab" />
-      <N x={300} y={136} label="Funder" />
-      <N x={120} y={195} label="Claim" />
-      <N x={270} y={195} label="Outcome" />
+      <E d="M60,31 L60,68" label="ASKS" lx={78} ly={52} />
+      <E d="M60,91 L60,128" label="SUBJECT·OUTCOME" lx={60} ly={113} />
+      <E d="M100,80 L158,80" label="CONSIDERED" lx={129} ly={74} />
+      <E d="M240,74 L262,48" label="AUTHORED_BY" lx={232} ly={52} />
+      <E d="M240,80 L258,80" label="AFFILIATED" lx={250} ly={96} />
+      <E d="M240,86 L262,112" label="FUNDED_BY" lx={232} ly={112} />
+      <E d="M200,91 L200,138" label="DESCRIBES" lx={226} ly={117} />
+      <E d="M200,161 L200,203" label="FOUND" lx={218} ly={185} />
+      <E d="M240,215 L268,215" label="IN_CLUSTER" lx={254} ly={208} />
+      <E d="M160,210 C110,200 80,160 70,92" label="EVIDENCE_FOR {stance}" lx={100} ly={186} color="var(--pos)" />
+      <E d="M162,222 C120,240 70,200 60,152" label="MEASURES" lx={86} ly={232} />
+      <E d="M180,226 C170,262 230,262 220,226" label="CONTRADICTS {hypothesis}" lx={200} ly={256} color="var(--neg)" dash="5 3" />
+      <E d="M180,70 C170,40 230,40 220,70" label="CITES" lx={200} ly={44} dash="2 3" />
+      <N x={60} y={20} label="Question" dark />
+      <N x={60} y={80} label="Hypothesis" dark />
+      <N x={60} y={140} label="Concept" />
+      <N x={200} y={80} label="Paper" />
+      <N x={300} y={38} label="Author" />
+      <N x={300} y={80} label="Lab" />
+      <N x={300} y={122} label="Funder" />
+      <N x={200} y={150} label="Study" />
+      <N x={200} y={215} label="Finding" />
+      <N x={308} y={215} label="Cluster" />
     </svg>
   );
 }
 
-const EXAMPLE = `MATCH (f:Funder)<-[:FUNDED_BY]-(p:Paper)-[:REPORTS]->(c:Claim {substance:$k})
-RETURN f.type AS funding, c.direction AS direction, count(*) AS claims
-ORDER BY claims DESC`;
+const EXAMPLE = `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)
+OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
+RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funding, e.stance AS stance, count(*) AS findings
+ORDER BY hypothesis, findings DESC`;
 
 export function QueriesPanel({ state }: { state: State }) {
   const [metrics, setMetrics] = useState<Metric[] | null>(null);
@@ -111,10 +120,10 @@ export function QueriesPanel({ state }: { state: State }) {
   const list = metrics ?? state.metrics;
 
   const rerun = async () => {
-    if (!state.key) return;
+    if (!state.question?.id) return;
     setBusy(true);
     try {
-      setMetrics(await getBenchmarks(state.key));
+      setMetrics(await getBenchmarks(state.question?.id));
     } finally {
       setBusy(false);
     }
@@ -124,7 +133,7 @@ export function QueriesPanel({ state }: { state: State }) {
     setErr(null);
     setResult(null);
     try {
-      setResult(await runQuery(cypher, state.key));
+      setResult(await runQuery(cypher, state.question?.id));
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -135,8 +144,9 @@ export function QueriesPanel({ state }: { state: State }) {
       <section>
         <SectionLabel className="mb-1">Data model in FalkorDB</SectionLabel>
         <p className="mb-2 text-[12.5px] leading-[1.55] text-ink-2">
-          One shared property graph. Papers, authors, labs and funders are merged across substances, so agents reuse what earlier runs found. Claims are
-          scoped to a substance and grouped by outcome; disagreement is stored as a first-class <span className="mono text-[11.5px]">CONTRADICTS</span> edge with its reason.
+          One shared property graph. Papers, studies and findings are merged across questions, so agents reuse what earlier runs found. A finding&apos;s
+          stance lives on its <span className="mono text-[11.5px]">EVIDENCE_FOR</span> edge, so the same finding can support one hypothesis and be irrelevant to
+          another; disagreement is a <span className="mono text-[11.5px]">CONTRADICTS</span> edge scoped to a hypothesis.
         </p>
         <Card size="sm" className="px-2 shadow-none">
           <Schema />
@@ -146,7 +156,7 @@ export function QueriesPanel({ state }: { state: State }) {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <SectionLabel>Multi-hop queries</SectionLabel>
-          <Button variant="ghost" size="xs" onClick={rerun} disabled={busy || !state.key}>
+          <Button variant="ghost" size="xs" onClick={rerun} disabled={busy || !state.question?.id}>
             <RotateCw className={busy ? "animate-spin" : ""} />
             {busy ? "Running" : "Run again"}
           </Button>
@@ -204,7 +214,7 @@ export function QueriesPanel({ state }: { state: State }) {
       <section>
         <SectionLabel className="mb-1">Cypher console</SectionLabel>
         <p className="mb-2 text-[11.5px] text-muted-foreground">
-          Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$k</span> is the current substance.
+          Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$q</span> is the current question.
         </p>
         <Textarea
           value={cypher}
