@@ -1,9 +1,18 @@
 "use client";
 
+import { CircleAlert, Play, RotateCw } from "lucide-react";
 import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { getBenchmarks, runQuery, type QueryResult } from "@/lib/api";
 import type { State } from "@/lib/store";
 import type { Metric } from "@/lib/types";
+import { SectionLabel } from "../Tip";
 
 function Cell({ v }: { v: unknown }) {
   if (v == null) return <span className="text-ink-4">null</span>;
@@ -15,31 +24,31 @@ function Cell({ v }: { v: unknown }) {
   return <span>{String(v)}</span>;
 }
 
-function Table({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
+function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
   return (
-    <div className="scroll-thin max-h-[220px] overflow-auto rounded-[6px] border border-line">
-      <table className="w-full border-collapse text-left text-[11px]">
-        <thead className="sticky top-0 bg-surface-2">
-          <tr>
+    <div className="scroll-thin max-h-[220px] overflow-auto rounded-md border bg-card">
+      <Table className="text-[11px]">
+        <TableHeader className="sticky top-0 bg-surface-2">
+          <TableRow>
             {columns.map((c) => (
-              <th key={c} className="mono whitespace-nowrap border-b border-line px-2 py-1 font-medium text-ink-3">
+              <TableHead key={c} className="mono h-7 px-2 text-[11px] font-medium text-muted-foreground">
                 {c}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((r, i) => (
-            <tr key={i} className="odd:bg-surface even:bg-surface-2/60">
+            <TableRow key={i}>
               {r.map((v, j) => (
-                <td key={j} className="max-w-[180px] truncate px-2 py-1 align-top text-ink-2">
+                <TableCell key={j} className="max-w-[180px] truncate px-2 py-1 align-top text-ink-2">
                   <Cell v={v} />
-                </td>
+                </TableCell>
               ))}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -124,73 +133,80 @@ export function QueriesPanel({ state }: { state: State }) {
   return (
     <div className="space-y-6 p-5">
       <section>
-        <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Data model in FalkorDB</h3>
+        <SectionLabel className="mb-1">Data model in FalkorDB</SectionLabel>
         <p className="mb-2 text-[12.5px] leading-[1.55] text-ink-2">
           One shared property graph. Papers, authors, labs and funders are merged across substances, so agents reuse what earlier runs found. Claims are
           scoped to a substance and grouped by outcome; disagreement is stored as a first-class <span className="mono text-[11.5px]">CONTRADICTS</span> edge with its reason.
         </p>
-        <div className="rounded-[8px] border border-line bg-surface p-2">
+        <Card size="sm" className="px-2 shadow-none">
           <Schema />
-        </div>
+        </Card>
       </section>
 
       <section>
-        <div className="mb-2 flex items-baseline justify-between">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Multi-hop queries</h3>
-          <button onClick={rerun} disabled={busy || !state.key} className="text-[11.5px] text-ink-2 underline decoration-line-2 underline-offset-2 hover:text-ink disabled:opacity-40">
-            {busy ? "Running…" : "Run again"}
-          </button>
+        <div className="mb-2 flex items-center justify-between">
+          <SectionLabel>Multi-hop queries</SectionLabel>
+          <Button variant="ghost" size="xs" onClick={rerun} disabled={busy || !state.key}>
+            <RotateCw className={busy ? "animate-spin" : ""} />
+            {busy ? "Running" : "Run again"}
+          </Button>
         </div>
         {!list ? (
-          <p className="text-[12.5px] text-ink-3">Benchmarks run when a build finishes.</p>
+          <p className="text-[12.5px] text-muted-foreground">Benchmarks run when a build finishes.</p>
         ) : (
           <>
             <ul className="space-y-2">
               {list.map((m) => {
                 const max = Math.max(...list.map((x) => x.p95_ms), 0.001);
                 return (
-                  <li key={m.id} className="rounded-[8px] border border-line bg-surface">
-                    <button className="w-full p-3 text-left" onClick={() => setOpen(open === m.id ? null : m.id)} aria-expanded={open === m.id}>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-[13px] font-semibold text-ink">{m.title}</span>
-                        <span className="mono shrink-0 rounded-[3px] border border-line-2 px-1 text-[10px] text-ink-2">{m.hops} hops</span>
-                      </div>
-                      <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{m.question}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="relative h-[6px] flex-1 rounded-full bg-surface-3">
-                          <span className="absolute inset-y-0 left-0 rounded-full bg-ink" style={{ width: `${(m.median_ms / max) * 100}%` }} />
-                          <span className="absolute top-[-2px] h-[10px] w-[2px] rounded bg-ink-3" style={{ left: `${(m.p95_ms / max) * 100}%` }} title="p95" />
+                  <li key={m.id}>
+                    <Collapsible open={open === m.id} onOpenChange={(o) => setOpen(o ? m.id : null)}>
+                    <Card size="sm" className="gap-0 py-0 shadow-none">
+                      <CollapsibleTrigger className="w-full rounded-xl p-3 text-left outline-none hover:bg-muted/40 focus-visible:bg-muted/60">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-semibold text-foreground">{m.title}</span>
+                          <Badge variant="outline" className="mono h-4 shrink-0 rounded-sm px-1 text-[10px] font-normal">
+                            {m.hops} hops
+                          </Badge>
                         </div>
-                        <span className="mono tabular shrink-0 text-[11px] text-ink">
-                          {m.median_ms.toFixed(2)} ms <span className="text-ink-3">· p95 {m.p95_ms.toFixed(2)}</span>
-                        </span>
-                      </div>
-                      <div className="mono mt-1 text-[10.5px] text-ink-3">{m.rows} rows</div>
-                    </button>
-                    {open === m.id && (
-                      <div className="space-y-2 border-t border-line p-3">
-                        <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-[6px] bg-surface-2 p-2 text-[10.5px] leading-relaxed text-ink-2">{m.cypher}</pre>
-                        {m.sample.length > 0 && <Table columns={m.columns} rows={m.sample} />}
-                        <button className="text-[11.5px] text-ink-2 underline decoration-line-2 underline-offset-2 hover:text-ink" onClick={() => setCypher(m.cypher)}>
-                          Open in console
-                        </button>
-                      </div>
-                    )}
+                        <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{m.question}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="relative h-[6px] flex-1 rounded-full bg-muted">
+                            <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(m.median_ms / max) * 100}%` }} />
+                            <span className="absolute top-[-2px] h-[10px] w-[2px] rounded bg-ink-3" style={{ left: `${(m.p95_ms / max) * 100}%` }} title="p95" />
+                          </div>
+                          <span className="mono tabular shrink-0 text-[11px] text-foreground">
+                            {m.median_ms.toFixed(2)} ms <span className="text-muted-foreground">· p95 {m.p95_ms.toFixed(2)}</span>
+                          </span>
+                        </div>
+                        <div className="mono mt-1 text-[10.5px] text-muted-foreground">{m.rows} rows</div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="space-y-2 border-t p-3">
+                          <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[10.5px] leading-relaxed text-ink-2">{m.cypher}</pre>
+                          {m.sample.length > 0 && <ResultTable columns={m.columns} rows={m.sample} />}
+                          <Button variant="link" size="xs" className="h-auto px-0" onClick={() => setCypher(m.cypher)}>
+                            Open in console
+                          </Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Card>
+                    </Collapsible>
                   </li>
                 );
               })}
             </ul>
-            <p className="mt-2 text-[11px] leading-relaxed text-ink-3">Median and p95 over 7 runs, measured from the API (includes network round-trip to FalkorDB).</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Median and p95 over 7 runs, measured from the API (includes the round-trip to FalkorDB).</p>
           </>
         )}
       </section>
 
       <section>
-        <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Cypher console</h3>
-        <p className="mb-2 text-[11.5px] text-ink-3">
+        <SectionLabel className="mb-1">Cypher console</SectionLabel>
+        <p className="mb-2 text-[11.5px] text-muted-foreground">
           Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$k</span> is the current substance.
         </p>
-        <textarea
+        <Textarea
           value={cypher}
           onChange={(e) => setCypher(e.target.value)}
           spellCheck={false}
@@ -199,26 +215,27 @@ export function QueriesPanel({ state }: { state: State }) {
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") exec();
           }}
-          className="mono w-full resize-y rounded-[7px] border border-line-2 bg-surface p-2.5 text-[11.5px] leading-relaxed text-ink outline-none focus:border-ink-3"
+          className="mono resize-y bg-card text-[11.5px] leading-relaxed"
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="mono text-[10.5px] text-ink-3">⌘ ↵ to run</span>
-          <button onClick={exec} className="rounded-[6px] bg-ink px-3 py-1.5 text-[12.5px] font-medium text-white hover:opacity-90">
+          <span className="mono text-[10.5px] text-muted-foreground">⌘ ↵ to run</span>
+          <Button size="sm" onClick={exec}>
+            <Play />
             Run query
-          </button>
+          </Button>
         </div>
         {err && (
-          <div role="alert" className="mt-2 flex items-start gap-2 rounded-[7px] border border-neg bg-neg-soft/50 px-3 py-2 text-[12px] text-ink">
-            <span className="mono shrink-0 text-[10px] uppercase tracking-wide text-neg-ink">blocked</span>
-            {err}
-          </div>
+          <Alert variant="destructive" className="mt-2 border-destructive/40 bg-neg-soft/40">
+            <CircleAlert />
+            <AlertDescription className="text-[12px] text-foreground">{err}</AlertDescription>
+          </Alert>
         )}
         {result && (
           <div className="mt-2 space-y-1">
-            <div className="mono text-[10.5px] text-ink-3">
+            <div className="mono text-[10.5px] text-muted-foreground">
               {result.rows.length} rows{result.truncated ? " (truncated)" : ""} · {result.ms} ms
             </div>
-            <Table columns={result.columns} rows={result.rows} />
+            <ResultTable columns={result.columns} rows={result.rows} />
           </div>
         )}
       </section>
