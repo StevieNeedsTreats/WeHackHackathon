@@ -89,6 +89,8 @@ Adding a field means adding a pack, not changing the agents.
 
 ## Data model
 
+To explore the schema interactively, open [`docs/data-model.html`](docs/data-model.html) in a browser. Pick one of the app's queries and its path lights up across the graph.
+
 ```
 (:Question)-[:ASKS]->(:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(:Concept)
 (:Hypothesis)-[:CONSIDERED {relevance, slice}]->(:Paper)

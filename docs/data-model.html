@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TruthGraph Data Model</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one wide graph canvas with a query console beside it; the graph is the hero, everything else explains it. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #141821;
+  --muted: #5b6372;
+  --line: #d7dbe3;
+  --edge: #9aa3b2;
+  --accent: #5b3df5;
+  --accent-soft: #ece8ff;
+  --ask: #3d63dd;
+  --evidence: #0e8a7a;
+  --judge: #c26a00;
+  --prov: #8a5a8f;
+  --code-bg: #0f1320;
+  --code-fg: #d8ddf0;
+  --code-kw: #a99bff;
+  --code-str: #7fd6c4;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
+    --accent: #9d8bff; --accent-soft: #231d45; --ask: #7d9bff; --evidence: #3cc7b3; --judge: #f0a03c; --prov: #c99ad0;
+    --code-bg: #080a10; --code-fg: #d8ddf0; --code-kw: #b3a7ff; --code-str: #7fd6c4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0f16; --surface: #141925; --fg: #e8ebf2; --muted: #9aa2b3; --line: #273042; --edge: #56607a;
+  --accent: #9d8bff; --accent-soft: #231d45; --ask: #7d9bff; --evidence: #3cc7b3; --judge: #f0a03c; --prov: #c99ad0;
+  --code-bg: #080a10; --code-fg: #d8ddf0; --code-kw: #b3a7ff; --code-str: #7fd6c4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 40px; }
+
+header { display: grid; gap: 14px; max-width: 760px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(30px, 4.6vw, 50px)/1.05 var(--display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--accent); }
+.lede { margin: 0; color: var(--muted); font-size: 17px; max-width: 64ch; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.stats div { display: grid; }
+.stats b { font: 700 26px/1.1 var(--display); }
+.stats span { font-size: 12px; color: var(--muted); }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+.canvas { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-width: 0; overflow: hidden; }
+.canvas-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 20px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.canvas-head h2 { margin: 0; font: 600 15px/1.3 var(--body); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.scroll { overflow-x: auto; }
+svg.graph { display: block; width: 100%; min-width: 760px; height: auto; }
+
+.edge path { fill: none; stroke: var(--edge); stroke-width: 1.5; transition: stroke .25s, opacity .25s, stroke-width .25s; }
+.edge text { font: 500 10.5px var(--mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; transition: fill .25s, opacity .25s; letter-spacing: .02em; }
+.edge.on path { stroke: var(--accent); stroke-width: 2.6; stroke-dasharray: 7 5; animation: flow 1s linear infinite; }
+.edge.on text { fill: var(--accent); font-weight: 600; }
+.edge.off { opacity: .22; }
+@keyframes flow { to { stroke-dashoffset: -12; } }
+
+.node { cursor: pointer; transition: opacity .25s; }
+.node rect { fill: var(--surface); stroke-width: 2; transition: fill .25s; }
+.node text { font: 600 14px var(--display); fill: var(--fg); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.node .dot { stroke: none; }
+.node.off { opacity: .3; }
+.node.on rect { fill: var(--accent-soft); }
+.node.sel rect { stroke-width: 3.5; }
+.node:focus { outline: none; }
+.node:focus-visible rect { stroke: var(--accent); stroke-width: 4; }
+.node:hover rect { fill: var(--accent-soft); }
+
+.inspector { border-top: 1px solid var(--line); padding: 16px 18px 18px; display: grid; gap: 10px; }
+.inspector h3 { margin: 0; font: 700 20px/1.2 var(--display); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tag { font: 500 11px/1 var(--mono); padding: 4px 7px; border-radius: 5px; color: var(--surface); }
+.inspector p { margin: 0; color: var(--muted); max-width: 72ch; }
+.props { display: flex; flex-wrap: wrap; gap: 6px; }
+.props code { font: 12px var(--mono); padding: 3px 7px; border-radius: 5px; background: var(--bg); border: 1px solid var(--line); }
+.props code.key { border-color: var(--accent); color: var(--accent); }
+.rels { display: grid; gap: 4px; font: 12px/1.6 var(--mono); color: var(--muted); }
+.rels b { color: var(--fg); font-weight: 500; }
+.hint { font-size: 12px; color: var(--muted); }
+
+aside.console { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+aside h2 { margin: 0; font: 700 22px/1.2 var(--display); }
+aside > p { margin: 0; color: var(--muted); font-size: 14px; }
+.qlist { display: grid; gap: 6px; }
+.qbtn {
+  text-align: left; font: 500 14px/1.35 var(--body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
+}
+.qbtn:hover { border-color: var(--accent); }
+.qbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.qbtn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.qbtn small { font: 500 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.qbtn[aria-pressed="true"] small { color: var(--accent); }
+.qdetail { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.qdetail .ask { margin: 0; font-weight: 600; }
+.pathline { font: 12px/1.7 var(--mono); color: var(--muted); }
+.pathline b { color: var(--accent); font-weight: 600; }
+pre.cypher { margin: 0; background: var(--code-bg); color: var(--code-fg); border-radius: 8px; padding: 12px; font: 11.5px/1.6 var(--mono); overflow-x: auto; white-space: pre; }
+pre.cypher .kw { color: var(--code-kw); }
+pre.cypher .rel { color: var(--code-str); }
+.sql { font-size: 13px; color: var(--muted); margin: 0; }
+.sql strong { color: var(--fg); }
+.src { font: 11px var(--mono); color: var(--muted); }
+
+.why { display: grid; gap: 18px; }
+.why h2 { margin: 0; font: 700 28px/1.15 var(--display); letter-spacing: -0.01em; }
+.points { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px 32px; }
+.point { display: grid; gap: 6px; align-content: start; border-top: 2px solid var(--fg); padding-top: 12px; }
+.point h3 { margin: 0; font: 600 16px/1.3 var(--body); }
+.point p { margin: 0; color: var(--muted); font-size: 14px; }
+.point code { font: 12px var(--mono); color: var(--fg); background: var(--surface); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
+
+@media (max-width: 980px) {
+  .stage { grid-template-columns: 1fr; }
+  aside.console { position: static; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edge.on path { animation: none; }
+  * { transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TruthGraph · stored in FalkorDB</div>
+    <h1>Every claim, traced back to its sources <em>in one graph</em></h1>
+    <p class="lede">A question splits into hypotheses. Papers are searched for each hypothesis, and their studies and findings are extracted. Each finding then supports or refutes a hypothesis. FalkorDB stores all of it as nodes and relationships, so following evidence from a verdict back to whoever funded it is a single query.</p>
+    <div class="stats">
+      <div><b>10</b><span>node labels</span></div>
+      <div><b>17</b><span>relationship types</span></div>
+      <div><b>10</b><span>unique constraints</span></div>
+      <div><b>6</b><span>queries to explore</span></div>
+    </div>
+  </header>
+
+  <section class="stage">
+    <div class="canvas">
+      <div class="canvas-head">
+        <h2>The graph schema</h2>
+        <div class="legend">
+          <span><i style="background:var(--ask)"></i>Question</span>
+          <span><i style="background:var(--evidence)"></i>Evidence</span>
+          <span><i style="background:var(--judge)"></i>Judgement</span>
+          <span><i style="background:var(--prov)"></i>Who's behind it</span>
+        </div>
+      </div>
+      <div class="scroll">
+        <svg class="graph" id="graph" viewBox="0 0 1000 600" role="img" aria-label="TruthGraph schema: Question, Hypothesis, Concept, Paper, Study, Finding, Cluster, Author, Lab and Funder nodes and the relationships between them">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:var(--edge)"/>
+            </marker>
+            <marker id="arr-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/>
+            </marker>
+          </defs>
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+      <div class="inspector" id="inspector" aria-live="polite"></div>
+    </div>
+
+    <aside class="console">
+      <h2>Ask the graph</h2>
+      <p>These queries come from TruthGraph's code. Pick one to see the path it walks through the graph.</p>
+      <div class="qlist" id="qlist"></div>
+      <div class="qdetail" id="qdetail"></div>
+    </aside>
+  </section>
+
+  <section class="why">
+    <h2>Why this data lives in a graph</h2>
+    <div class="points">
+      <div class="point">
+        <h3>The relationship carries the meaning</h3>
+        <p>Whether a finding supports or refutes a hypothesis is stored on the <code>EVIDENCE_FOR</code> edge, as <code>stance</code> and <code>weight</code>. The same finding can support one hypothesis and refute another without being copied.</p>
+      </div>
+      <div class="point">
+        <h3>Many hops in one query</h3>
+        <p>The funding trail goes from a question to its hypotheses, findings, studies, papers and funders. That's five hops in a single <code>MATCH</code> pattern. In SQL, every hop would be another join through a link table.</p>
+      </div>
+      <div class="point">
+        <h3>Paths of any length</h3>
+        <p><code>CITES*1..3</code> follows citation chains up to three papers deep with one pattern. In SQL you'd need a recursive CTE for the same thing.</p>
+      </div>
+      <div class="point">
+        <h3>Research is reused</h3>
+        <p>Every write is a <code>MERGE</code> on a unique key, and papers are deduplicated by DOI, PMID and normalised title. A new question that matches earlier research joins nodes already in the graph, so nothing is looked up twice.</p>
+      </div>
+      <div class="point">
+        <h3>Indexed where it's queried</h3>
+        <p>FalkorDB indexes what the app searches: full text on concept names and paper titles, and a relationship index on <code>CONTRADICTS.hypothesis</code> so contradictions are found per hypothesis.</p>
+      </div>
+      <div class="point">
+        <h3>Safe to explore live</h3>
+        <p>Writes are batched with <code>UNWIND</code> and parameterised, so FalkorDB reuses cached query plans. The in-app Cypher console runs through <code>GRAPH.RO_QUERY</code> with a timeout and a row cap, so anyone can explore but nobody can change the data.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const W = 116, H = 40;
+const C = { ask: "var(--ask)", evidence: "var(--evidence)", judge: "var(--judge)", prov: "var(--prov)" };
+
+const NODES = {
+  Question:   { x: 170, y: 90,  g: "ask", key: "id", props: ["text", "domain"],
+    desc: "What the user typed, e.g. “creatine on intelligence vs muscle gain”." },
+  Hypothesis: { x: 500, y: 90,  g: "ask", key: "key", props: ["statement", "verdict", "grade", "share_support", "share_refute"],
+    desc: "A testable claim split out of the question. Its key comes from domain, subject, outcome and population, so differently worded questions with the same meaning share one hypothesis." },
+  Concept:    { x: 860, y: 90,  g: "ask", key: "id", props: ["name", "kind"],
+    desc: "A building block of a hypothesis (the subject, outcome or population), such as creatine, muscle mass or adults. Findings point at the outcome they measure." },
+  Paper:      { x: 300, y: 330, g: "evidence", key: "id", props: ["title", "doi", "pmid", "year", "design", "credibility", "flags"],
+    desc: "A published article found by the search agents. The Credibility agent scores it from 0 to 100 and writes the reasons." },
+  Study:      { x: 500, y: 540, g: "evidence", key: "id", props: ["design"],
+    desc: "An experiment described in a paper, with its design, participants, population, dose and duration. One paper can describe several studies." },
+  Finding:    { x: 700, y: 330, g: "evidence", key: "id", props: ["direction", "effect_unit"],
+    desc: "One result of a study, with its effect size and a word-for-word quote that is checked against the source." },
+  Cluster:    { x: 500, y: 320, g: "judge", key: "id", props: ["label", "context", "hypothesis"],
+    desc: "A group of findings that share a context, such as “trials in older adults”, built separately for each hypothesis." },
+  Author:     { x: 70,  y: 210, g: "prov", key: "id", props: ["name"],
+    desc: "A researcher who wrote a paper. AUTHORED_BY stores their position in the author list." },
+  Lab:        { x: 70,  y: 360, g: "prov", key: "id", props: ["name", "country"],
+    desc: "The institution a paper's authors are affiliated with." },
+  Funder:     { x: 70,  y: 510, g: "prov", key: "id", props: ["name", "type"],
+    desc: "Whoever paid for the research. Funders let you see who paid for the evidence on each side." },
+};
+
+// [id, from, to, label, props, label offset]
+const EDGES = [
+  ["ASKS",        "Question",   "Hypothesis", "ASKS", [], [0, -9]],
+  ["CONCEPT",     "Hypothesis", "Concept",    "SUBJECT · OUTCOME · POPULATION", [], [0, -9]],
+  ["CONSIDERED",  "Hypothesis", "Paper",      "CONSIDERED", ["relevance", "slice"], [-10, 0]],
+  ["DESCRIBES",   "Paper",      "Study",      "DESCRIBES", [], [-14, 8]],
+  ["FOUND",       "Study",      "Finding",    "FOUND", [], [14, 8]],
+  ["EVIDENCE_FOR","Finding",    "Hypothesis", "EVIDENCE_FOR", ["stance", "weight", "rationale"], [12, 0]],
+  ["MEASURES",    "Finding",    "Concept",    "MEASURES", [], [26, 0]],
+  ["IN_CLUSTER",  "Finding",    "Cluster",    "IN_CLUSTER", [], [0, -9]],
+  ["OF",          "Cluster",    "Hypothesis", "OF", [], [12, 0]],
+  ["AUTHORED_BY", "Paper",      "Author",     "AUTHORED_BY", ["pos"], [0, -8]],
+  ["AFFILIATED",  "Paper",      "Lab",        "AFFILIATED", [], [0, -9]],
+  ["FUNDED_BY",   "Paper",      "Funder",     "FUNDED_BY", [], [0, 10]],
+  ["CONTRADICTS", "Finding",    "Finding",    "CONTRADICTS", ["hypothesis", "reason", "severity", "explained_by"], null],
+  ["CITES",       "Paper",      "Paper",      "CITES · SAME_AS", [], null],
+];
+
+const QUERIES = [
+  { id: "evidence", title: "Trace the evidence", hops: 4, src: "backend/app/graph.py",
+    ask: "Which findings support or refute each hypothesis, and which study and paper did each come from?",
+    path: "<b>Question</b> → Hypothesis ← <b>EVIDENCE_FOR</b> ← Finding ← Study ← Paper",
+    edges: ["ASKS", "EVIDENCE_FOR", "FOUND", "DESCRIBES"],
+    nodes: ["Question", "Hypothesis", "Finding", "Study", "Paper"],
+    sql: "<strong>4 hops.</strong> The stance and weight are read from the edge itself, so no extra lookup table is needed.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
+      <-[e:EVIDENCE_FOR]-(f:Finding)<-[:FOUND]-(s:Study)
+      <-[:DESCRIBES]-(p:Paper)
+RETURN h.statement, e.stance, e.weight, p.title, p.credibility` },
+  { id: "funding", title: "Funding trail", hops: 5, src: "backend/app/agents/metrics.py",
+    ask: "For each hypothesis, which kinds of funder paid for the supporting vs refuting evidence?",
+    path: "Question → Hypothesis ← Finding ← Study ← Paper → <b>Funder</b>",
+    edges: ["ASKS", "EVIDENCE_FOR", "FOUND", "DESCRIBES", "FUNDED_BY"],
+    nodes: ["Question", "Hypothesis", "Finding", "Study", "Paper", "Funder"],
+    sql: "<strong>5 hops in one pattern.</strong> In SQL that's a join for every step, plus link tables.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(:Finding)
+      <-[:FOUND]-(:Study)<-[:DESCRIBES]-(p:Paper)
+OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
+RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funder_type,
+       e.stance AS stance, count(DISTINCT p) AS papers
+ORDER BY hypothesis, papers DESC` },
+  { id: "contradicts", title: "Who contradicts whom", hops: 7, src: "backend/app/agents/metrics.py",
+    ask: "Which labs' findings contradict which other labs' findings, and why?",
+    path: "Finding <b>CONTRADICTS</b> Finding, then each side ← Study ← Paper → <b>Lab</b>",
+    edges: ["ASKS", "CONTRADICTS", "FOUND", "DESCRIBES", "AFFILIATED"],
+    nodes: ["Question", "Hypothesis", "Finding", "Study", "Paper", "Lab"],
+    sql: "<strong>7 hops, walked from both ends of a contradiction.</strong> <code>c.hypothesis</code> is answered by a relationship index.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
+MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
+MATCH (a)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pa:Paper),
+      (b)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(pb:Paper)
+OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
+OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
+RETURN pa.label AS paper_a, la.name AS lab_a, pb.label AS paper_b,
+       lb.name AS lab_b, c.reason AS reason, c.explained_by AS explained_by
+LIMIT 25` },
+  { id: "reuse", title: "Evidence reused across hypotheses", hops: 3, src: "backend/app/agents/metrics.py",
+    ask: "Which papers inform more than one hypothesis anywhere in the graph?",
+    path: "Hypothesis → <b>Paper</b> ← other Hypothesis",
+    edges: ["ASKS", "CONSIDERED"],
+    nodes: ["Question", "Hypothesis", "Paper"],
+    sql: "<strong>3 hops.</strong> This works because papers are shared nodes, not copied for each question.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(p:Paper)
+MATCH (p)<-[:CONSIDERED]-(h:Hypothesis)
+WITH p, collect(DISTINCT h.statement) AS hypotheses
+WHERE size(hypotheses) > 1
+RETURN p.label AS paper, p.title AS title, hypotheses
+LIMIT 25` },
+  { id: "citations", title: "Citation reach", hops: 4, src: "backend/app/agents/metrics.py",
+    ask: "Which papers can be reached through chains of up to 3 citations?",
+    path: "Hypothesis → Paper <b>-[:CITES*1..3]-></b> Paper",
+    edges: ["ASKS", "CONSIDERED", "CITES"],
+    nodes: ["Question", "Hypothesis", "Paper"],
+    sql: "<strong>Variable-length path.</strong> <code>*1..3</code> is one line here. SQL needs a recursive CTE.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(a:Paper)
+MATCH (a)-[:CITES*1..3]->(b:Paper)
+RETURN b.label AS paper, count(DISTINCT a) AS reached_from,
+       max(b.credibility) AS credibility
+ORDER BY reached_from DESC
+LIMIT 15` },
+  { id: "authors", title: "Shared researchers", hops: 5, src: "backend/app/agents/metrics.py",
+    ask: "Which authors also published on other hypotheses in the graph?",
+    path: "Hypothesis → Paper → <b>Author</b> ← Paper ← other Hypothesis",
+    edges: ["ASKS", "CONSIDERED", "AUTHORED_BY"],
+    nodes: ["Question", "Hypothesis", "Paper", "Author"],
+    sql: "<strong>5 hops, out to an author and back.</strong> It links research across questions that were asked separately.",
+    cypher: `MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)-[:CONSIDERED]->(:Paper)
+      -[:AUTHORED_BY]->(a:Author)
+MATCH (a)<-[:AUTHORED_BY]-(:Paper)<-[:CONSIDERED]-(o:Hypothesis)
+WHERE o.key <> h.key
+RETURN a.name AS author, collect(DISTINCT o.statement)[..3] AS other_hypotheses
+LIMIT 15` },
+];
+
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+
+// Point where the line from a's centre toward b leaves a's box.
+function clip(a, b, pad = 0) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const sx = (W / 2 + pad) / Math.abs(dx || 1e-6), sy = (H / 2 + pad) / Math.abs(dy || 1e-6);
+  const s = Math.min(sx, sy);
+  return { x: a.x + dx * s, y: a.y + dy * s };
+}
+
+const edgeEls = {}, nodeEls = {};
+const gE = document.getElementById("edges"), gN = document.getElementById("nodes");
+
+for (const [id, from, to, label, , off] of EDGES) {
+  const g = el("g", { class: "edge" }, gE);
+  const a = NODES[from], b = NODES[to];
+  let d, lx, ly, anchor = "middle";
+  if (id === "CONTRADICTS") {
+    const x = a.x + W / 2, y = a.y;
+    d = `M${x},${y - 10} C${x + 70},${y - 50} ${x + 70},${y + 50} ${x + 2},${y + 10}`;
+    lx = x + 60; ly = y + 44; anchor = "start";
+  } else if (id === "CITES") {
+    const y = a.y + H / 2;
+    d = `M${a.x - 20},${y} C${a.x - 38},${y + 70} ${a.x + 38},${y + 70} ${a.x + 20},${y + 2}`;
+    lx = a.x; ly = y + 74;
+  } else {
+    const p1 = clip(a, b), p2 = clip(b, a, 2);
+    d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
+    lx = (p1.x + p2.x) / 2 + off[0]; ly = (p1.y + p2.y) / 2 + off[1];
+    if (off[0] > 0 && !off[1]) anchor = "start";
+    if (off[0] < 0 && !off[1]) anchor = "end";
+  }
+  el("path", { d, "marker-end": "url(#arr)" }, g);
+  const t = el("text", { x: lx, y: ly, "text-anchor": anchor, "dominant-baseline": "central" }, g);
+  t.textContent = label;
+  edgeEls[id] = g;
+}
+
+for (const [name, n] of Object.entries(NODES)) {
+  const g = el("g", { class: "node", tabindex: "0", role: "button", "aria-label": `${name} node` }, gN);
+  el("rect", { x: n.x - W / 2, y: n.y - H / 2, width: W, height: H, rx: 9, style: `stroke:${C[n.g]}` }, g);
+  el("circle", { class: "dot", cx: n.x - W / 2 + 14, cy: n.y, r: 4, style: `fill:${C[n.g]}` }, g);
+  const t = el("text", { x: n.x + 5, y: n.y }, g);
+  t.textContent = name;
+  g.addEventListener("click", () => inspect(name));
+  g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inspect(name); } });
+  nodeEls[name] = g;
+}
+
+function inspect(name) {
+  const n = NODES[name];
+  Object.entries(nodeEls).forEach(([k, g]) => g.classList.toggle("sel", k === name));
+  const rels = EDGES.filter(e => e[1] === name || e[2] === name).map(([id, f, t, label, props]) => {
+    const pr = props.length ? ` {${props.join(", ")}}` : "";
+    return `<div>(${f})-[<b>:${label.replace(/ · /g, "|")}</b>${pr}]->(${t})</div>`;
+  }).join("");
+  document.getElementById("inspector").innerHTML = `
+    <h3>${name} <span class="tag" style="background:${C[n.g]}">(:${name})</span></h3>
+    <p>${n.desc}</p>
+    <div class="props"><code class="key">${n.key} · unique</code>${n.props.map(p => `<code>${p}</code>`).join("")}</div>
+    <div class="rels">${rels}</div>
+    <div class="hint">Click any node to see what it stores and how it connects.</div>`;
+}
+
+function hl(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\b(MATCH|OPTIONAL|RETURN|WHERE|WITH|ORDER BY|LIMIT|AS|DESC|DISTINCT|IN)\b/g, '<span class="kw">$1</span>')
+    .replace(/(\[[a-z]*:[A-Z_]+[^\]]*\])/g, '<span class="rel">$1</span>');
+}
+
+const qlist = document.getElementById("qlist");
+QUERIES.forEach(q => {
+  const b = document.createElement("button");
+  b.className = "qbtn"; b.id = `q-${q.id}`; b.type = "button";
+  b.innerHTML = `<span>${q.title}</span><small>${q.hops} hops</small>`;
+  b.addEventListener("click", () => select(q.id));
+  qlist.appendChild(b);
+});
+
+function select(id) {
+  const q = QUERIES.find(x => x.id === id);
+  document.querySelectorAll(".qbtn").forEach(b => b.setAttribute("aria-pressed", b.id === `q-${id}`));
+  for (const [k, g] of Object.entries(edgeEls)) {
+    const on = q.edges.includes(k);
+    g.classList.toggle("on", on); g.classList.toggle("off", !on);
+    g.querySelector("path").setAttribute("marker-end", on ? "url(#arr-on)" : "url(#arr)");
+  }
+  for (const [k, g] of Object.entries(nodeEls)) {
+    const on = q.nodes.includes(k);
+    g.classList.toggle("on", on); g.classList.toggle("off", !on);
+  }
+  document.getElementById("qdetail").innerHTML = `
+    <p class="ask">${q.ask}</p>
+    <div class="pathline">${q.path}</div>
+    <pre class="cypher">${hl(q.cypher)}</pre>
+    <p class="sql">${q.sql}</p>
+    <div class="src">${q.src}</div>`;
+}
+
+select("evidence");
+inspect("Finding");
+</script>
+</html>
