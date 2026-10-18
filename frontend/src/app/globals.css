@@ -4,38 +4,42 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Design tokens. Colour is reserved for meaning: blue / amber / brick encode a claim's
-   direction (validated for colour-vision deficiency); everything else is ink on paper. */
+/* Design tokens: a research instrument rather than a document. Cool mist and navy ink; colour is
+   reserved for meaning. The three stance hues (blue supports, amber mixed, magenta refutes) come
+   from a palette built to stay distinct under the common colour-vision deficiencies. */
 :root {
-  --bg: #f6f5f1;
+  --bg: #f3f5f7;
   --surface: #ffffff;
-  --surface-2: #fbfaf7;
-  --surface-3: #f1efe9;
-  --ink: #1b1a17;
-  --ink-2: #54514a;
-  --ink-3: #8a867c;
-  --ink-4: #b5b1a6;
-  --line: #e6e3db;
-  --line-2: #d5d1c6;
+  --surface-2: #f8fafb;
+  --surface-3: #ecf0f3;
+  --ink: #0f1b2d;
+  --ink-2: #45566a;
+  --ink-3: #78869a;
+  --ink-4: #aeb8c4;
+  --line: #e2e7ec;
+  --line-2: #cdd5de;
 
-  --pos: #2368b3;
-  --pos-soft: #eaf1f9;
-  --pos-ink: #1d528c;
-  --neu: #c99412;
-  --neu-soft: #fbf4e2;
-  --neu-ink: #7d5c08;
-  --neg: #c7402c;
-  --neg-soft: #fbece8;
-  --neg-ink: #9c3121;
+  --pos: #3460d9;
+  --pos-soft: #eaf0fd;
+  --pos-ink: #2348b0;
+  --neu: #d99a0b;
+  --neu-soft: #fdf4de;
+  --neu-ink: #85600a;
+  --neg: #cc2f72;
+  --neg-soft: #fbe9f1;
+  --neg-ink: #a21f58;
 
-  --ok: #2f7a4f;
-  --shadow-sm: 0 1px 0 rgba(27, 26, 23, 0.04), 0 1px 2px rgba(27, 26, 23, 0.06);
-  --shadow-md: 0 1px 0 rgba(27, 26, 23, 0.04), 0 6px 18px -6px rgba(27, 26, 23, 0.14);
-  --selection: #dfe9f5;
-  --hatch: rgba(27, 26, 23, 0.07);
-  --grid-dot: #dcd8ce;
+  --ok: #1f8a5b;
+  --shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.06), 0 0 0 1px rgba(15, 27, 45, 0.02);
+  --shadow-md: 0 2px 4px -2px rgba(15, 27, 45, 0.08), 0 12px 28px -10px rgba(15, 27, 45, 0.18);
+  --selection: #dce6fb;
+  --hatch: rgba(15, 27, 45, 0.07);
+  --grid-dot: #d3dae2;
 
-  /* shadcn/ui semantic tokens, mapped onto the paper-and-ink palette */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* shadcn/ui semantic tokens, mapped onto the palette */
   --background: var(--bg);
   --foreground: var(--ink);
   --card: var(--surface);
@@ -59,42 +63,41 @@
   --chart-3: var(--neg);
   --chart-4: var(--ink-2);
   --chart-5: var(--ink-4);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   color-scheme: light;
 }
 
-/* Same roles, inverted: warm charcoal paper, light ink. Stance hues are lifted so they keep
-   their contrast on a dark surface; "soft" fills become deep tints of the same hue. */
+/* Night: deep navy rather than grey, so the stance hues keep their glow without neon. */
 .dark {
-  --bg: #121210;
-  --surface: #1b1a18;
-  --surface-2: #171614;
-  --surface-3: #24231f;
-  --ink: #ecebe6;
-  --ink-2: #bdbab1;
-  --ink-3: #8f8b81;
-  --ink-4: #625f58;
-  --line: #2b2a26;
-  --line-2: #3b3934;
+  --bg: #0b1119;
+  --surface: #121a24;
+  --surface-2: #0f161f;
+  --surface-3: #19232f;
+  --ink: #e7edf3;
+  --ink-2: #aebaca;
+  --ink-3: #7b8899;
+  --ink-4: #4c5969;
+  --line: #1e2935;
+  --line-2: #2b3846;
 
-  --pos: #5a9be2;
-  --pos-soft: #15253a;
-  --pos-ink: #93c0f2;
-  --neu: #d8a52b;
-  --neu-soft: #2d2410;
-  --neu-ink: #ebc66f;
-  --neg: #e2654f;
-  --neg-soft: #35180f;
-  --neg-ink: #f29a89;
+  --pos: #7b9bf6;
+  --pos-soft: #172344;
+  --pos-ink: #a9befa;
+  --neu: #f0bc4a;
+  --neu-soft: #2e2410;
+  --neu-ink: #f5d28a;
+  --neg: #ef77a8;
+  --neg-soft: #3a1527;
+  --neg-ink: #f6a9c8;
 
-  --ok: #4fb07a;
-  --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 22px -6px rgba(0, 0, 0, 0.6);
-  --selection: #24405f;
-  --hatch: rgba(236, 235, 230, 0.07);
-  --grid-dot: #2e2c28;
+  --ok: #4cc28c;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-md: 0 2px 4px -2px rgba(0, 0, 0, 0.5), 0 14px 32px -12px rgba(0, 0, 0, 0.7);
+  --selection: #22365e;
+  --hatch: rgba(231, 237, 243, 0.07);
+  --grid-dot: #1f2a36;
 
-  --primary-foreground: #121210;
+  --primary-foreground: #0b1119;
   color-scheme: dark;
 }
 
@@ -119,10 +122,9 @@
   --color-neg-soft: var(--neg-soft);
   --color-neg-ink: var(--neg-ink);
   --color-ok: var(--ok);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-plex-mono);
-  --font-serif: var(--font-serif4);
-  --font-heading: var(--font-inter);
+  --font-sans: var(--font-schibsted);
+  --font-mono: var(--font-jetbrains);
+  --font-heading: var(--font-schibsted);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -159,9 +161,9 @@ html,
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -181,9 +183,10 @@ body {
   --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 
-.mono {
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
-  font-feature-settings: "zero" 0;
+/* Monospace is for code only (Cypher, ids); numbers use the text face's tabular figures. */
+.code {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 0.92em;
 }
 
 .tabular {
@@ -221,7 +224,7 @@ body {
 }
 
 .tg-enter {
-  animation: tg-enter 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: tg-enter 420ms var(--ease-out) both;
 }
 
 @keyframes tg-enter {
@@ -243,7 +246,7 @@ body {
 
 /* Entry animation plays when a node mounts, i.e. exactly when it first appears. */
 .tg-node {
-  animation: tg-enter 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: tg-enter 320ms var(--ease-out) both;
   transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
@@ -335,4 +338,72 @@ body {
   html {
     @apply font-sans;
   }
+}
+/* Verdict scale: papers settle in one after another, the diamond glides to the pooled result. */
+.tg-study {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tg-pop 420ms var(--ease-out) both;
+  transition: opacity 160ms;
+  cursor: default;
+}
+.tg-study:hover { opacity: 0.7; }
+.tg-diamond { transition: transform 700ms var(--ease-out); }
+@keyframes tg-pop {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tg-study { animation: none; }
+  .tg-diamond { transition: none; }
+}
+
+/* Floating controls over the graph: a frosted card, so the canvas stays visible underneath. */
+.tg-float {
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(10px) saturate(1.4);
+}
+.tg-pop { animation: tg-enter 180ms var(--ease-out) both; }
+
+/* Panel content eases in when switching tabs; a short fade, never a slide across the screen. */
+[data-slot="tabs-content"][data-state="active"] { animation: tg-fade 220ms var(--ease-out) both; }
+@keyframes tg-fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Shared transitions for interactive shadcn parts, so hover and press feel consistent. */
+[data-slot="button"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"] {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-out);
+}
+[data-slot="button"]:active:not(:disabled) { transform: scale(0.97); }
+
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="tabs-content"][data-state="active"], .tg-pop { animation: none; }
+  [data-slot="button"]:active:not(:disabled) { transform: none; }
+}
+
+/* Start screen: the one orchestrated entrance. Studies draw in, then the pooled diamond lands. */
+.tg-hero-row { animation: tg-hero-row 560ms var(--ease-out) both; }
+.tg-hero-diamond {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tg-hero-diamond 640ms var(--ease-out) 820ms both;
+}
+@keyframes tg-hero-row {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tg-hero-diamond {
+  from { opacity: 0; transform: scaleX(0.2) scaleY(0.6); }
+  to { opacity: 1; transform: none; }
+}
+.tg-hero-copy { animation: tg-fade 520ms var(--ease-out) 260ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .tg-hero-row, .tg-hero-diamond, .tg-hero-copy { animation: none; }
 }
