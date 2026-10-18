@@ -177,7 +177,14 @@ To explore the schema interactively, open [`docs/data-model.html`](docs/data-mod
   - `intern()` for repeated strings.
 - **Redis beside the graph:** abstracts and agent caches (HTTP responses, LLM answers, extractions) live outside the graph.
 
-The **Queries** tab benchmarks five multi-hop questions on every run (funding trail, who contradicts whom, evidence reused across hypotheses, citation reach, shared researchers) and includes a read-only Cypher console.
+The **Queries** tab benchmarks seven queries on every run:
+
+- five multi-hop questions: funding trail, who contradicts whom, evidence reused across hypotheses, citation reach and shared researchers;
+- two that run FalkorDB's built-in graph algorithms inside the query: most influential papers (`algo.pageRank` over `CITES`) and contradiction camps (`algo.WCC` over `CONTRADICTS`).
+
+Each query shows its `GRAPH.EXPLAIN` plan, with index lookups and algorithm calls highlighted. The read-only Cypher console has an **Explain** button and accepts `CALL algo.*` and `db.idx.fulltext.queryNodes`.
+
+The ⌘K palette also searches papers and topics already in the graph through the full-text indexes on `Paper.title` and `Concept.name`, and opens the question they belong to.
 
 ### Optimizations
 
