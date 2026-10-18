@@ -56,6 +56,9 @@ interface Props {
 /** The canvas node for a graph node, when the canvas draws that kind. */
 const canvasId = (kind: string, id: string) => (kind === "paper" ? `p:${id}` : kind === "finding" ? `f:${id}` : kind === "hypothesis" ? `h:${id}` : null);
 
+/** How many of a trail's routes play on their own before all of them are lit together. */
+const PLAY_ROUTES = 4;
+
 function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, onTrail, empty }: Props) {
   const rf = useReactFlow();
   const layout = useMemo(() => (focus && state.hyps[focus] ? focusLayout(state, focus) : allLayout(state)), [state, focus]);
@@ -179,15 +182,17 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
   );
 
   // ---- reasoning trail from the chat: a route drawn hop by hop, or a set of findings lit at once.
-  // Several routes open on all of them lit together (pathIx -1); picking one draws it hop by hop.
-  const allFirst = (t: Trail | null) => ((t?.paths?.length ?? 0) > 1 ? -1 : 0);
-  const [pathIx, setPathIx] = useState(() => allFirst(trail));
+  // A new trail plays its routes one after another (the first few), then settles on all of them lit
+  // together (pathIx -1). Picking a route or All stops the playback.
+  const [pathIx, setPathIx] = useState(0);
   const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const [trailFor, setTrailFor] = useState(trail);
   if (trailFor !== trail) {
     setTrailFor(trail);
-    setPathIx(allFirst(trail));
+    setPathIx(0);
     setStep(0);
+    setPlaying(true);
   }
   const route = useMemo(() => {
     if (!trail) return null;
@@ -215,6 +220,21 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
     const t = setTimeout(() => setStep((s) => s + 1), step === 0 ? 400 : 560);
     return () => clearTimeout(t);
   }, [route, step]);
+  const routes = trail?.paths?.length ?? 0;
+  useEffect(() => {
+    if (!playing || !route?.ordered || step < route.ids.length || routes <= 1) return;
+    // Hold the finished route a moment, then draw the next, or light them all after the last.
+    const t = setTimeout(() => {
+      if (pathIx + 1 < Math.min(routes, PLAY_ROUTES)) {
+        setPathIx(pathIx + 1);
+        setStep(0);
+      } else {
+        setPathIx(-1);
+        setPlaying(false);
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+  }, [playing, route, step, pathIx, routes]);
   const trailLit = useMemo(() => {
     if (!route?.ids.length) return null;
     if (!route.ordered) return spotlight(route.ids)?.set ?? null;
@@ -509,6 +529,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
                 setPathIx={(i) => {
                   setPathIx(i);
                   setStep(0);
+                  setPlaying(false);
                 }}
                 step={step}
                 route={route}
