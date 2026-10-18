@@ -1,12 +1,10 @@
 "use client";
 
-import { ListFilter, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ListFilter } from "lucide-react";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { State } from "@/lib/store";
@@ -15,8 +13,8 @@ import { STANCE, StanceGlyph } from "./glyphs";
 import { Tip } from "../Tip";
 
 /*
- * Find and filter on the canvas. Filters dim what doesn't match rather than removing it, so the
- * layout holds still and the reader keeps their bearings; search jumps the camera to a node.
+ * Filter the canvas. Filters dim what doesn't match rather than removing it, so the layout holds
+ * still and the reader keeps their bearings.
  */
 
 export interface Filter {
@@ -73,137 +71,20 @@ export function keep(state: State, ids: string[], focus: string | null, f: Filte
   return out;
 }
 
-export interface Hit {
-  id: string; // p:… / f:…
-  kind: "paper" | "finding";
-  title: string;
-  sub: string;
-  hyp: string | null; // a hypothesis it belongs to, to focus when it isn't on the canvas
-}
-
-function search(state: State, q: string, focus: string | null): Hit[] {
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  const match = (s: string) => {
-    const t = s.toLowerCase();
-    return words.every((w) => t.includes(w));
-  };
-  const out: Hit[] = [];
-  for (const p of Object.values(state.papers)) {
-    const hay = `${p.label} ${p.title} ${p.journal ?? ""} ${p.year ?? ""} ${p.authors.map((a) => a.name).join(" ")} ${p.design ?? ""}`;
-    if (!match(hay)) continue;
-    const hyps = Object.keys(p.considered);
-    out.push({ id: `p:${p.id}`, kind: "paper", title: p.label, sub: p.title, hyp: focus && hyps.includes(focus) ? focus : (hyps[0] ?? null) });
-  }
-  for (const fd of Object.values(state.findings)) {
-    const paper = state.papers[fd.paper_id];
-    if (!match(`${fd.text} ${fd.outcome?.name ?? ""} ${paper?.label ?? ""}`)) continue;
-    const hyps = Object.keys(fd.evidence);
-    out.push({ id: `f:${fd.id}`, kind: "finding", title: fd.text, sub: paper?.label ?? "", hyp: focus && hyps.includes(focus) ? focus : (hyps[0] ?? null) });
-  }
-  // Papers first, then findings, each closest to the open hypothesis first.
-  const rank = (h: Hit) => (h.kind === "paper" ? 0 : 2) + (h.hyp === focus ? 0 : 1);
-  return out.sort((a, b) => rank(a) - rank(b)).slice(0, 12);
-}
-
 export function GraphTools({
   state,
-  focus,
   filter,
   setFilter,
   shown,
-  onFind,
 }: {
   state: State;
-  focus: string | null;
   filter: Filter;
   setFilter: (f: Filter) => void;
   shown: { findings: number; of: number } | null;
-  onFind: (hit: Hit) => void;
 }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  const hits = useMemo(() => search(state, q, focus), [state, q, focus]);
-  const n = filterCount(filter);
-
-  // Ctrl/Cmd+F finds on the graph while a question is open.
-  useEffect(() => {
-    const on = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        input.current?.focus();
-        input.current?.select();
-      }
-    };
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
-  }, []);
-
-  const pick = (h: Hit) => {
-    onFind(h);
-    setOpen(false);
-    input.current?.blur();
-  };
-
   return (
-    <Card size="sm" data-overlay="top" className="tg-float absolute right-4 top-4 z-10 w-[min(300px,calc(100%-2rem))] flex-row items-center gap-0 rounded-xl p-0">
-      <Command shouldFilter={false} className="relative min-w-0 flex-1 overflow-visible bg-transparent">
-        <div className="flex h-8 items-center gap-1.5 pl-2.5">
-          <Search className="size-3.5 shrink-0 text-muted-foreground" />
-          <input
-            ref={input}
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 120)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setQ("");
-                input.current?.blur();
-              }
-            }}
-            placeholder="Find a paper or finding"
-            aria-label="Find on the graph"
-            className="h-8 min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground"
-          />
-          {q && (
-            <button type="button" aria-label="Clear search" className="grid size-5 place-items-center rounded text-muted-foreground hover:text-ink" onClick={() => setQ("")}>
-              <X className="size-3" />
-            </button>
-          )}
-        </div>
-        {open && q.trim() && (
-          <CommandList className="tg-pop absolute left-0 right-[-38px] top-[calc(100%+6px)] max-h-80 rounded-xl border bg-popover shadow-[var(--shadow-md)]">
-            <CommandEmpty className="py-4 text-center text-[12px] text-muted-foreground">Nothing on this question matches.</CommandEmpty>
-            {hits.length > 0 && (
-              <CommandGroup>
-                {hits.map((h) => (
-                  <CommandItem key={h.id} value={h.id} onMouseDown={(e) => e.preventDefault()} onSelect={() => pick(h)} className="items-start text-[12px]">
-                    {h.kind === "finding" ? (
-                      <StanceGlyph stance={(focus && state.findings[h.id.slice(2)]?.evidence[focus]?.stance) || Object.values(state.findings[h.id.slice(2)]?.evidence ?? {})[0]?.stance || "mixed"} size={12} />
-                    ) : (
-                      <span className="mt-px shrink-0 rounded border px-1 text-[12px] text-ink-3">paper</span>
-                    )}
-                    <span className="min-w-0">
-                      <span className="line-clamp-2 text-ink">{h.title}</span>
-                      <span className="block truncate text-[12px] text-muted-foreground">
-                        {h.sub}
-                        {h.hyp && h.hyp !== focus && state.hyps[h.hyp] ? `, on H${state.hypOrder.indexOf(h.hyp) + 1}` : ""}
-                      </span>
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        )}
-      </Command>
-      <Separator orientation="vertical" className="h-4 self-center" />
-      <FilterButton state={state} filter={filter} setFilter={setFilter} n={n} shown={shown} />
+    <Card size="sm" data-overlay="top" className="tg-float absolute right-4 top-4 z-10 flex-row items-center gap-0 rounded-xl p-0">
+      <FilterButton state={state} filter={filter} setFilter={setFilter} n={filterCount(filter)} shown={shown} />
     </Card>
   );
 }
@@ -240,7 +121,7 @@ function FilterButton({ state, filter, setFilter, n, shown }: { state: State; fi
     <Popover>
       <Tip label="Filter the graph">
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className={`h-8 gap-1 rounded-l-none px-2.5 text-[12px] ${n ? "text-ink" : "text-muted-foreground"}`} aria-label="Filter the graph">
+          <Button variant="ghost" size="sm" className={`h-8 gap-1 rounded-xl px-2.5 text-[12px] ${n ? "text-ink" : "text-muted-foreground"}`} aria-label="Filter the graph">
             <ListFilter className="size-3.5" />
             {n > 0 && <span className="rounded-full bg-primary px-1.5 text-[12px] leading-4 text-primary-foreground">{n}</span>}
           </Button>

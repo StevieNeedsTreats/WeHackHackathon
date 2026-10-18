@@ -16,7 +16,7 @@ import type { State } from "@/lib/store";
 import { GraphContext, LabelContext, type GraphCtx } from "./context";
 import { EDGE_STYLE, edgeTypes } from "./edges";
 import { STANCE } from "./glyphs";
-import { GraphTools, keep, NO_FILTER, type Filter, type Hit } from "./GraphTools";
+import { GraphTools, keep, NO_FILTER, type Filter } from "./GraphTools";
 import { nodeTypes } from "./nodes";
 import { PaperPreview } from "./PaperPreview";
 import { Tip } from "../Tip";
@@ -63,7 +63,6 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
   const [hover, setHover] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
-  const [finding, setFinding] = useState<string | null>(null); // a search hit waiting for its layout
   // A new question starts unfiltered (adjusted during render, not in an effect).
   const [filterFor, setFilterFor] = useState(state.question?.id);
   if (filterFor !== state.question?.id) {
@@ -432,30 +431,6 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
     };
   }, [fit]);
 
-  // ---- search: jump to a hit, switching hypothesis first when it isn't on this canvas
-  const centerOn = useCallback(
-    (id: string) => {
-      const b = target[id];
-      if (!b) return false;
-      setFollow(false);
-      rf.setCenter(b.x + b.w / 2, b.y + b.h / 2, { zoom: Math.max(rf.getZoom(), 1), duration: 450 });
-      onSelect(id);
-      return true;
-    },
-    [target, rf, onSelect],
-  );
-  const find = (h: Hit) => {
-    if (kept && !kept.has(h.id)) setFilter(NO_FILTER); // a hit hidden by a filter would be invisible
-    if (centerOn(h.id)) return;
-    setFinding(h.id);
-    if (h.hyp) onFocus(h.hyp);
-  };
-  useEffect(() => {
-    if (!finding || !target[finding]) return;
-    const t = setTimeout(() => centerOn(finding) && setFinding(null), 320); // after the camera's own refit
-    return () => clearTimeout(t);
-  }, [finding, target, centerOn]);
-
   // ---- paper preview: after a short hover, a card beside the paper (on whichever side has room)
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
@@ -519,7 +494,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
         {!isEmpty && (
           <>
             <Legend show={show} setShow={setShow} />
-            <GraphTools state={state} focus={focus} filter={filter} setFilter={setFilter} shown={shown} onFind={find} />
+            <GraphTools state={state} filter={filter} setFilter={setFilter} shown={shown} />
             {preview && previewAt && state.papers[preview.slice(2)] && (
               <div className="pointer-events-none absolute z-20 w-[300px]" style={previewAt}>
                 <PaperPreview state={state} id={preview.slice(2)} focus={focus} />
