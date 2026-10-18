@@ -36,7 +36,7 @@ function Cite({ raw, h }: { raw: string; h: CiteHandlers }) {
   const t = resolve(raw, h.aliases);
   const { state } = h;
   const base =
-    "mx-0.5 inline-flex max-w-[16rem] translate-y-[-1px] items-center gap-1 rounded-md border bg-card px-1.5 py-px align-middle text-[11.5px] font-medium leading-[1.5] text-ink-2 transition-colors hover:border-ring hover:bg-accent hover:text-ink";
+    "mx-0.5 inline-flex max-w-[16rem] translate-y-[-1px] items-center gap-1 rounded-md border bg-card px-1.5 py-px align-middle text-[12.5px] font-medium leading-[1.5] text-ink-2 transition-colors hover:border-ring hover:bg-accent hover:text-ink";
   if (t?.kind === "paper" && state.papers[t.id]) {
     const p = state.papers[t.id];
     return (
@@ -52,7 +52,7 @@ function Cite({ raw, h }: { raw: string; h: CiteHandlers }) {
       <button
         type="button"
         className={base}
-        title={`${f.text} · ${state.papers[f.paper_id]?.label ?? ""}`}
+        title={`${f.text}, ${state.papers[f.paper_id]?.label ?? ""}`}
         onClick={() => h.onPeek(`f:${t.id}`)}
         onMouseEnter={() => h.onRefs([t.id])}
         onMouseLeave={() => h.onRefs(null)}
@@ -68,13 +68,13 @@ function Cite({ raw, h }: { raw: string; h: CiteHandlers }) {
     const n = state.hypOrder.indexOf(t.id) + 1;
     return (
       <button type="button" className={base} title={state.hyps[t.id].statement} onClick={() => h.onFocus(t.id)}>
-        <span className="mono text-[10.5px] text-ink-3">H{n}</span>
+        <span className="text-[12px] text-ink-3">H{n}</span>
         <span className="truncate">{state.hyps[t.id].statement}</span>
       </button>
     );
   }
   // A ref the model made up or that isn't loaded: show it as text rather than a dead link.
-  return <span className="mono text-[11px] text-ink-3">{raw}</span>;
+  return <span className="text-[12px] text-ink-3">{raw}</span>;
 }
 
 const INLINE = /(\[\[[^\]\n]{1,200}\]\]|\*\*[^*\n]+\*\*|`[^`\n]+`|(?<![\w*])\*[^*\s][^*\n]*\*(?!\w)|(?<![\w_])_[^_\s][^_\n]*_(?!\w))/g;
@@ -88,7 +88,7 @@ function Inline({ text, h }: { text: string; h: CiteHandlers }) {
     const k = m.index!;
     if (tok.startsWith("[[")) out.push(<Cite key={k} raw={tok.slice(2, -2)} h={h} />);
     else if (tok.startsWith("**")) out.push(<strong key={k} className="font-semibold text-ink"><Inline text={tok.slice(2, -2)} h={h} /></strong>);
-    else if (tok.startsWith("`")) out.push(<code key={k} className="mono rounded bg-muted px-1 py-px text-[11.5px]">{tok.slice(1, -1)}</code>);
+    else if (tok.startsWith("`")) out.push(<code key={k} className="code rounded bg-muted px-1 py-px text-[12.5px]">{tok.slice(1, -1)}</code>);
     else out.push(<em key={k}><Inline text={tok.slice(1, -1)} h={h} /></em>);
     last = k + tok.length;
   }
@@ -132,7 +132,7 @@ export const Markdown = memo(function Markdown({ text, h }: { text: string; h: C
             ))}
           </p>
         ) : b.kind === "ul" ? (
-          <ul key={i} className="ml-4 list-disc space-y-1 marker:text-ink-4">
+          <ul key={i} className="ml-4 list-disc space-y-1 marker:text-ink-3">
             {b.items.map((it, j) => (
               <li key={j} className="pl-0.5">
                 <Inline text={it} h={h} />

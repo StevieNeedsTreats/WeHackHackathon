@@ -16,7 +16,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 
 DISCLAIMER = (
-    "TruthGraph summarises published research. It is not medical advice and does not "
+    "Nodes Don't Lie summarises published research. It is not medical advice and does not "
     "replace a clinician. Evidence grades reflect the papers found, not certainty about you."
 )
 
@@ -47,7 +47,7 @@ _INJECTION_PATTERNS = [
 ]
 
 _CRISIS_MESSAGE = (
-    "This looks like it may be about self-harm. TruthGraph can't help with that, but people can: "
+    "This looks like it may be about self-harm. This app can't help with that, but people can: "
     "in the US call or text 988, in the UK call Samaritans on 116 123, or contact local emergency services."
 )
 
@@ -67,7 +67,7 @@ VULNERABLE_NOTE = (
 )
 
 INTENT_MESSAGES = {
-    "harm_seeking": "TruthGraph maps published evidence. It can't help with requests aimed at causing harm.",
+    "harm_seeking": "This app maps published evidence. It can't help with requests aimed at causing harm.",
     "self_harm": _CRISIS_MESSAGE,
     "injection": "That input looks like instructions rather than a question about the world.",
     "off_topic": "Ask about a claim research could test, e.g. “Does creatine improve memory?”.",

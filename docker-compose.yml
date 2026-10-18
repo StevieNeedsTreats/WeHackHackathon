@@ -1,7 +1,7 @@
 services:
   falkordb:
     image: falkordb/falkordb:latest
-    container_name: truthgraph-falkordb
+    container_name: nodes-dont-lie-falkordb
     ports:
       - "6380:6379"
     environment:
@@ -13,12 +13,13 @@ services:
   redis:
     # Caches, abstracts, verdicts and run logs; the graph holds only what is traversed.
     image: redis:7-alpine
-    container_name: truthgraph-redis
+    container_name: nodes-dont-lie-redis
     ports:
       - "6381:6379"
     volumes:
       - truthgraph-cache:/data
     restart: unless-stopped
+# The volumes keep their original names so existing local data stays attached.
 volumes:
   truthgraph-data:
   truthgraph-cache:

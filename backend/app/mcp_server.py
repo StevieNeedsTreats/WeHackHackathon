@@ -1,4 +1,4 @@
-"""TruthGraph's tools over MCP.
+"""The tools of Nodes Don't Lie over MCP.
 
 One MCP server holds every tool an agent can use on the evidence graph: Cypher reads, full-text
 lookup, multi-hop explanations, graph algorithms (FalkorDB's algo.* procedures) and the one action
@@ -59,7 +59,7 @@ QUERY_RULES = """Each query is read-only, one statement, at most 3 seconds.
   not a Paper property. If a query returns nothing, check it against the schema before trying again.
 - Do the work in Cypher: filter, count, collect and aggregate there, RETURN only the columns you need, LIMIT 25."""
 
-INSTRUCTIONS = """TruthGraph maps published research on a claim into a graph: a question asks hypotheses; papers \
+INSTRUCTIONS = """Nodes Don't Lie maps published research on a claim into a graph: a question asks hypotheses; papers \
 considered for each hypothesis describe studies whose findings support, refute or are mixed on it, weighted by \
 design, size and credibility; findings that disagree are linked by CONTRADICTS. Start with list_questions, then \
 question_overview for one question. For why a verdict came out as it did use explain_verdict; for how two things \
@@ -76,7 +76,7 @@ class Deps:
 
 
 deps: Deps | None = None
-server = MCPServer("TruthGraph", instructions=INSTRUCTIONS, version="2.0")
+server = MCPServer("Nodes Don't Lie", instructions=INSTRUCTIONS, version="2.0")
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 
@@ -88,7 +88,7 @@ def bind(d: Deps) -> None:
 
 def _deps() -> Deps:
     if deps is None:
-        raise ToolError("TruthGraph is still starting up")
+        raise ToolError("Nodes Don't Lie is still starting up")
     return deps
 
 

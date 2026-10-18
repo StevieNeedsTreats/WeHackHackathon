@@ -12,6 +12,7 @@ export function Tip({ label, children, side = "top" }: { label: React.ReactNode;
   );
 }
 
+/** A section heading inside a panel: sentence case and quiet, so content leads. */
 export function SectionLabel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={`text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground ${className}`}>{children}</h3>;
+  return <h3 className={`text-[12.5px] font-semibold tracking-[-0.005em] text-ink-2 ${className}`}>{children}</h3>;
 }

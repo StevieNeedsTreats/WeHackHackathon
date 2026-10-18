@@ -46,7 +46,7 @@ class Sources:
         self.redis = Redis.from_url(s.redis_url, socket_keepalive=True, health_check_interval=30)
         self.http = httpx.AsyncClient(
             timeout=s.http_timeout_s,
-            headers={"User-Agent": "TruthGraph/2.0 (evidence-graph research tool)"},
+            headers={"User-Agent": "NodesDontLie/2.0 (evidence-graph research tool)"},
             follow_redirects=False,
         )
         self._inflight: dict[str, asyncio.Future] = {}

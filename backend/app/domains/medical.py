@@ -4,7 +4,7 @@ MEDICAL = DomainPack(
     id="medical",
     name="Medicine & health",
     disclaimer=(
-        "TruthGraph summarises published research. It is not medical advice and does not replace a clinician. "
+        "Nodes Don't Lie summarises published research. It is not medical advice and does not replace a clinician. "
         "Evidence grades reflect the papers found, not certainty about you."
     ),
     subject_label="Intervention",

@@ -44,7 +44,7 @@ function Screen({ title, description, children }: { title: string; description: 
         <CardHeader>
           <div className="mb-2 flex items-center gap-2">
             <Logo size={28} />
-            <span className="text-[16px] font-semibold tracking-[-0.02em]">TruthGraph</span>
+            <span className="text-[16px] font-semibold tracking-[-0.02em]">{"Nodes Don't Lie"}</span>
           </div>
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
@@ -75,7 +75,7 @@ function SignIn() {
   };
 
   return (
-    <Screen title="Sign in" description="Enter the access password to use TruthGraph.">
+    <Screen title="Sign in" description="Enter the access password to use Nodes Don't Lie.">
       <form onSubmit={submit} className="space-y-3">
         <div className="relative">
           <LockKeyhole className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />

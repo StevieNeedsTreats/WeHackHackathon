@@ -86,7 +86,7 @@ function Body({
                 <Tag className="text-muted-foreground" />
                 <span className="truncate">
                   <span className="font-medium">{c.name}</span>
-                  <span className="text-muted-foreground"> · {c.hypotheses[0].statement}</span>
+                  <span className="text-muted-foreground">, in {c.hypotheses[0].statement}</span>
                 </span>
               </CommandItem>
             ))}
@@ -94,7 +94,7 @@ function Body({
               <CommandItem key={`p:${p.id}`} value={`paper ${p.id}`} forceMount onSelect={() => run(() => onOpenQuestion(p.questions[0]))}>
                 <FileText className="text-muted-foreground" />
                 <span className="truncate">{p.title}</span>
-                {p.year && <CommandShortcut className="mono">{p.year}</CommandShortcut>}
+                {p.year && <CommandShortcut className="tabular">{p.year}</CommandShortcut>}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -115,7 +115,7 @@ function Body({
                 <CommandItem key={x.id} value={`${x.text} ${x.id}`} onSelect={() => run(() => onOpenQuestion(x.id))}>
                   <History className="text-muted-foreground" />
                   <span className="truncate">{x.text}</span>
-                  <CommandShortcut className="mono">{x.hypotheses.length} hyp</CommandShortcut>
+                  <CommandShortcut className="tabular">{x.hypotheses.length} hyp</CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>

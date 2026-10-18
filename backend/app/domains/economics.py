@@ -4,7 +4,7 @@ ECONOMICS = DomainPack(
     id="economics",
     name="Economics & policy",
     disclaimer=(
-        "TruthGraph summarises published research. It is not policy, legal or financial advice. "
+        "Nodes Don't Lie summarises published research. It is not policy, legal or financial advice. "
         "Results depend on place, period and design; grades reflect the papers found."
     ),
     subject_label="Policy or factor",

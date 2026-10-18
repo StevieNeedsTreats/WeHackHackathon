@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     falkor_host: str = "localhost"
     falkor_port: int = 6380
+    # The FalkorDB graph key. It keeps the project's original name so existing data stays reachable.
     graph_name: str = "truthgraph"
     # FalkorDB Cloud: the instance's public "host:port" and its credentials. When set, they
     # replace falkor_host/falkor_port.

@@ -3,14 +3,14 @@
 import { Info, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { balance, explanation, papersFor, type State } from "@/lib/store";
 import type { Hypothesis, Insight, Verdict } from "@/lib/types";
-import { STANCE, TONE } from "../graph/glyphs";
+import { EvidenceScale } from "../EvidenceScale";
+import { TONE } from "../graph/glyphs";
 import { BalanceBar } from "../graph/nodes";
 import { SectionLabel } from "../Tip";
 
-const H = ({ children }: { children: React.ReactNode }) => <SectionLabel className="mb-2 mt-6">{children}</SectionLabel>;
+const H = ({ children }: { children: React.ReactNode }) => <SectionLabel className="mb-2.5 mt-7">{children}</SectionLabel>;
 
 const GRADE_TEXT: Record<string, string> = {
   A: "Strong: high-level evidence (reviews or trials) from several papers that largely agree.",
@@ -45,33 +45,31 @@ export function GradeBadge({ v }: { v: Pick<Verdict, "grade" | "tone" | "verdict
   const t = TONE[v.tone] ?? TONE.neutral;
   return (
     <span className="inline-flex items-center gap-1.5">
-      <Badge className="mono h-6 rounded-sm px-2 text-[12px]" style={{ background: t.color }}>
+      <Badge className="h-6 rounded-full px-2.5 text-[12.5px] font-semibold" style={{ background: t.soft, color: t.ink }}>
         {v.verdict}
       </Badge>
-      <Badge variant="outline" className="mono h-6 rounded-sm px-1.5 text-[12px]" title={GRADE_TEXT[v.grade]}>
-        grade {v.grade}
+      <Badge variant="outline" className="h-6 rounded-full px-2 text-[12.5px] font-medium text-ink-2" title={GRADE_TEXT[v.grade]}>
+        Grade {v.grade}
       </Badge>
     </span>
   );
 }
 
-function InsightCard({ i, onRefs }: { i: Insight; onRefs: (r: string[] | null) => void }) {
+function InsightRow({ i, onRefs }: { i: Insight; onRefs: (r: string[] | null) => void }) {
   const t = TONE[i.tone] ?? TONE.neutral;
   return (
-    <Card
-      size="sm"
-      className="relative gap-1 overflow-hidden py-2.5 pl-4 pr-3 shadow-none"
+    <li
+      className="group -mx-2 rounded-lg px-2 py-2.5 transition-colors hover:bg-surface-2"
       onMouseEnter={() => i.refs.length && onRefs(i.refs)}
       onMouseLeave={() => onRefs(null)}
     >
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: t.color }} />
-      <div className="flex items-center gap-2">
-        <span className="mono text-[9.5px] uppercase tracking-[0.1em] text-ink-3">{i.kind}</span>
-        {i.refs.length > 0 && <span className="mono ml-auto text-[10px] text-ink-4">{i.refs.length} finding{i.refs.length > 1 ? "s" : ""}</span>}
+      <div className="flex items-baseline gap-2">
+        <span aria-hidden className="size-2 shrink-0 translate-y-[-1px] rotate-45 rounded-[1px]" style={{ background: t.color }} />
+        <span className="text-[13.5px] font-semibold text-ink">{i.title}</span>
+        {i.refs.length > 0 && <span className="tabular ml-auto shrink-0 text-[12px] text-ink-3 group-hover:text-ink-2">{i.refs.length} finding{i.refs.length > 1 ? "s" : ""}</span>}
       </div>
-      <div className="text-[13px] font-semibold text-ink">{i.title}</div>
-      <p className="text-[12.5px] leading-[1.55] text-ink-2">{i.body}</p>
-    </Card>
+      <p className="mt-0.5 pl-4 text-[13px] leading-[1.55] text-ink-2">{i.body}</p>
+    </li>
   );
 }
 
@@ -89,9 +87,8 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
 
   return (
     <div className="p-5">
-      <div className="mono text-[10.5px] uppercase tracking-[0.12em] text-ink-3">Hypothesis</div>
-      <h2 className="mt-1 text-[17px] font-semibold leading-snug tracking-[-0.01em] text-ink">{h.statement}</h2>
-      {h.population && <div className="mt-1 text-[12px] text-ink-3">Population: {h.population.name}</div>}
+      <h2 className="text-[19px] font-semibold leading-[1.3] tracking-[-0.015em] text-balance text-ink">{h.statement}</h2>
+      {h.population && <div className="mt-1 text-[12.5px] text-ink-3">In {h.population.name}</div>}
 
       {state.notice && (
         <Alert className="mt-3 border-neu/50 bg-neu-soft/60">
@@ -100,9 +97,9 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
         </Alert>
       )}
 
-      <div className="mt-4">
-        {v ? <GradeBadge v={v} /> : <span className="mono text-[12px] text-ink-3">{state.status === "streaming" ? "Researching…" : "No verdict yet"}</span>}
-        {v && <p className="mt-1.5 text-[11.5px] leading-snug text-ink-3">{GRADE_TEXT[v.grade]}</p>}
+      <div className="mt-3.5">
+        {v ? <GradeBadge v={v} /> : <span className="text-[12.5px] text-ink-3">{state.status === "streaming" ? "Researching…" : "No verdict yet"}</span>}
+        {v && <p className="mt-2 text-[12.5px] leading-snug text-ink-3">{GRADE_TEXT[v.grade]}</p>}
       </div>
 
       {issue && (
@@ -113,34 +110,29 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
         </Alert>
       )}
 
-      <div className="mt-4">
-        <BalanceBar support={b.support} refute={b.refute} mixed={b.mixed} className="h-[10px]" />
-        <div className="mono mt-1.5 flex justify-between text-[11px]">
-          <span style={{ color: STANCE.supports.ink }}>{Math.round(b.support * 100)}% supports</span>
-          <span style={{ color: STANCE.mixed.ink }}>{Math.round(b.mixed * 100)}% mixed</span>
-          <span style={{ color: STANCE.refutes.ink }}>{Math.round(b.refute * 100)}% refutes</span>
-        </div>
-        <p className="mt-1 text-[11px] text-ink-3">
-          Weighted by each paper&apos;s credibility and how closely it matches the hypothesis. {v ? `${v.findings} findings from ${v.papers} papers` : `${b.total} findings judged`}
-          {v?.best_design ? `; strongest design: ${v.best_design}.` : "."}
-        </p>
+      <div className="mt-5 rounded-xl border bg-surface-2 p-3 pb-2.5">
+        <EvidenceScale state={state} hk={hk} support={b.support} refute={b.refute} grade={v?.grade} tone={v?.tone as keyof typeof TONE | undefined} onRefs={onRefs} />
       </div>
+      <p className="mt-2 text-[12px] leading-snug text-ink-3">
+        Each square is a paper, placed by where its findings lean and sized by credibility and relevance. The diamond is the pooled result. {v ? `${v.findings} findings from ${v.papers} papers` : `${b.total} findings judged`}
+        {v?.best_design ? `; strongest design: ${v.best_design}.` : "."}
+      </p>
 
       {v?.summary && (
         <>
           <H>Summary</H>
-          <p className="text-[13.5px] leading-[1.65] text-ink">{v.summary}</p>
+          <p className="text-[14px] leading-[1.65] text-ink">{v.summary}</p>
         </>
       )}
 
       {v && v.insights.length > 0 && (
         <>
           <H>Insights</H>
-          <div className="space-y-2">
+          <ul className="divide-y divide-line">
             {v.insights.map((i, k) => (
-              <InsightCard key={k} i={i} onRefs={onRefs} />
+              <InsightRow key={k} i={i} onRefs={onRefs} />
             ))}
-          </div>
+          </ul>
         </>
       )}
 
@@ -152,12 +144,12 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
               const cb = v?.clusters[c.id];
               const t = cb ? cb.supports + cb.refutes + cb.mixed || 1 : 1;
               return (
-                <li key={c.id} className="rounded-md border border-line bg-surface px-3 py-2" onMouseEnter={() => onRefs(c.findings)} onMouseLeave={() => onRefs(null)}>
+                <li key={c.id} className="rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors" onMouseEnter={() => onRefs(c.findings)} onMouseLeave={() => onRefs(null)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[12.5px] font-medium text-ink">{c.label}</span>
-                    <span className="mono text-[10.5px] text-ink-3">{c.findings.length} findings</span>
+                    <span className="text-[12px] text-ink-3">{c.findings.length} findings</span>
                   </div>
-                  <div className="text-[11.5px] text-ink-3">{c.context}</div>
+                  <div className="text-[12.5px] text-ink-3">{c.context}</div>
                   {cb && <BalanceBar support={cb.supports / t} refute={cb.refutes / t} mixed={cb.mixed / t} className="mt-1.5 h-[5px]" />}
                 </li>
               );
@@ -180,18 +172,18 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                     onClick={() => onSelect(`c:${c.a}:${c.b}`)}
                     onMouseEnter={() => onRefs([c.a, c.b])}
                     onMouseLeave={() => onRefs(null)}
-                    className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-ink-3"
+                    className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors text-left hover:border-line-2 hover:bg-surface-2"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="mono text-[10.5px]" style={{ color: c.explained_by ? "var(--ink-3)" : "var(--neg-ink)" }}>
+                      <span className="text-[12px]" style={{ color: c.explained_by ? "var(--ink-3)" : "var(--neg-ink)" }}>
                         {c.reason}
                       </span>
-                      <span className="mono ml-auto text-[10px] text-ink-4">{c.severity}</span>
+                      <span className="ml-auto text-[12px] text-ink-3">{c.severity}</span>
                     </div>
                     <div className="mt-0.5 truncate text-[12px] text-ink-2">
                       {state.papers[a?.paper_id ?? ""]?.label ?? "?"} vs {state.papers[bf?.paper_id ?? ""]?.label ?? "?"}
                     </div>
-                    {c.explained_by && <div className="text-[11.5px] text-ink-3">{explanation(c) ? `Explained by: ${explanation(c)}` : "Explained by this study difference"}</div>}
+                    {c.explained_by && <div className="text-[12.5px] text-ink-3">{explanation(c) ? `Explained by: ${explanation(c)}` : "Explained by this study difference"}</div>}
                   </button>
                 </li>
               );
@@ -210,7 +202,7 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                 <li key={type} className="flex items-center gap-2 text-[12px]">
                   <span className="w-[86px] shrink-0 capitalize text-ink-2">{type}</span>
                   <BalanceBar support={d.supports / t} refute={d.refutes / t} mixed={d.mixed / t} className="h-[6px] flex-1" />
-                  <span className="mono w-[28px] text-right text-[10.5px] text-ink-3">{t}</span>
+                  <span className="w-[28px] text-right text-[12px] text-ink-3">{t}</span>
                 </li>
               );
             })}
@@ -225,14 +217,14 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
             {papers.length < 4 && <li>Only {papers.length} relevant paper{papers.length === 1 ? "" : "s"} found.</li>}
             {v?.gaps.map((g, i) => <li key={i}>{g}</li>)}
           </ul>
-          {v?.search_note && <p className="mt-2 text-[11.5px] text-ink-3">{v.search_note}</p>}
+          {v?.search_note && <p className="mt-2 text-[12.5px] text-ink-3">{v.search_note}</p>}
         </>
       )}
 
       {state.disclaimer && (
         <Alert className="mt-6 bg-surface-2">
           <Info />
-          <AlertDescription className="text-[11.5px] text-ink-3">{state.disclaimer}</AlertDescription>
+          <AlertDescription className="text-[12.5px] text-ink-3">{state.disclaimer}</AlertDescription>
         </Alert>
       )}
     </div>

@@ -15,7 +15,7 @@ import type { Metric } from "@/lib/types";
 import { SectionLabel } from "../Tip";
 
 function Cell({ v }: { v: unknown }) {
-  if (v == null) return <span className="text-ink-4">null</span>;
+  if (v == null) return <span className="text-ink-3">null</span>;
   if (Array.isArray(v)) return <span>{v.map((x) => (typeof x === "object" ? "{…}" : String(x))).join(", ")}</span>;
   if (typeof v === "object") {
     const o = v as Record<string, unknown>;
@@ -27,11 +27,11 @@ function Cell({ v }: { v: unknown }) {
 function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
   return (
     <div className="scroll-thin max-h-[220px] overflow-auto rounded-md border bg-card">
-      <Table className="text-[11px]">
+      <Table className="text-[12px]">
         <TableHeader className="sticky top-0 bg-surface-2">
           <TableRow>
             {columns.map((c) => (
-              <TableHead key={c} className="mono h-7 px-2 text-[11px] font-medium text-muted-foreground">
+              <TableHead key={c} className="code h-7 px-2 text-[12px] font-medium text-muted-foreground">
                 {c}
               </TableHead>
             ))}
@@ -57,10 +57,10 @@ function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }
 function Plan({ lines }: { lines: string[] }) {
   return (
     <div>
-      <div className="mb-1 text-[10.5px] font-medium text-muted-foreground">
-        Execution plan <span className="mono">(GRAPH.EXPLAIN)</span>
+      <div className="mb-1 text-[12px] font-medium text-ink-3">
+        Execution plan <span className="code">(GRAPH.EXPLAIN)</span>
       </div>
-      <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md border bg-card p-2 text-[10.5px] leading-relaxed text-ink-3">
+      <pre className="code scroll-thin overflow-x-auto whitespace-pre rounded-md border bg-card p-2 text-[12px] leading-relaxed text-ink-3">
         {lines.map((l, i) => {
           const hit = /Index Scan|Index Seek|Full Text|ProcedureCall/i.test(l);
           return (
@@ -70,67 +70,124 @@ function Plan({ lines }: { lines: string[] }) {
           );
         })}
       </pre>
-      <p className="mt-1 text-[10.5px] text-muted-foreground">
+      <p className="mt-1 text-[12px] text-ink-3">
         <span className="font-semibold text-pos">Highlighted</span> steps use an index or run a built-in algorithm instead of scanning.
       </p>
     </div>
   );
 }
 
+const NW = 88;
+const NH = 26;
+
 function N({ x, y, label, dark }: { x: number; y: number; label: string; dark?: boolean }) {
   return (
     <g>
-      <rect x={x - 40} y={y - 11} width="80" height="22" rx="5" fill={dark ? "var(--ink)" : "var(--surface)"} stroke={dark ? "var(--ink)" : "var(--line-2)"} />
-      <text x={x} y={y + 4} textAnchor="middle" fontSize="10.5" fill={dark ? "var(--primary-foreground)" : "var(--ink)"} fontWeight="500">
+      <rect x={x - NW / 2} y={y - NH / 2} width={NW} height={NH} rx="6" fill={dark ? "var(--ink)" : "var(--surface)"} stroke={dark ? "var(--ink)" : "var(--line-2)"} />
+      <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill={dark ? "var(--primary-foreground)" : "var(--ink)"} fontWeight="500">
         {label}
       </text>
     </g>
   );
 }
 
-function E({ d, label, lx, ly, color = "var(--ink-4)", dash }: { d: string; label: string; lx: number; ly: number; color?: string; dash?: string }) {
+type Tone = "plain" | "pos" | "neg";
+const STROKE: Record<Tone, string> = { plain: "var(--ink-4)", pos: "var(--pos)", neg: "var(--neg)" };
+
+/** A relationship: the line, its arrowhead, and its type name on a halo so lines never cut through it. */
+function E({ d, tone = "plain", dash }: { d: string; tone?: Tone; dash?: string }) {
+  return <path d={d} fill="none" stroke={STROKE[tone]} strokeWidth="1.25" strokeDasharray={dash} markerEnd={`url(#arr-${tone})`} />;
+}
+
+function L({ x, y, children, anchor = "middle", tone = "plain", rotate }: { x: number; y: number; children: React.ReactNode; anchor?: "start" | "middle" | "end"; tone?: Tone; rotate?: boolean }) {
   return (
-    <g>
-      <path d={d} fill="none" stroke={color} strokeWidth="1.2" strokeDasharray={dash} markerEnd="url(#arr)" />
-      <text x={lx} y={ly} fontSize="8.5" fill="var(--ink-3)" className="mono" textAnchor="middle">
-        {label}
-      </text>
-    </g>
+    <text
+      x={x}
+      y={y}
+      fontSize="8.5"
+      textAnchor={anchor}
+      fill={tone === "plain" ? "var(--ink-3)" : tone === "pos" ? "var(--pos-ink)" : "var(--neg-ink)"}
+      stroke="var(--card)"
+      strokeWidth="3"
+      paintOrder="stroke"
+      transform={rotate ? `rotate(-90 ${x} ${y})` : undefined}
+      style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
+    >
+      {children}
+    </text>
   );
 }
 
-/** The property-graph model, drawn as a schema. */
+/**
+ * The property-graph model, drawn as a schema on three columns: the question side, the paper chain,
+ * and what hangs off a paper or finding. Each relationship's name sits beside its line, never on a
+ * neighbour's.
+ */
 function Schema() {
+  // Column centres and the edges of their boxes.
+  const A = 52;
+  const B = 206;
+  const C = 360;
+  const r = (x: number) => x + NW / 2;
+  const l = (x: number) => x - NW / 2;
+  const t = (y: number) => y - NH / 2;
+  const b = (y: number) => y + NH / 2;
+  const Y = { question: 28, hyp: 110, author: 58, lab: 110, funder: 162, study: 190, finding: 270 };
   return (
-    <svg viewBox="0 0 340 260" className="w-full" role="img" aria-label="Graph schema">
+    <svg viewBox="0 0 412 334" className="w-full" role="img" aria-label="Graph schema: how questions, hypotheses, papers, studies and findings connect">
       <defs>
-        <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M0,0 L8,4 L0,8z" fill="var(--ink-3)" />
-        </marker>
+        {(Object.keys(STROKE) as Tone[]).map((k) => (
+          <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0.5 L8,4 L0,7.5z" fill={k === "plain" ? "var(--ink-3)" : STROKE[k]} />
+          </marker>
+        ))}
       </defs>
-      <E d="M60,31 L60,68" label="ASKS" lx={78} ly={52} />
-      <E d="M60,91 L60,128" label="SUBJECT·OUTCOME" lx={60} ly={113} />
-      <E d="M100,80 L158,80" label="CONSIDERED" lx={129} ly={74} />
-      <E d="M240,74 L262,48" label="AUTHORED_BY" lx={232} ly={52} />
-      <E d="M240,80 L258,80" label="AFFILIATED" lx={250} ly={96} />
-      <E d="M240,86 L262,112" label="FUNDED_BY" lx={232} ly={112} />
-      <E d="M200,91 L200,138" label="DESCRIBES" lx={226} ly={117} />
-      <E d="M200,161 L200,203" label="FOUND" lx={218} ly={185} />
-      <E d="M240,215 L268,215" label="IN_CLUSTER" lx={254} ly={208} />
-      <E d="M160,210 C110,200 80,160 70,92" label="EVIDENCE_FOR {stance}" lx={100} ly={186} color="var(--pos)" />
-      <E d="M162,222 C120,240 70,200 60,152" label="MEASURES" lx={86} ly={232} />
-      <E d="M180,226 C170,262 230,262 220,226" label="CONTRADICTS {hypothesis}" lx={200} ly={256} color="var(--neg)" dash="5 3" />
-      <E d="M180,70 C170,40 230,40 220,70" label="CITES" lx={200} ly={44} dash="2 3" />
-      <N x={60} y={20} label="Question" dark />
-      <N x={60} y={80} label="Hypothesis" dark />
-      <N x={60} y={140} label="Concept" />
-      <N x={200} y={80} label="Paper" />
-      <N x={300} y={38} label="Author" />
-      <N x={300} y={80} label="Lab" />
-      <N x={300} y={122} label="Funder" />
-      <N x={200} y={150} label="Study" />
-      <N x={200} y={215} label="Finding" />
-      <N x={308} y={215} label="Cluster" />
+
+      {/* question side */}
+      <E d={`M${A},${b(Y.question)} V${t(Y.hyp)}`} />
+      <L x={A + 7} y={(b(Y.question) + t(Y.hyp)) / 2 + 3} anchor="start">ASKS</L>
+      <E d={`M${A},${b(Y.hyp)} V${t(Y.finding)}`} />
+      <L x={A - 6} y={(b(Y.hyp) + t(Y.finding)) / 2} rotate>SUBJECT | OUTCOME</L>
+
+      {/* hypothesis to paper, and a paper's own links */}
+      <E d={`M${r(A)},${Y.hyp} H${l(B)}`} />
+      <L x={(r(A) + l(B)) / 2} y={Y.hyp - 6}>CONSIDERED</L>
+      <E d={`M${B - 14},${t(Y.hyp)} C${B - 22},${t(Y.hyp) - 26} ${B + 22},${t(Y.hyp) - 26} ${B + 14},${t(Y.hyp)}`} dash="2 3" />
+      <L x={B} y={t(Y.hyp) - 24}>CITES</L>
+      <E d={`M${r(B)},${Y.hyp - 6} C${r(B) + 30},${Y.hyp - 6} ${l(C) - 30},${Y.author} ${l(C)},${Y.author}`} />
+      <L x={C} y={t(Y.author) - 5}>AUTHORED_BY</L>
+      <E d={`M${r(B)},${Y.lab} H${l(C)}`} />
+      <L x={C} y={t(Y.lab) - 5}>AFFILIATED</L>
+      <E d={`M${r(B)},${Y.hyp + 6} C${r(B) + 30},${Y.hyp + 6} ${l(C) - 30},${Y.funder} ${l(C)},${Y.funder}`} />
+      <L x={C} y={t(Y.funder) - 5}>FUNDED_BY</L>
+
+      {/* paper to finding */}
+      <E d={`M${B},${b(Y.hyp)} V${t(Y.study)}`} />
+      <L x={B + 7} y={(b(Y.hyp) + t(Y.study)) / 2 + 3} anchor="start">DESCRIBES</L>
+      <E d={`M${B},${b(Y.study)} V${t(Y.finding)}`} />
+      <L x={B + 7} y={(b(Y.study) + t(Y.finding)) / 2 + 3} anchor="start">FOUND</L>
+
+      {/* what a finding points at */}
+      <E d={`M${l(B)},${Y.finding} H${r(A)}`} />
+      <L x={(r(A) + l(B)) / 2} y={Y.finding - 6}>MEASURES</L>
+      <E d={`M${r(B)},${Y.finding} H${l(C)}`} />
+      <L x={(r(B) + l(C)) / 2} y={Y.finding - 6}>IN_CLUSTER</L>
+      <E d={`M${l(B) + 10},${t(Y.finding)} C${l(B) - 20},${Y.study + 10} ${r(A) + 4},${Y.hyp + 40} ${r(A) - 14},${b(Y.hyp)}`} tone="pos" />
+      <L x={r(A) + 50} y={Y.study + 26} anchor="end" tone="pos">EVIDENCE_FOR</L>
+      <L x={r(A) + 50} y={Y.study + 37} anchor="end" tone="pos">{"{stance}"}</L>
+      <E d={`M${B - 14},${b(Y.finding)} C${B - 22},${b(Y.finding) + 26} ${B + 22},${b(Y.finding) + 26} ${B + 14},${b(Y.finding)}`} tone="neg" dash="4 3" />
+      <L x={B} y={b(Y.finding) + 34} tone="neg">{"CONTRADICTS {hypothesis}"}</L>
+
+      <N x={A} y={Y.question} label="Question" dark />
+      <N x={A} y={Y.hyp} label="Hypothesis" dark />
+      <N x={A} y={Y.finding} label="Concept" />
+      <N x={B} y={Y.hyp} label="Paper" />
+      <N x={C} y={Y.author} label="Author" />
+      <N x={C} y={Y.lab} label="Lab" />
+      <N x={C} y={Y.funder} label="Funder" />
+      <N x={B} y={Y.study} label="Study" />
+      <N x={B} y={Y.finding} label="Finding" />
+      <N x={C} y={Y.finding} label="Cluster" />
     </svg>
   );
 }
@@ -198,8 +255,8 @@ export function QueriesPanel({ state }: { state: State }) {
         <SectionLabel className="mb-1">Data model in FalkorDB</SectionLabel>
         <p className="mb-2 text-[12.5px] leading-[1.55] text-ink-2">
           One shared property graph. Papers, studies and findings are merged across questions, so agents reuse what earlier runs found. A finding&apos;s
-          stance lives on its <span className="mono text-[11.5px]">EVIDENCE_FOR</span> edge, so the same finding can support one hypothesis and be irrelevant to
-          another; disagreement is a <span className="mono text-[11.5px]">CONTRADICTS</span> edge scoped to a hypothesis.
+          stance lives on its <span className="code text-[12.5px]">EVIDENCE_FOR</span> edge, so the same finding can support one hypothesis and be irrelevant to
+          another; disagreement is a <span className="code text-[12.5px]">CONTRADICTS</span> edge scoped to a hypothesis.
         </p>
         <Card size="sm" className="px-2 shadow-none">
           <Schema />
@@ -228,7 +285,7 @@ export function QueriesPanel({ state }: { state: State }) {
                       <CollapsibleTrigger className="w-full rounded-xl p-3 text-left outline-none hover:bg-muted/40 focus-visible:bg-muted/60">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[13px] font-semibold text-foreground">{m.title}</span>
-                          <Badge variant="outline" className="mono h-4 shrink-0 rounded-sm px-1 text-[10px] font-normal">
+                          <Badge variant="outline" className={`h-4 shrink-0 rounded-sm px-1 text-[12px] font-normal ${typeof m.hops === "number" ? "" : "code"}`}>
                             {typeof m.hops === "number" ? `${m.hops} hops` : m.hops}
                           </Badge>
                         </div>
@@ -238,15 +295,15 @@ export function QueriesPanel({ state }: { state: State }) {
                             <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(m.median_ms / max) * 100}%` }} />
                             <span className="absolute top-[-2px] h-[10px] w-[2px] rounded bg-ink-3" style={{ left: `${(m.p95_ms / max) * 100}%` }} title="p95" />
                           </div>
-                          <span className="mono tabular shrink-0 text-[11px] text-foreground">
+                          <span className="tabular shrink-0 text-[12px] text-foreground">
                             {m.median_ms.toFixed(2)} ms <span className="text-muted-foreground">· p95 {m.p95_ms.toFixed(2)}</span>
                           </span>
                         </div>
-                        <div className="mono mt-1 text-[10.5px] text-muted-foreground">{m.rows} rows</div>
+                        <div className="mt-1 text-[12px] text-muted-foreground">{m.rows} rows</div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="space-y-2 border-t p-3">
-                          <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[10.5px] leading-relaxed text-ink-2">{m.cypher}</pre>
+                          <pre className="code scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[12px] leading-relaxed text-ink-2">{m.cypher}</pre>
                           {m.sample.length > 0 && <ResultTable columns={m.columns} rows={m.sample} />}
                           {m.plan && m.plan.length > 0 && <Plan lines={m.plan} />}
                           <Button variant="outline" size="xs" onClick={() => openInConsole(m.cypher)}>
@@ -261,16 +318,16 @@ export function QueriesPanel({ state }: { state: State }) {
                 );
               })}
             </ul>
-            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Median and p95 over 7 runs, measured from the API (includes the round-trip to FalkorDB).</p>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">Median and p95 over 7 runs, measured from the API (includes the round-trip to FalkorDB).</p>
           </>
         )}
       </section>
 
       <section ref={consoleRef} className="scroll-mt-4">
         <SectionLabel className="mb-1">Cypher console</SectionLabel>
-        <p className="mb-2 text-[11.5px] text-muted-foreground">
-          Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$q</span> is the current question. Graph
-          algorithms (<span className="mono">CALL algo.*</span>) and full-text search (<span className="mono">db.idx.fulltext.queryNodes</span>) work here too.
+        <p className="mb-2 text-[12.5px] text-muted-foreground">
+          Read-only (<span className="code">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="code">$q</span> is the current question. Graph
+          algorithms (<span className="code">CALL algo.*</span>) and full-text search (<span className="code">db.idx.fulltext.queryNodes</span>) work here too.
         </p>
         <Textarea
           ref={editorRef}
@@ -282,10 +339,10 @@ export function QueriesPanel({ state }: { state: State }) {
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") exec();
           }}
-          className="mono resize-y bg-card text-[11.5px] leading-relaxed"
+          className="code resize-y bg-card text-[12.5px] leading-relaxed"
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="mono text-[10.5px] text-muted-foreground">⌘ ↵ to run</span>
+          <span className="text-[12px] text-muted-foreground">⌘ ↵ to run</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={explain}>
               <ListTree />
@@ -310,8 +367,8 @@ export function QueriesPanel({ state }: { state: State }) {
         )}
         {result && (
           <div className="mt-2 space-y-1">
-            <div className="mono text-[10.5px] text-muted-foreground">
-              {result.rows.length} rows{result.truncated ? " (truncated)" : ""} · {result.ms} ms
+            <div className="text-[12px] text-muted-foreground">
+              {result.rows.length} rows{result.truncated ? " (truncated)" : ""} in {result.ms} ms
             </div>
             <ResultTable columns={result.columns} rows={result.rows} />
           </div>

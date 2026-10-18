@@ -1,4 +1,4 @@
-import { Building2, Check, Coins, ExternalLink, FileText, Flag, TriangleAlert, User } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Building2, Check, Coins, ExternalLink, FileText, Flag, TriangleAlert, User } from "lucide-react";
 import type { Direction, Stance } from "@/lib/types";
 
 export const STANCE = {
@@ -21,17 +21,28 @@ export const DIRECTION: Record<Direction, { arrow: string; label: string }> = {
   mixed: { arrow: "↕", label: "mixed" },
 };
 
+// Drawn marks for each stance on a 16-unit grid: plus, a wave, minus.
+const MARK: Record<Stance, string> = {
+  supports: "M8 4.75v6.5M4.75 8h6.5",
+  mixed: "M4.5 8.6c1.1-1.5 2.2-1.5 3.5 0s2.4 1.5 3.5 0",
+  refutes: "M4.75 8h6.5",
+};
+
 export function StanceGlyph({ stance, size = 18 }: { stance: Stance; size?: number }) {
   const d = STANCE[stance];
   return (
-    <span
-      aria-label={d.label}
-      className="mono inline-flex shrink-0 items-center justify-center rounded-full font-medium"
-      style={{ width: size, height: size, fontSize: size * 0.68, color: "var(--card)", background: d.color, lineHeight: 1 }}
-    >
-      {d.glyph}
-    </span>
+    <svg width={size} height={size} viewBox="0 0 16 16" className="shrink-0" role="img" aria-label={d.label}>
+      <circle cx="8" cy="8" r="8" fill={d.color} />
+      <path d={MARK[stance]} stroke="var(--card)" strokeWidth="1.9" strokeLinecap="round" fill="none" />
+    </svg>
   );
+}
+
+const ARROWS = { increase: ArrowUp, decrease: ArrowDown, no_change: ArrowRight, mixed: ArrowUpDown } as const;
+
+export function DirectionIcon({ direction, size = 12, className = "" }: { direction: Direction; size?: number; className?: string }) {
+  const C = ARROWS[direction] ?? ArrowRight;
+  return <C size={size} strokeWidth={2} className={`shrink-0 ${className}`} aria-label={DIRECTION[direction]?.label} />;
 }
 
 const ICONS = {
@@ -51,32 +62,32 @@ export function Icon({ name, size = 12, className = "" }: { name: keyof typeof I
 }
 
 export const DESIGN_SHORT: Record<string, string> = {
-  "Meta-analysis": "META",
-  "Systematic review": "SYS REV",
+  "Meta-analysis": "Meta",
+  "Systematic review": "Review",
   RCT: "RCT",
-  "Clinical trial": "TRIAL",
-  "Registered trial": "REGISTRY",
-  Cohort: "COHORT",
-  "Case-control": "CASE-CTRL",
-  "Cross-sectional": "X-SECT",
-  "Case series": "SERIES",
-  "Case report": "CASE",
-  "Animal or lab study": "ANIMAL",
-  "Field experiment": "FIELD EXP",
-  "Natural experiment": "NAT EXP",
+  "Clinical trial": "Trial",
+  "Registered trial": "Registry",
+  Cohort: "Cohort",
+  "Case-control": "Case-control",
+  "Cross-sectional": "Cross-sect.",
+  "Case series": "Case series",
+  "Case report": "Case report",
+  "Animal or lab study": "Lab study",
+  "Field experiment": "Field exp.",
+  "Natural experiment": "Natural exp.",
   "Regression discontinuity": "RDD",
-  "Difference-in-differences": "DID",
-  "Synthetic control": "SYNTH",
+  "Difference-in-differences": "Diff-in-diff",
+  "Synthetic control": "Synth. control",
   "Instrumental variables": "IV",
-  "Panel / observational": "PANEL",
-  "Controlled experiment": "EXPERIMENT",
-  "Quasi-experiment": "QUASI",
-  Observational: "OBS",
-  Review: "REVIEW",
-  "Theory or simulation": "THEORY",
-  "Case study": "CASE",
-  "Opinion or commentary": "OPINION",
-  Other: "OTHER",
+  "Panel / observational": "Panel",
+  "Controlled experiment": "Experiment",
+  "Quasi-experiment": "Quasi-exp.",
+  Observational: "Obs.",
+  Review: "Review",
+  "Theory or simulation": "Theory",
+  "Case study": "Case study",
+  "Opinion or commentary": "Opinion",
+  Other: "Other",
 };
 
-export const designShort = (d?: string | null) => (d ? DESIGN_SHORT[d] ?? d.slice(0, 10).toUpperCase() : "…");
+export const designShort = (d?: string | null) => (d ? DESIGN_SHORT[d] ?? d.slice(0, 14) : "…");

@@ -147,7 +147,7 @@ export function GraphTools({
   };
 
   return (
-    <Card size="sm" className="absolute right-4 top-4 z-10 w-[min(300px,calc(100%-2rem))] flex-row items-center gap-0 bg-card/95 p-0 shadow-[var(--shadow-sm)] backdrop-blur">
+    <Card size="sm" data-overlay="top" className="tg-float absolute right-4 top-4 z-10 w-[min(300px,calc(100%-2rem))] flex-row items-center gap-0 rounded-xl p-0">
       <Command shouldFilter={false} className="relative min-w-0 flex-1 overflow-visible bg-transparent">
         <div className="flex h-8 items-center gap-1.5 pl-2.5">
           <Search className="size-3.5 shrink-0 text-muted-foreground" />
@@ -177,7 +177,7 @@ export function GraphTools({
           )}
         </div>
         {open && q.trim() && (
-          <CommandList className="absolute left-0 right-[-38px] top-[calc(100%+6px)] max-h-80 rounded-md border bg-popover shadow-md">
+          <CommandList className="tg-pop absolute left-0 right-[-38px] top-[calc(100%+6px)] max-h-80 rounded-xl border bg-popover shadow-[var(--shadow-md)]">
             <CommandEmpty className="py-4 text-center text-[12px] text-muted-foreground">Nothing on this question matches.</CommandEmpty>
             {hits.length > 0 && (
               <CommandGroup>
@@ -186,13 +186,13 @@ export function GraphTools({
                     {h.kind === "finding" ? (
                       <StanceGlyph stance={(focus && state.findings[h.id.slice(2)]?.evidence[focus]?.stance) || Object.values(state.findings[h.id.slice(2)]?.evidence ?? {})[0]?.stance || "mixed"} size={12} />
                     ) : (
-                      <span className="mono mt-px shrink-0 rounded border px-1 text-[9.5px] text-ink-3">paper</span>
+                      <span className="mt-px shrink-0 rounded border px-1 text-[12px] text-ink-3">paper</span>
                     )}
                     <span className="min-w-0">
                       <span className="line-clamp-2 text-ink">{h.title}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
+                      <span className="block truncate text-[12px] text-muted-foreground">
                         {h.sub}
-                        {h.hyp && h.hyp !== focus && state.hyps[h.hyp] ? ` · on H${state.hypOrder.indexOf(h.hyp) + 1}` : ""}
+                        {h.hyp && h.hyp !== focus && state.hyps[h.hyp] ? `, on H${state.hypOrder.indexOf(h.hyp) + 1}` : ""}
                       </span>
                     </span>
                   </CommandItem>
@@ -231,10 +231,10 @@ function FilterButton({ state, filter, setFilter, n, shown }: { state: State; fi
       max={years?.[1]}
       onChange={(e) => set({ [key]: e.target.value ? Number(e.target.value) : null })}
       aria-label={key === "from" ? "From year" : "To year"}
-      className="mono h-7 w-[72px] rounded-md border bg-background px-2 text-[12px] outline-none focus:border-ring"
+      className="h-7 w-[72px] rounded-md border bg-background px-2 text-[12px] outline-none focus:border-ring"
     />
   );
-  const label = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+  const label = "text-[12px] font-medium text-muted-foreground";
 
   return (
     <Popover>
@@ -242,7 +242,7 @@ function FilterButton({ state, filter, setFilter, n, shown }: { state: State; fi
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className={`h-8 gap-1 rounded-l-none px-2.5 text-[12px] ${n ? "text-ink" : "text-muted-foreground"}`} aria-label="Filter the graph">
             <ListFilter className="size-3.5" />
-            {n > 0 && <span className="mono rounded-full bg-primary px-1.5 text-[10px] leading-4 text-primary-foreground">{n}</span>}
+            {n > 0 && <span className="rounded-full bg-primary px-1.5 text-[12px] leading-4 text-primary-foreground">{n}</span>}
           </Button>
         </PopoverTrigger>
       </Tip>
@@ -250,7 +250,7 @@ function FilterButton({ state, filter, setFilter, n, shown }: { state: State; fi
         <div className="flex items-center justify-between">
           <span className="text-[13px] font-medium text-ink">Filter</span>
           {shown && n > 0 && (
-            <span className="text-[11.5px] text-muted-foreground">
+            <span className="text-[12.5px] text-muted-foreground">
               {shown.findings} of {shown.of} findings
             </span>
           )}

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { explanation, type State } from "@/lib/store";
 import type { Finding } from "@/lib/types";
-import { designShort, DIRECTION, Icon, STANCE, StanceGlyph } from "../graph/glyphs";
+import { designShort, DIRECTION, DirectionIcon, Icon, STANCE, StanceGlyph } from "../graph/glyphs";
 import { SectionLabel } from "../Tip";
 
 const H = ({ children }: { children: React.ReactNode }) => <SectionLabel className="mb-1.5 mt-5">{children}</SectionLabel>;
@@ -24,11 +24,11 @@ function FindingLink({ f, state, hk, onSelect }: { f: Finding; state: State; hk:
   const e = hk ? f.evidence[hk] : null;
   return (
     <Button variant="ghost" onClick={() => onSelect(`f:${f.id}`)} className="h-auto w-full items-start justify-start gap-2 px-2 py-1.5 text-left font-normal">
-      {e ? <StanceGlyph stance={e.stance} size={15} /> : <span className="mono w-[15px] text-center text-ink-3">{DIRECTION[f.direction]?.arrow}</span>}
+      {e ? <StanceGlyph stance={e.stance} size={15} /> : <span className="flex w-[15px] justify-center pt-0.5 text-ink-3"><DirectionIcon direction={f.direction} /></span>}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] text-ink">{f.text}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">
-          {f.outcome.name} · {state.papers[f.paper_id]?.label}
+        <span className="block truncate text-[12px] text-muted-foreground">
+          {f.outcome.name}, {state.papers[f.paper_id]?.label}
         </span>
       </span>
     </Button>
@@ -45,7 +45,7 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
     const fb = c && state.findings[c.b];
     return (
       <div className="p-5">
-        <div className={`mono text-[10.5px] uppercase tracking-[0.1em] ${c?.explained_by ? "text-ink-3" : "text-neg-ink"}`}>
+        <div className={`text-[12px] ${c?.explained_by ? "text-ink-3" : "text-neg-ink"}`}>
           {c?.explained_by ? "Explained contradiction" : "Contradiction"}
         </div>
         <h3 className="mt-1 text-[16px] font-semibold text-ink">{c?.reason ?? "Conflict"}</h3>
@@ -56,7 +56,7 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
         ) : (
           <p className="mt-1 text-[12.5px] text-ink-2">No study difference explains it: a real disagreement in the literature.</p>
         )}
-        {c?.severity && <p className="mt-1 text-[11.5px] text-ink-3">Severity {c.severity}, set by the lower credibility of the two papers.</p>}
+        {c?.severity && <p className="mt-1 text-[12.5px] text-ink-3">Severity {c.severity}, set by the lower credibility of the two papers.</p>}
         <H>Between</H>
         {fa && <FindingLink f={fa} state={state} hk={hk} onSelect={onSelect} />}
         {fb && <FindingLink f={fb} state={state} hk={hk} onSelect={onSelect} />}
@@ -72,17 +72,18 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
     const evid = Object.entries(f.evidence);
     return (
       <div className="p-5">
-        <div className="mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3">Finding · {f.outcome.name}</div>
+        <div className="text-[12px] text-ink-3">Finding on {f.outcome.name}</div>
         <h3 className="mt-1 text-[16px] font-semibold leading-snug text-ink">{f.text}</h3>
-        <div className="mono mt-1 text-[11.5px] text-ink-2">
-          {DIRECTION[f.direction]?.arrow} {DIRECTION[f.direction]?.label}
-          {f.effect_text ? ` · ${f.effect_text}` : f.effect_value != null ? ` · ${f.effect_value} ${f.effect_unit ?? ""}` : ""}
+        <div className="mt-1 flex flex-wrap items-center gap-1 text-[12.5px] text-ink-2">
+          <DirectionIcon direction={f.direction} />
+          {DIRECTION[f.direction]?.label}
+          {f.effect_text ? `, ${f.effect_text}` : f.effect_value != null ? `, ${f.effect_value} ${f.effect_unit ?? ""}` : ""}
         </div>
         {f.quote && (
           <>
             <H>Quote</H>
-            <p className="border-l-2 border-line-2 pl-3 font-serif text-[13.5px] leading-[1.6] text-ink-2">“{f.quote}”</p>
-            <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-3">
+            <p className="rounded-xl bg-surface-2 px-3.5 py-3 text-[14px] leading-[1.6] text-ink">“{f.quote}”</p>
+            <p className="mt-1 flex items-center gap-1 text-[12px] text-ink-3">
               {f.quote_verified ? <Icon name="check" size={11} /> : <Icon name="alert" size={11} />}
               {f.quote_verified ? "Found verbatim in the source text" : "Not found verbatim in the source; its weight is halved"}
             </p>
@@ -93,15 +94,15 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
             <H>Stance per hypothesis</H>
             <ul className="space-y-2">
               {evid.map(([k, e]) => (
-                <li key={k} className="rounded-md border border-line bg-surface px-3 py-2">
+                <li key={k} className="rounded-lg border border-line bg-surface px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <StanceGlyph stance={e.stance} size={14} />
                     <span className="text-[12px] font-medium" style={{ color: STANCE[e.stance].ink }}>
                       {STANCE[e.stance].label}
                     </span>
-                    <span className="mono ml-auto text-[10.5px] text-ink-3">weight {e.weight.toFixed(2)}</span>
+                    <span className="ml-auto text-[12px] text-ink-3">weight {e.weight.toFixed(2)}</span>
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-ink-3">{state.hyps[k]?.statement}</div>
+                  <div className="mt-0.5 text-[12.5px] text-ink-3">{state.hyps[k]?.statement}</div>
                   {e.rationale && <div className="mt-1 text-[12px] text-ink-2">{e.rationale}</div>}
                 </li>
               ))}
@@ -140,8 +141,8 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
             <Button variant="ghost" onClick={() => onSelect(`p:${p.id}`)} className="h-auto w-full justify-start px-2 py-1.5 text-left font-normal">
               <span className="min-w-0">
                 <span className="block truncate text-[12.5px] text-ink">{p.title}</span>
-                <span className="mono block text-[11px] text-ink-3">
-                  {p.label} · credibility {p.credibility ?? "…"}
+                <span className="block text-[12px] text-ink-3">
+                  {p.label}, credibility {p.credibility ?? "…"}
                 </span>
               </span>
             </Button>
@@ -160,11 +161,11 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
   return (
     <div className="p-5">
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="mono rounded-sm text-[10px]">
+        <Badge variant="outline" className="rounded-sm text-[12px]">
           {designShort(p.design)}
         </Badge>
-        <span className="mono text-[11px] text-ink-3">
-          {p.year} · {p.journal ?? p.kind}
+        <span className="text-[12px] text-ink-3">
+          {p.year}, {p.journal ?? p.kind}
         </span>
       </div>
       <h3 className="mt-1.5 text-[15.5px] font-semibold leading-snug text-ink">{p.title}</h3>
@@ -178,23 +179,23 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
         </a>
       )}
 
-      <H>Credibility · {p.credibility ?? "…"} / 100</H>
+      <H>Credibility {p.credibility ?? "…"} out of 100</H>
       {p.reasons?.length ? (
         <ul className="space-y-1">
           {p.reasons.map((r) => (
             <li key={r.id ?? r.label} className="grid grid-cols-[1fr_auto] gap-x-2 text-[12px]">
               <span className="text-ink-2">
                 {r.label}
-                {r.judged && <span className="mono ml-1 text-[9.5px] text-ink-4">LLM</span>}
+                {r.judged && <span className="ml-1 text-[12px] text-ink-3">LLM</span>}
               </span>
-              <span className={`mono tabular text-right ${r.points < 0 ? "text-neg-ink" : "text-ink"}`}>
+              <span className={`tabular text-right ${r.points < 0 ? "text-neg-ink" : "text-ink"}`}>
                 {r.points > 0 ? "+" : ""}
                 {r.points}
               </span>
-              <span className="col-span-2 text-[11px] leading-snug text-ink-3">{r.detail}</span>
+              <span className="col-span-2 text-[12px] leading-snug text-ink-3">{r.detail}</span>
             </li>
           ))}
-          <li className="mono flex justify-between border-t border-line pt-1 text-[11px] text-ink-3">
+          <li className="flex justify-between border-t border-line pt-1 text-[12px] text-ink-3">
             <span>sum (clamped 0–100)</span>
             <span>{total}</span>
           </li>
@@ -205,7 +206,7 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
       {(p.flags ?? []).length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {p.flags!.map((f) => (
-            <Badge key={f} variant="secondary" className="rounded-sm text-[10.5px] font-normal">
+            <Badge key={f} variant="secondary" className="rounded-sm text-[12px] font-normal">
               {FLAG_TEXT[f] ?? f}
             </Badge>
           ))}
@@ -218,14 +219,14 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
           <ul className="space-y-0.5 text-[12px] text-ink-2">
             {p.funders.map((f) => (
               <li key={f.id}>
-                <span className="mono mr-1.5 text-[10px] uppercase text-ink-3">{f.type}</span>
+                <span className="mr-1.5 text-[12px] text-ink-3">{f.type}</span>
                 {f.name}
               </li>
             ))}
             {p.labs.map((l) => (
               <li key={l.id} className="text-ink-3">
                 {l.name}
-                {l.country ? ` · ${l.country}` : ""}
+                {l.country ? `, ${l.country}` : ""}
               </li>
             ))}
           </ul>
@@ -238,9 +239,9 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
           {studies.map((s) => (
             <p key={s.id} className="text-[12px] text-ink-2">
               {s.design}
-              {s.n ? ` · n=${s.n.toLocaleString()}` : ""}
-              {s.population ? ` · ${s.population}` : ""}
-              {s.exposure ? ` · ${s.exposure}` : ""}
+              {s.n ? `, n=${s.n.toLocaleString()}` : ""}
+              {s.population ? `, ${s.population}` : ""}
+              {s.exposure ? `, ${s.exposure}` : ""}
             </p>
           ))}
         </>
@@ -248,7 +249,7 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
 
       {findings.length > 0 && (
         <>
-          <H>Findings · {findings.length}</H>
+          <H>Findings ({findings.length})</H>
           {findings.map((f) => (
             <FindingLink key={f.id} f={f} state={state} hk={hk} onSelect={onSelect} />
           ))}
@@ -262,7 +263,7 @@ export function DetailsPanel({ state, id, hk, onSelect }: { state: State; id: st
             {Object.entries(p.considered).map(([k, c]) => (
               <li key={k} className="flex justify-between gap-2">
                 <span className="truncate">{state.hyps[k]?.statement ?? k}</span>
-                <span className="mono shrink-0 text-[10.5px] text-ink-3">rel {c.relevance?.toFixed?.(2) ?? c.relevance}</span>
+                <span className="shrink-0 text-[12px] text-ink-3">rel {c.relevance?.toFixed?.(2) ?? c.relevance}</span>
               </li>
             ))}
           </ul>

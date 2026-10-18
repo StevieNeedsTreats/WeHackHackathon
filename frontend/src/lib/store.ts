@@ -370,7 +370,7 @@ export function useResearch() {
           push(ev);
         }
       } catch (e) {
-        if ((e as Error)?.name !== "AbortError") dispatch({ type: "error", message: "Lost connection to the TruthGraph API. Is the backend running on :8100?" });
+        if ((e as Error)?.name !== "AbortError") dispatch({ type: "error", message: "Lost connection to the API. Is the backend running on :8100?" });
       }
     },
     [push, detach],

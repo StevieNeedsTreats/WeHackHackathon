@@ -5,7 +5,7 @@ Cost and latency come from two places, so both are kept small:
     findings, contradictions) built from one snapshot read, so most questions need no query.
     The digest sits in the system prompt, which is prompt-cached across the steps and turns
     of a conversation.
-  * Tools. For anything the digest lacks, the model calls TruthGraph's MCP server (mcp_server.py)
+  * Tools. For anything the digest lacks, the model calls the app's MCP server (mcp_server.py)
     through an in-process session: read-only Cypher whose description carries the schema and its
     indexed keys, full-text lookup, multi-hop explanations, graph algorithms, and adding a paper the
     user names. The model is given whatever tools the server lists and chooses among them.
@@ -25,13 +25,13 @@ from ..llm import LLMError, Message, ToolResult, ToolSpec, UsageMeter, chat_clie
 
 MAX_STEPS = 6
 
-SYSTEM = """You are TruthGraph's research assistant. TruthGraph maps published research on a claim into a graph: \
+SYSTEM = """You are the research assistant of Nodes Don't Lie. Nodes Don't Lie maps published research on a claim into a graph: \
 hypotheses, the papers considered for each, their studies and findings, each finding's stance on each hypothesis, \
 credibility scores, and contradictions. You answer the user's questions about that graph.
 
 How to answer:
 - The digest below covers the open question: every hypothesis's verdict and shares, every paper with its credibility, every finding with its stance and weight, the contradictions. Questions about the open question are almost always answered from it with no query at all; don't query to re-check it.
-- Your tools come from TruthGraph's MCP server; their descriptions say what each is for. Use them for what the \
+- Your tools come from the Nodes Don't Lie MCP server; their descriptions say what each is for. Use them for what the \
 digest lacks: why a verdict came out as it did (explain_verdict), how two things connect, e.g. a funder to the \
 evidence (trace_path), which papers the literature leans on (influential_papers), where the evidence splits \
 (contradiction_clusters), other questions, authors, labs, funders and citations (graph_query, find_in_graph). \
