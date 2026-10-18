@@ -7,6 +7,7 @@ import { CompareView } from "@/components/CompareView";
 import GraphCanvas from "@/components/graph/GraphCanvas";
 import { EXAMPLES, Header } from "@/components/Header";
 import { HypothesisBar, type Focus } from "@/components/HypothesisBar";
+import { HeroPlot } from "./EvidenceScale";
 import { InterpretationCard } from "@/components/InterpretationCard";
 import { CollapseButton, Shell } from "@/components/Shell";
 import { ChatPanel } from "@/components/panels/ChatPanel";
@@ -243,19 +244,27 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   const empty = useMemo(() => interp ? (
     <InterpretationCard interp={interp} onRun={research} onCancel={() => setInterp(null)} />
   ) : (
-    <div className="pointer-events-auto max-w-[600px] px-6 text-center">
-      <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground">What does the research actually say?</h1>
-      <p className="mx-auto mt-3 max-w-[500px] text-[14px] leading-[1.6] text-ink-2">
-        Ask about any claim in plain language. Agents split it into testable hypotheses, find supporting and refuting studies, score each source&apos;s credibility and map where
-        the evidence agrees and contradicts itself, live into a FalkorDB graph. Tuned for medicine, but the same agents work for economics or any field.
-      </p>
-      <div className="mt-5 flex flex-col items-center gap-1.5">
-        {EXAMPLES.map((e) => (
-          <Button key={e} variant="outline" size="sm" className="h-auto max-w-full whitespace-normal rounded-full bg-card py-1 font-normal text-ink-2" onClick={() => ask(e)} disabled={asking}>
-            {e}
-          </Button>
-        ))}
-      </div>
+    <div className="pointer-events-auto max-w-[620px] px-6 text-center">
+      <HeroPlot />
+      <div className="tg-hero-copy">
+        <h1 className="mt-5 text-[34px] font-bold leading-[1.1] tracking-[-0.035em] text-balance text-foreground">What does the research actually say?</h1>
+        <p className="mx-auto mt-3.5 max-w-[480px] text-[15px] leading-[1.6] text-pretty text-ink-2">
+          Ask about a claim. Agents find the studies for and against it, weigh how credible each one is, and pool them into a verdict you can trace back to the source.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          {EXAMPLES.map((e) => (
+            <Button
+              key={e}
+              variant="outline"
+              size="sm"
+              className="h-auto max-w-full whitespace-normal rounded-full border-line bg-card px-3.5 py-1.5 text-[13px] font-normal text-ink-2 shadow-[var(--shadow-sm)] hover:border-line-2 hover:text-ink"
+              onClick={() => ask(e)}
+              disabled={asking}
+            >
+              {e}
+            </Button>
+          ))}
+        </div>
       {demos && demos.length > 0 && (
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {demos.map((d) => (
@@ -268,7 +277,8 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
       {health && !health.llm.available && (
         <p className="mt-4 text-[12px] text-ink-3">No LLM configured on the server: live research is off{demos?.length ? "; demos still work" : ""}.</p>
       )}
-      <p className="mono mt-4 text-[11px] text-muted-foreground">{asking ? "Reading your question…" : "Press / or Ctrl K to ask"}</p>
+      <p className="mt-5 text-[12.5px] text-ink-3">{asking ? "Reading your question…" : "Press / to ask your own"}</p>
+      </div>
     </div>
   ), [interp, research, asking, demos, health, ask, demo]);
 
@@ -289,17 +299,14 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
       />
 
       {showError && (
-        <div className="border-b bg-card px-4 py-2.5 md:px-5">
-          <Alert variant="destructive" className="border-destructive/40 bg-neg-soft/50">
+        <div className="tg-enter border-b bg-card px-4 py-2.5 md:px-5">
+          <Alert variant="destructive" className="rounded-xl border-neg/30 bg-neg-soft/60">
             {guard ? <ShieldAlert /> : <CircleAlert />}
             <AlertTitle className="flex flex-wrap items-center gap-2 text-foreground">
-              <Badge variant="destructive" className="mono rounded-sm text-[10px] uppercase">
-                {guard ? "guardrail" : "error"}
-              </Badge>
-              {guard ? guard.message : state.error}
+              {guard ? guard.message : `Something went wrong: ${state.error}`}
             </AlertTitle>
             {guard?.checks && (
-              <AlertDescription className="mono flex flex-wrap gap-x-3 text-[11px] text-ink-2">
+              <AlertDescription className="flex flex-wrap gap-x-3 text-[12px] text-ink-2">
                 {guard.checks.map((c) => (
                   <span key={c.name}>
                     {c.passed ? "✓" : "✗"} {c.name}

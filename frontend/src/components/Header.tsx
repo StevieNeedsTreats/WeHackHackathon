@@ -2,7 +2,6 @@
 
 import { Link2, Search, Square } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { isTyping } from "@/lib/keys";
@@ -94,7 +93,7 @@ export function Header({
       <div className="flex items-center gap-1.5">
         <div className="flex items-center gap-2">
           <Logo size={24} />
-          <span className="hidden text-[16px] font-semibold tracking-[-0.02em] sm:inline">TruthGraph</span>
+          <span className="hidden text-[16.5px] font-bold tracking-[-0.025em] sm:inline">TruthGraph</span>
         </div>
       </div>
 
@@ -104,7 +103,7 @@ export function Header({
           onClick={() => setOpen(true)}
           disabled={busy}
           aria-label="Ask about a claim"
-          className="h-9 w-full max-w-[560px] justify-start gap-2 bg-surface-2 px-3 font-normal text-muted-foreground shadow-none hover:bg-muted/60"
+          className="h-9 w-full max-w-[560px] justify-start gap-2.5 rounded-full border-line bg-surface-2 px-3.5 font-normal text-ink-3 shadow-none transition-[background,border-color,box-shadow] hover:border-line-2 hover:bg-surface hover:shadow-[var(--shadow-sm)]"
         >
           <Search className="size-4 shrink-0" />
           <span className={`min-w-0 flex-1 truncate text-left text-[13.5px] ${current ? "text-foreground" : ""}`}>
@@ -125,15 +124,13 @@ export function Header({
 
       <div className="flex items-center gap-1.5">
         <Tip label={health?.falkordb ? `Connected to graph “${health.graph}”` : "FalkorDB unreachable"} side="bottom">
-          <Badge variant="outline" className="mono hidden h-7 gap-2 rounded-md px-2.5 font-normal text-ink-2 xl:inline-flex">
-            <span className={`size-2 rounded-full ${health?.falkordb ? "bg-ok" : "bg-destructive"}`} />
-            FalkorDB
-            {health && (
-              <span className="tabular text-muted-foreground">
-                {health.nodes.toLocaleString()} nodes · {health.edges.toLocaleString()} edges
-              </span>
-            )}
-          </Badge>
+          <span className="hidden h-8 items-center gap-2 rounded-full px-3 text-[12.5px] text-ink-3 xl:inline-flex">
+            <span className="relative flex size-2">
+              {health?.falkordb && <span className="absolute inset-0 animate-ping rounded-full bg-ok opacity-40 [animation-duration:2.4s]" />}
+              <span className={`relative size-2 rounded-full ${health?.falkordb ? "bg-ok" : "bg-destructive"}`} />
+            </span>
+            {health ? `${health.nodes.toLocaleString()} nodes, ${health.edges.toLocaleString()} edges` : "Connecting…"}
+          </span>
         </Tip>
         {state.question && (
           <Tip label="Copy a link to this question" side="bottom">
