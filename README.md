@@ -69,7 +69,9 @@ Paper abstracts, verdict text, run logs and caches are in Redis. The graph keeps
 
 ## The queries
 
-The **Queries** tab runs five queries on each question. It shows the result, the number of hops and the time. Each query answers a question that a reader of research asks. In a relational database, each query needs 3 to 6 joins. In the graph, each one is one pattern.
+The **Queries** tab runs seven queries on each question. It shows the result, the number of hops, the time and the execution plan. Each query answers a question that a reader of research asks.
+
+The first five queries follow paths through the graph. In a relational database, each one needs 3 to 6 joins. In the graph, each one is one pattern. The last two queries run a FalkorDB graph algorithm inside the query.
 
 ### 1. Funding trail (3 hops)
 
@@ -141,7 +143,45 @@ WHERE o.key <> h.key
 RETURN a.name AS author, collect(DISTINCT o.statement)[..3] AS other_hypotheses
 ```
 
-### Graph algorithms
+### 6. Most influential papers (`algo.pageRank`)
+
+**The question:** Which papers of this question does the research depend on most?
+
+**Why:** A paper with many citations is not always important. PageRank also counts who cites it. A paper that important papers cite gets a high score. The query runs PageRank on all citations in the graph, not only on this question. Then it keeps the papers of this question.
+
+```cypher
+CALL algo.pageRank('Paper', 'CITES') YIELD node, score
+MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(node)
+WITH DISTINCT node, score
+RETURN node.label AS paper, score AS pagerank, node.credibility AS credibility
+ORDER BY pagerank DESC
+```
+
+### 7. Contradiction camps (`algo.WCC`)
+
+**The question:** Where does the evidence split into groups that disagree?
+
+**Why:** One contradiction is two findings. But contradictions can link into a chain: A disagrees with B, and B disagrees with C. WCC (weakly connected components) finds each such group. A large group with mixed stances shows where the research is most divided.
+
+```cypher
+CALL algo.WCC({nodeLabels: ['Finding'], relationshipTypes: ['CONTRADICTS']}) YIELD node, componentId
+MATCH (node)-[e:EVIDENCE_FOR]->(h:Hypothesis)<-[:ASKS]-(:Question {id:$q})
+WITH h, componentId, count(DISTINCT node) AS findings, collect(DISTINCT e.stance) AS stances
+WHERE findings > 1
+RETURN h.statement AS hypothesis, componentId AS camp, findings, stances
+```
+
+### Execution plans
+
+Each query shows its `GRAPH.EXPLAIN` plan. The plan marks the steps that use an index or a graph algorithm. These steps do not scan all the nodes. Thus you can see why a query is fast.
+
+The Cypher console in the same tab has an **Explain** button. The console also accepts `CALL algo.*` and full-text search with `db.idx.fulltext.queryNodes`.
+
+### Search
+
+The ⌘K palette also searches the papers and topics that are already in the graph. It uses the full-text indexes on `Paper.title` and `Concept.name`. When you select a result, the app opens its question.
+
+### Graph algorithms in the chat
 
 The chat and the MCP server (`/mcp`) also use FalkorDB's graph algorithms:
 

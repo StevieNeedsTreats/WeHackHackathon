@@ -194,6 +194,8 @@ export interface Metric {
   sample: unknown[][];
   median_ms: number;
   p95_ms: number;
+  /** GRAPH.EXPLAIN output, one operation per line. */
+  plan?: string[];
 }
 
 export interface Usage {

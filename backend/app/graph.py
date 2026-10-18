@@ -110,6 +110,10 @@ class GraphStore:
     async def ro(self, query: str, params: dict | None = None, timeout: int | None = None):
         return await self.graph.ro_query(query, params or {}, timeout=timeout or self.settings.query_timeout_ms)
 
+    async def explain(self, query: str, params: dict | None = None) -> list[str]:
+        """GRAPH.EXPLAIN: the execution plan FalkorDB would run, one operation per line, without running it."""
+        return (await self.graph.explain(query, params or {})).plan
+
     # ================================================================== writes
 
     async def upsert_question(self, qid: str, text: str, domain: str) -> None:
@@ -553,8 +557,9 @@ class GraphStore:
                 """
                 CALL db.idx.fulltext.queryNodes('Paper', $t) YIELD node, score
                 WITH node AS p, score ORDER BY score DESC LIMIT $n
-                OPTIONAL MATCH (h:Hypothesis)-[:CONSIDERED]->(p)
-                RETURN p.id, p.label, p.title, p.year, p.design, p.credibility, collect(DISTINCT h.key)[..4]
+                OPTIONAL MATCH (q:Question)-[:ASKS]->(h:Hypothesis)-[:CONSIDERED]->(p)
+                RETURN p.id, p.label, p.title, p.year, p.design, p.credibility, collect(DISTINCT h.key)[..4],
+                       collect(DISTINCT q.id)[..4]
                 """,
                 {"t": term, "n": limit},
             ),
@@ -570,7 +575,7 @@ class GraphStore:
         )
         return {
             "papers": [{"id": r[0], "label": r[1], "title": r[2], "year": r[3], "design": r[4], "credibility": r[5],
-                        "hypotheses": r[6]} for r in papers.result_set],
+                        "hypotheses": r[6], "questions": r[7]} for r in papers.result_set],
             "concepts": [{"id": r[0], "name": r[1], "hypotheses": [{"key": k, "statement": s, "question": q}
                                                                     for k, s, q in r[2] if k]} for r in concepts.result_set],
         }

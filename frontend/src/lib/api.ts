@@ -130,6 +130,15 @@ export interface QueryResult {
 }
 export const runQuery = (cypher: string, qid?: string) =>
   json<QueryResult>("/api/query", { method: "POST", body: JSON.stringify({ cypher, qid }) });
+export const explainQuery = (cypher: string, qid?: string) =>
+  json<{ plan: string[] }>("/api/explain", { method: "POST", body: JSON.stringify({ cypher, qid }) });
+
+export interface SearchHits {
+  papers: { id: string; label: string; title: string; year?: number; design?: string; credibility?: number; questions: string[] }[];
+  concepts: { id: string; name: string; hypotheses: { key: string; statement: string; question: string }[] }[];
+}
+export const searchGraph = (q: string, signal?: AbortSignal) =>
+  json<SearchHits>(`/api/search?q=${encodeURIComponent(q)}`, { signal });
 
 export interface Edits {
   keep?: string[];
