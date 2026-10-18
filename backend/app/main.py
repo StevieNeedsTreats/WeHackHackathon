@@ -560,6 +560,12 @@ async def benchmarks(qid: str):
     return await run_benchmarks(state["store"], _check_id(qid))
 
 
+@app.get("/api/search")
+async def search(q: str = Query(..., max_length=200)):
+    """Full-text search of paper titles and concept names (FalkorDB's full-text indexes)."""
+    return await state["store"].find(q)
+
+
 @app.get("/api/queries")
 async def queries():
     return [{k: q[k] for k in ("id", "title", "question", "hops", "cypher")} for q in QUERIES]
@@ -592,6 +598,19 @@ async def query(body: CypherIn, request: Request):
         "ms": ms,
         "server_ms": getattr(res, "run_time_ms", None),
     }
+
+
+@app.post("/api/explain")
+async def explain(body: CypherIn, request: Request):
+    """GRAPH.EXPLAIN for a console query: the plan FalkorDB would run, without running it."""
+    _limit(request, ":q")
+    guard = screen_cypher(body.cypher)
+    if not guard.ok:
+        raise HTTPException(400, guard.message)
+    try:
+        return {"plan": await state["store"].explain(guard.value, {"q": body.qid or ""})}
+    except Exception as e:
+        raise HTTPException(400, f"Query error: {str(e)[:200]}")
 
 
 # ====================================================================== MCP over HTTP

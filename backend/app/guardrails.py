@@ -133,7 +133,7 @@ def sanitize_for_prompt(text: str, limit: int = MAX_ABSTRACT_CHARS) -> str:
 # ---------------------------------------------------------------- read-only cypher
 
 _WRITE_KEYWORDS = re.compile(
-    r"\b(create|merge|delete|detach|set|remove|drop|load\s+csv|foreach|call\s+db\.idx|call\s+dbms)\b",
+    r"\b(create|merge|delete|detach|set|remove|drop|load\s+csv|foreach|call\s+db\.idx\.(?!fulltext\.querynodes\b)|call\s+dbms)\b",
     re.IGNORECASE,
 )
 
@@ -148,8 +148,10 @@ def screen_cypher(q: str) -> GuardrailResult:
         return GuardrailResult(False, code="multi", message="One statement at a time.")
     if _WRITE_KEYWORDS.search(q):
         return GuardrailResult(False, code="write", message="The console is read-only. Writes are made by the agents only.")
-    if not re.match(r"^\s*(match|optional\s+match|with|unwind|return|call\s+db\.(labels|relationshiptypes|propertykeys))", q, re.IGNORECASE):
-        return GuardrailResult(False, code="shape", message="Start with MATCH, OPTIONAL MATCH, WITH, UNWIND or RETURN.")
+    if not re.match(r"^\s*(match|optional\s+match|with|unwind|return|call\s+db\.(labels|relationshiptypes|propertykeys|idx\.fulltext\.querynodes)|call\s+algo\.)", q,
+                    re.IGNORECASE):
+        return GuardrailResult(False, code="shape",
+                               message="Start with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN or CALL algo.*.")
     return GuardrailResult(True, value=q)
 
 
