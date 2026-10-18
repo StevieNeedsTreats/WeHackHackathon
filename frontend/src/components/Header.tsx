@@ -93,7 +93,7 @@ export function Header({
     <header className="relative z-20 grid h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b bg-card px-3 md:px-4">
       <div className="flex items-center gap-1.5">
         <div className="flex items-center gap-2">
-          <Logo size={26} />
+          <Logo size={24} />
           <span className="hidden text-[16px] font-semibold tracking-[-0.02em] sm:inline">TruthGraph</span>
         </div>
       </div>
