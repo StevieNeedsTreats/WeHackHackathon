@@ -144,6 +144,14 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
     scrollAt.current = {};
     setFrom(null);
   }, [qid]);
+  // A row lit by hovering it in a panel can vanish before the pointer leaves it (clicking it
+  // switches tab, a new hypothesis redraws the panel), so its highlight is dropped with it.
+  useEffect(() => setRefs(null), [tab, focus, qid]);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => e.key === "Escape" && setRefs(null);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
   // Each tab's scroll area mounts afresh (keyed by tab): put it back where the reader left it.
   // Details always opens at the top, since it shows whatever was just clicked.
   const keepScroll = useCallback(

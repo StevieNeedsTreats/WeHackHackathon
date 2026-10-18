@@ -236,12 +236,24 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeSig, rf]);
+  // Esc puts the graph back to normal: no hover, selection or chat trail.
   useEffect(() => {
-    if (!trail) return;
-    const on = (e: KeyboardEvent) => e.key === "Escape" && !isTyping(e.target) && onTrail(null);
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || isTyping(e.target)) return;
+      setHover(null);
+      onSelect(null);
+      onTrail(null);
+    };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [trail, onTrail]);
+  }, [onSelect, onTrail]);
+  // A node that moves or goes away under the pointer never sends mouse-leave, so a new layout
+  // drops the hover instead of leaving it lit.
+  const [hoverLayout, setHoverLayout] = useState(layout);
+  if (hoverLayout !== layout) {
+    setHoverLayout(layout);
+    setHover(null);
+  }
 
   const edgeEnds = useMemo(() => Object.fromEntries(layout.edges.map((e) => [e.id, [e.source, e.target]])), [layout]);
   const { active, labelled } = useMemo(() => {
