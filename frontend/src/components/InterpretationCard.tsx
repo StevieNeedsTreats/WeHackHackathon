@@ -14,7 +14,7 @@ import { SectionLabel } from "./Tip";
 function Chip({ role, value }: { role: string; value: string }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-line-2 bg-surface px-2 py-0.5 text-[12px]">
-      <span className="text-[11px] text-ink-3">{role}</span>
+      <span className="text-[12px] text-ink-3">{role}</span>
       <span className="text-ink">{value}</span>
     </span>
   );
@@ -62,7 +62,7 @@ export function InterpretationCard({
       </div>
 
       {q.corrections && q.corrections.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-[11.5px] text-ink-3">
+        <div className="flex flex-wrap gap-1.5 text-[12.5px] text-ink-3">
           Corrected:
           {q.corrections.map((c) => (
             <Badge key={c} variant="secondary" className="rounded-sm font-normal">
@@ -84,7 +84,7 @@ export function InterpretationCard({
                 aria-label={`Include hypothesis ${i + 1}`}
               />
               <span className="min-w-0 flex-1">
-                <span className="mr-1.5 text-[11px] text-ink-3">H{i + 1}</span>
+                <span className="mr-1.5 text-[12px] text-ink-3">H{i + 1}</span>
                 <span className="text-[14px] font-medium text-ink">{h.statement}</span>
               </span>
             </label>
@@ -109,7 +109,7 @@ export function InterpretationCard({
                   <Chip role={d.population} value={(pop[h.key] ?? h.population?.name) || "anyone"} />
                 </button>
               )}
-              {h.assumed && h.assumed.length > 0 && <span className="text-[11px] text-ink-3">assumed: {h.assumed.join(", ")}</span>}
+              {h.assumed && h.assumed.length > 0 && <span className="text-[12px] text-ink-3">assumed: {h.assumed.join(", ")}</span>}
             </div>
           </li>
         ))}

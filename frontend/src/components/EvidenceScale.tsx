@@ -134,7 +134,7 @@ export function HeroPlot() {
         const y = 14 + i * 18;
         const size = 5 + 6 * weight;
         return (
-          <g key={i} className="tg-hero-row" style={{ animationDelay: `${120 + i * 110}ms` }}>
+          <g key={i} className="tg-hero-row" style={{ animationDelay: `${i * 50}ms` }}>
             <line x1={at(lean - half)} x2={at(lean + half)} y1={y} y2={y} stroke="var(--ink-3)" strokeWidth={1.5} strokeLinecap="round" />
             <rect x={at(lean) - size / 2} y={y - size / 2} width={size} height={size} rx={1.5} fill="var(--ink)" />
           </g>

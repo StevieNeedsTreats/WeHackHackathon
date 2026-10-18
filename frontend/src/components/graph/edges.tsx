@@ -51,7 +51,7 @@ function ContradictionLabel({ id, x, y, stroke, reason, explained }: { id: strin
   return (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute max-w-[220px] rounded-[4px] border bg-surface px-1.5 py-0.5 text-[10px] shadow-[var(--shadow-sm)]"
+            className="pointer-events-none absolute max-w-[220px] rounded-[4px] border bg-surface px-1.5 py-0.5 text-[11px] shadow-[var(--shadow-sm)]"
             style={{ transform: `translate(-50%,-50%) translate(${x}px,${y}px)`, borderColor: stroke, color: explained ? "var(--ink-2)" : "var(--neg-ink)" }}
           >
             {reason}

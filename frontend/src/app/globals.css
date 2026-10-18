@@ -14,8 +14,8 @@
   --surface-3: #ecf0f3;
   --ink: #0f1b2d;
   --ink-2: #45566a;
-  --ink-3: #78869a;
-  --ink-4: #aeb8c4;
+  --ink-3: #5f6d7e;
+  --ink-4: #8794a3;
   --line: #e2e7ec;
   --line-2: #cdd5de;
 
@@ -75,8 +75,8 @@
   --surface-3: #19232f;
   --ink: #e7edf3;
   --ink-2: #aebaca;
-  --ink-3: #7b8899;
-  --ink-4: #4c5969;
+  --ink-3: #8a97a8;
+  --ink-4: #5f6c7d;
   --line: #1e2935;
   --line-2: #2b3846;
 
@@ -358,12 +358,11 @@ body {
   .tg-diamond { transition: none; }
 }
 
-/* Floating controls over the graph: a frosted card, so the canvas stays visible underneath. */
+/* Floating controls over the graph: a solid card lifted off the canvas by its shadow. */
 .tg-float {
-  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-md);
-  backdrop-filter: blur(10px) saturate(1.4);
 }
 .tg-pop { animation: tg-enter 180ms var(--ease-out) both; }
 
@@ -389,11 +388,11 @@ body {
 }
 
 /* Start screen: the one orchestrated entrance. Studies draw in, then the pooled diamond lands. */
-.tg-hero-row { animation: tg-hero-row 560ms var(--ease-out) both; }
+.tg-hero-row { animation: tg-hero-row 360ms var(--ease-out) both; }
 .tg-hero-diamond {
   transform-box: fill-box;
   transform-origin: center;
-  animation: tg-hero-diamond 640ms var(--ease-out) 820ms both;
+  animation: tg-hero-diamond 420ms var(--ease-out) 420ms both;
 }
 @keyframes tg-hero-row {
   from { opacity: 0; transform: translateX(-10px); }
@@ -403,7 +402,14 @@ body {
   from { opacity: 0; transform: scaleX(0.2) scaleY(0.6); }
   to { opacity: 1; transform: none; }
 }
-.tg-hero-copy { animation: tg-fade 520ms var(--ease-out) 260ms both; }
+.tg-hero-copy { animation: tg-fade 320ms var(--ease-out) 80ms both; }
 @media (prefers-reduced-motion: reduce) {
   .tg-hero-row, .tg-hero-diamond, .tg-hero-copy { animation: none; }
 }
+
+/* Browser surfaces, themed from the palette. */
+html {
+  scrollbar-color: var(--line-2) transparent;
+  accent-color: var(--pos);
+}
+input, textarea { caret-color: var(--pos); }

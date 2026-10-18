@@ -205,7 +205,7 @@ export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, o
 
       <div className={`shrink-0 border-t bg-card px-3 pb-3 pt-2 ${full ? "px-4 pb-5" : ""}`}>
         <div className={full ? "mx-auto w-full max-w-3xl" : ""}>
-        <div className="mb-1.5 flex items-start gap-1.5 text-[11px] text-muted-foreground">
+        <div className="mb-1.5 flex items-start gap-1.5 text-[12px] text-muted-foreground">
           <span className="shrink-0 py-px leading-5">Context</span>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {ctx.items.length === 0 && <span className="rounded bg-muted/60 px-1.5 py-px italic leading-4">Whole question</span>}
@@ -334,7 +334,7 @@ export function ChatPanel({ state, hk, selected, onPeek: peek, onFocus: focus, o
         <div className="pointer-events-none absolute inset-2 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ring bg-background/90 text-[13px] text-ink-2">
           <FileUp className="size-6 text-ink-3" />
           Drop to add to this question
-          <span className="text-[11.5px] text-muted-foreground">PDF or text, up to 8 files</span>
+          <span className="text-[12.5px] text-muted-foreground">PDF or text, up to 8 files</span>
         </div>
       )}
     </div>
@@ -403,7 +403,7 @@ function ContextPicker({ state, exclude, onPick }: { state: State; exclude: stri
           <CommandGroup heading="Hypotheses">
             {hyps.map((k) => (
               <CommandItem key={k} value={`h:${k} ${state.hyps[k].statement}`} onSelect={() => onPick(`h:${k}`)} className="text-[12.5px]">
-                <span className="shrink-0 text-[11px] text-ink-3">H{state.hypOrder.indexOf(k) + 1}</span>
+                <span className="shrink-0 text-[12px] text-ink-3">H{state.hypOrder.indexOf(k) + 1}</span>
                 <span className="line-clamp-2">{state.hyps[k].statement}</span>
               </CommandItem>
             ))}
@@ -415,7 +415,7 @@ function ContextPicker({ state, exclude, onPick }: { state: State; exclude: stri
               <CommandItem key={p.id} value={`p:${p.id} ${p.label} ${p.title}`} onSelect={() => onPick(`p:${p.id}`)} className="text-[12.5px]">
                 <span className="min-w-0">
                   <span className="block truncate text-ink">{p.label}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{p.title}</span>
+                  <span className="block truncate text-[12px] text-muted-foreground">{p.title}</span>
                 </span>
               </CommandItem>
             ))}
@@ -427,7 +427,7 @@ function ContextPicker({ state, exclude, onPick }: { state: State; exclude: stri
               <CommandItem key={f.id} value={`f:${f.id} ${f.text} ${state.papers[f.paper_id]?.label ?? ""}`} onSelect={() => onPick(`f:${f.id}`)} className="text-[12.5px]">
                 <span className="min-w-0">
                   <span className="line-clamp-2">{f.text}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{state.papers[f.paper_id]?.label}</span>
+                  <span className="block truncate text-[12px] text-muted-foreground">{state.papers[f.paper_id]?.label}</span>
                 </span>
               </CommandItem>
             ))}
@@ -486,7 +486,7 @@ function CopyButton({ m }: { m: Msg }) {
     <Button
       variant="ghost"
       size="sm"
-      className="h-6 px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100"
+      className="h-6 px-1.5 text-[12px] text-muted-foreground opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100"
       onClick={() => {
         void navigator.clipboard?.writeText(text);
         setDone(true);
@@ -502,21 +502,21 @@ function PartView({ p, jobs, h, onRetry }: { p: Part; jobs: Record<string, Job>;
   if (p.kind === "text") return p.text.trim() ? <Markdown text={p.text.trim()} h={h} /> : null;
   if (p.kind === "lookup")
     return (
-      <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
         <Search className="size-3" />
         Looked up “{p.text}”: {p.papers} paper{p.papers === 1 ? "" : "s"}, {p.concepts} topic{p.concepts === 1 ? "" : "s"} in {p.ms} ms
       </div>
     );
   if (p.kind === "query")
     return (
-      <Collapsible className="group/q rounded-md border bg-surface/60 text-[11.5px]">
+      <Collapsible className="group/q rounded-md border bg-surface/60 text-[12.5px]">
         <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-muted-foreground hover:text-ink">
           <ChevronRight className="size-3 transition-transform group-data-[state=open]/q:rotate-90" />
           <Database className="size-3" />
           {p.error ? <span className="truncate text-neg-ink">Query failed: {p.error}</span> : <span>Queried the graph: {p.rows} row{p.rows === 1 ? "" : "s"} in {p.ms} ms</span>}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <pre className="code max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">{p.cypher}</pre>
+          <pre className="code max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-2 text-[12px] leading-[1.55] text-ink-2">{p.cypher}</pre>
         </CollapsibleContent>
       </Collapsible>
     );
@@ -549,7 +549,7 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
   const args = Object.entries(p.args).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length));
   return (
     <Collapsible
-      className="group/q rounded-md border bg-surface/60 text-[11.5px]"
+      className="group/q rounded-md border bg-surface/60 text-[12.5px]"
       onMouseEnter={() => findings.length && h.onRefs(findings)}
       onMouseLeave={() => findings.length && h.onRefs(null)}
     >
@@ -569,11 +569,11 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
         )}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="space-y-1 border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">
+        <div className="space-y-1 border-t px-2.5 py-2 text-[12px] leading-[1.55] text-ink-2">
           <div className="flex items-center gap-2">
             <span className="code text-ink-3">{p.name}</span>
             {(findings.length > 0 || !!p.paths?.length) && h.onTrail && (
-              <Button variant="outline" size="sm" className="ml-auto h-6 gap-1 px-2 text-[11px]" onClick={() => h.onTrail?.(trailOf(p, t.label))}>
+              <Button variant="outline" size="sm" className="ml-auto h-6 gap-1 px-2 text-[12px]" onClick={() => h.onTrail?.(trailOf(p, t.label))}>
                 <Waypoints className="size-3" /> Show on graph
               </Button>
             )}
@@ -616,7 +616,7 @@ function JobCard({ job, h, onRetry }: { job: Job; h: CiteHandlers; onRetry: (ref
       <div className="flex items-center gap-2 border-b bg-surface/60 px-3 py-1.5 text-[12px] font-medium text-ink">
         {job.status === "running" ? <LoaderCircle className="size-3.5 animate-spin text-ink-3" /> : <FileUp className="size-3.5 text-ink-3" />}
         {head}
-        {job.detail && <span className="ml-auto truncate text-[11px] font-normal text-muted-foreground">{job.detail}</span>}
+        {job.detail && <span className="ml-auto truncate text-[12px] font-normal text-muted-foreground">{job.detail}</span>}
       </div>
       <ul className="divide-y">
         {job.items.map((it, i) => {
@@ -629,21 +629,21 @@ function JobCard({ job, h, onRetry }: { job: Job; h: CiteHandlers; onRetry: (ref
                 <div className="truncate text-[12.5px] text-ink" title={it.title ?? it.label}>
                   {it.title ?? it.label}
                 </div>
-                <div className="text-[11.5px] leading-[1.45] text-muted-foreground">{pending ? ITEM_TEXT[it.status] ?? it.detail : it.detail}</div>
+                <div className="text-[12.5px] leading-[1.45] text-muted-foreground">{pending ? ITEM_TEXT[it.status] ?? it.detail : it.detail}</div>
                 {it.status === "added" && paper && (
-                  <Button variant="link" size="sm" className="h-auto p-0 text-[11.5px]" onClick={() => h.onPeek(`p:${paper.id}`)}>
+                  <Button variant="link" size="sm" className="h-auto p-0 text-[12.5px]" onClick={() => h.onPeek(`p:${paper.id}`)}>
                     Show {paper.label} on the graph
                   </Button>
                 )}
                 {it.status === "failed" && !!it.suggestions?.length && (
                   <div className="mt-1.5 space-y-1">
-                    <div className="text-[11px] text-muted-foreground">Did you mean</div>
+                    <div className="text-[12px] text-muted-foreground">Did you mean</div>
                     {it.suggestions.map((s) => (
                       <Button
                         key={s.ref}
                         variant="outline"
                         size="sm"
-                        className="h-auto w-full justify-start whitespace-normal py-1 text-left text-[11.5px] font-normal"
+                        className="h-auto w-full justify-start whitespace-normal py-1 text-left text-[12.5px] font-normal"
                         onClick={() => onRetry(s.ref)}
                       >
                         <span className="min-w-0">

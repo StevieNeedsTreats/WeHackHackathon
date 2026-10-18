@@ -18,7 +18,7 @@ function StatusIcon({ s }: { s: AgentState["status"] }) {
   if (s === "running") return <LoaderCircle {...p} className="animate-spin text-foreground" aria-label="running" />;
   if (s === "done") return <CircleCheck {...p} className="fill-foreground text-card" aria-label="done" />;
   if (s === "error") return <CircleX {...p} className="fill-destructive text-card" aria-label="error" />;
-  return <CircleDashed {...p} className="text-ink-4" aria-label="queued" />;
+  return <CircleDashed {...p} className="text-ink-3" aria-label="queued" />;
 }
 
 const fmtMs = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
@@ -27,7 +27,7 @@ const fmtTok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 
 export function HChip({ n, onClick }: { n: number | undefined; onClick?: () => void }) {
   if (!n) return null;
   return (
-    <button type="button" onClick={onClick} className="shrink-0 rounded-sm border border-line-2 bg-surface px-1 text-[11px] leading-[14px] text-ink-2 hover:border-ink-3">
+    <button type="button" onClick={onClick} className="shrink-0 rounded-sm border border-line-2 bg-surface px-1 text-[12px] leading-[14px] text-ink-2 hover:border-ink-3">
       H{n}
     </button>
   );
@@ -59,7 +59,7 @@ export function AgentRail({
     <aside className="flex h-full flex-col" aria-label="Agents">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b pl-4 pr-2">
         <SectionLabel>Agents</SectionLabel>
-        {state.status !== "idle" && engine && <span className="text-[11px] text-muted-foreground">{engine}</span>}
+        {state.status !== "idle" && engine && <span className="text-[12px] text-muted-foreground">{engine}</span>}
         {onCollapse && (
           <span className="ml-auto">
             <CollapseButton side="left" onClick={onCollapse} />
@@ -84,7 +84,7 @@ export function AgentRail({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className={`text-[13px] font-medium ${ag.status === "queued" ? "text-muted-foreground" : "text-foreground"}`}>{a.name}</span>
-                    <span className="tabular flex shrink-0 gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="tabular flex shrink-0 gap-1.5 text-[12px] text-muted-foreground">
                       {u && u.input_tokens + u.output_tokens > 0 && (
                         <Tip label={`${u.calls} LLM call${u.calls === 1 ? "" : "s"}, ${u.input_tokens.toLocaleString()} in / ${u.output_tokens.toLocaleString()} out`}>
                           <span>{fmtTok(u.input_tokens + u.output_tokens)} tok</span>
@@ -93,7 +93,7 @@ export function AgentRail({
                       {ag.status !== "queued" && ag.ms > 0 && <span>{fmtMs(ag.ms)}</span>}
                     </span>
                   </div>
-                  <div className={`mt-0.5 flex items-start gap-1 text-[11.5px] leading-snug ${ag.detail ? "text-ink-2" : "text-muted-foreground"}`}>
+                  <div className={`mt-0.5 flex items-start gap-1 text-[12.5px] leading-snug ${ag.detail ? "text-ink-2" : "text-muted-foreground"}`}>
                     {ag.hypothesis && <HChip n={hNum[ag.hypothesis]} onClick={() => onFocus(ag.hypothesis!)} />}
                     <span className="min-w-0">{ag.detail || a.role}</span>
                   </div>
@@ -105,7 +105,7 @@ export function AgentRail({
         </ol>
 
         {total.input_tokens + total.output_tokens > 0 && (
-          <div className="mx-4 mb-3 flex justify-between rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[11px] text-ink-2">
+          <div className="mx-4 mb-3 flex justify-between rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-2">
             <span>{fmtTok(total.input_tokens + total.output_tokens)} tokens</span>
             {total.cost_usd > 0 && <span>${total.cost_usd.toFixed(3)}</span>}
           </div>
@@ -113,11 +113,11 @@ export function AgentRail({
 
         {state.steps.length > 0 && (
           <Card size="sm" className="mx-4 mb-4 gap-1.5 bg-surface-2 px-3 shadow-none">
-            <SectionLabel className="text-[11px]">Activity</SectionLabel>
-            <ul className="space-y-1 text-[11px] leading-snug text-ink-2">
+            <SectionLabel className="text-[12px]">Activity</SectionLabel>
+            <ul className="space-y-1 text-[12px] leading-snug text-ink-2">
               {state.steps.slice(-12).map((l, i) => (
                 <li key={i} className="flex items-start gap-1.5">
-                  <span className="tabular w-[34px] shrink-0 text-right text-ink-4">{fmtMs(l.t ?? 0)}</span>
+                  <span className="tabular w-[34px] shrink-0 text-right text-ink-3">{fmtMs(l.t ?? 0)}</span>
                   {l.hypothesis && <HChip n={hNum[l.hypothesis]} />}
                   <span className={`min-w-0 truncate ${l.kind === "status" ? "" : "text-ink-3"}`} title={l.text}>
                     {l.kind === "tool" || l.kind === "search" ? "→ " : ""}
@@ -149,12 +149,12 @@ export function AgentRail({
                   >
                     <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
                     {q.running ? (
-                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 gap-1 rounded-sm px-1 text-[11px] font-normal">
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 gap-1 rounded-sm px-1 text-[12px] font-normal">
                         <LoaderCircle className="size-2.5 animate-spin" />
                         running
                       </Badge>
                     ) : q.id.startsWith("demo-") ? (
-                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[11px] font-normal">
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[12px] font-normal">
                         demo
                       </Badge>
                     ) : null}
@@ -168,7 +168,7 @@ export function AgentRail({
                       onClick={() => {
                         if (window.confirm(`Delete “${q.text}”?\n\nIts hypotheses, stances and verdicts are removed. Papers stay cached for other questions.`)) onDelete(q.id);
                       }}
-                      className="mt-0.5 shrink-0 text-ink-4 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                      className="mt-0.5 shrink-0 text-ink-3 opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                     >
                       <Trash2 />
                     </Button>
@@ -177,9 +177,9 @@ export function AgentRail({
                 <ul className="ml-3 border-l border-line pl-2">
                   {q.hypotheses.map((h) => (
                     <li key={h.key}>
-                      <button type="button" onClick={() => onOpen(q.id, h.key)} className="flex w-full items-center gap-1.5 py-0.5 text-left text-[11px] text-ink-3 hover:text-ink">
+                      <button type="button" onClick={() => onOpen(q.id, h.key)} className="flex w-full items-center gap-1.5 py-0.5 text-left text-[12px] text-ink-3 hover:text-ink">
                         <span className="min-w-0 flex-1 truncate">{h.statement}</span>
-                        {h.verdict && <span className="shrink-0 text-[11px]">{h.grade}</span>}
+                        {h.verdict && <span className="shrink-0 text-[12px]">{h.grade}</span>}
                       </button>
                     </li>
                   ))}

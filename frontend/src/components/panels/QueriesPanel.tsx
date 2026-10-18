@@ -15,7 +15,7 @@ import type { Metric } from "@/lib/types";
 import { SectionLabel } from "../Tip";
 
 function Cell({ v }: { v: unknown }) {
-  if (v == null) return <span className="text-ink-4">null</span>;
+  if (v == null) return <span className="text-ink-3">null</span>;
   if (Array.isArray(v)) return <span>{v.map((x) => (typeof x === "object" ? "{…}" : String(x))).join(", ")}</span>;
   if (typeof v === "object") {
     const o = v as Record<string, unknown>;
@@ -27,11 +27,11 @@ function Cell({ v }: { v: unknown }) {
 function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
   return (
     <div className="scroll-thin max-h-[220px] overflow-auto rounded-md border bg-card">
-      <Table className="text-[11px]">
+      <Table className="text-[12px]">
         <TableHeader className="sticky top-0 bg-surface-2">
           <TableRow>
             {columns.map((c) => (
-              <TableHead key={c} className="code h-7 px-2 text-[11px] font-medium text-muted-foreground">
+              <TableHead key={c} className="code h-7 px-2 text-[12px] font-medium text-muted-foreground">
                 {c}
               </TableHead>
             ))}
@@ -161,8 +161,8 @@ export function QueriesPanel({ state }: { state: State }) {
         <SectionLabel className="mb-1">Data model in FalkorDB</SectionLabel>
         <p className="mb-2 text-[12.5px] leading-[1.55] text-ink-2">
           One shared property graph. Papers, studies and findings are merged across questions, so agents reuse what earlier runs found. A finding&apos;s
-          stance lives on its <span className="code text-[11.5px]">EVIDENCE_FOR</span> edge, so the same finding can support one hypothesis and be irrelevant to
-          another; disagreement is a <span className="code text-[11.5px]">CONTRADICTS</span> edge scoped to a hypothesis.
+          stance lives on its <span className="code text-[12.5px]">EVIDENCE_FOR</span> edge, so the same finding can support one hypothesis and be irrelevant to
+          another; disagreement is a <span className="code text-[12.5px]">CONTRADICTS</span> edge scoped to a hypothesis.
         </p>
         <Card size="sm" className="px-2 shadow-none">
           <Schema />
@@ -191,7 +191,7 @@ export function QueriesPanel({ state }: { state: State }) {
                       <CollapsibleTrigger className="w-full rounded-xl p-3 text-left outline-none hover:bg-muted/40 focus-visible:bg-muted/60">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[13px] font-semibold text-foreground">{m.title}</span>
-                          <Badge variant="outline" className="h-4 shrink-0 rounded-sm px-1 text-[11px] font-normal">
+                          <Badge variant="outline" className="h-4 shrink-0 rounded-sm px-1 text-[12px] font-normal">
                             {m.hops} hops
                           </Badge>
                         </div>
@@ -201,15 +201,15 @@ export function QueriesPanel({ state }: { state: State }) {
                             <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${(m.median_ms / max) * 100}%` }} />
                             <span className="absolute top-[-2px] h-[10px] w-[2px] rounded bg-ink-3" style={{ left: `${(m.p95_ms / max) * 100}%` }} title="p95" />
                           </div>
-                          <span className="tabular shrink-0 text-[11px] text-foreground">
+                          <span className="tabular shrink-0 text-[12px] text-foreground">
                             {m.median_ms.toFixed(2)} ms <span className="text-muted-foreground">· p95 {m.p95_ms.toFixed(2)}</span>
                           </span>
                         </div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">{m.rows} rows</div>
+                        <div className="mt-1 text-[12px] text-muted-foreground">{m.rows} rows</div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div className="space-y-2 border-t p-3">
-                          <pre className="code scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[11px] leading-relaxed text-ink-2">{m.cypher}</pre>
+                          <pre className="code scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[12px] leading-relaxed text-ink-2">{m.cypher}</pre>
                           {m.sample.length > 0 && <ResultTable columns={m.columns} rows={m.sample} />}
                           <Button variant="outline" size="xs" onClick={() => openInConsole(m.cypher)}>
                             <SquareTerminal />
@@ -223,14 +223,14 @@ export function QueriesPanel({ state }: { state: State }) {
                 );
               })}
             </ul>
-            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Median and p95 over 7 runs, measured from the API (includes the round-trip to FalkorDB).</p>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">Median and p95 over 7 runs, measured from the API (includes the round-trip to FalkorDB).</p>
           </>
         )}
       </section>
 
       <section ref={consoleRef} className="scroll-mt-4">
         <SectionLabel className="mb-1">Cypher console</SectionLabel>
-        <p className="mb-2 text-[11.5px] text-muted-foreground">
+        <p className="mb-2 text-[12.5px] text-muted-foreground">
           Read-only (<span className="code">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="code">$q</span> is the current question.
         </p>
         <Textarea
@@ -243,10 +243,10 @@ export function QueriesPanel({ state }: { state: State }) {
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") exec();
           }}
-          className="code resize-y bg-card text-[11.5px] leading-relaxed"
+          className="code resize-y bg-card text-[12.5px] leading-relaxed"
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">⌘ ↵ to run</span>
+          <span className="text-[12px] text-muted-foreground">⌘ ↵ to run</span>
           <Button size="sm" onClick={() => exec()}>
             <Play />
             Run query
@@ -260,7 +260,7 @@ export function QueriesPanel({ state }: { state: State }) {
         )}
         {result && (
           <div className="mt-2 space-y-1">
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-[12px] text-muted-foreground">
               {result.rows.length} rows{result.truncated ? " (truncated)" : ""} in {result.ms} ms
             </div>
             <ResultTable columns={result.columns} rows={result.rows} />

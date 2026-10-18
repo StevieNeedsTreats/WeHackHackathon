@@ -14,7 +14,7 @@ function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void })
         <StanceGlyph stance={r.stance.stance} size={15} />
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium leading-snug text-ink">{f.text}</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-3">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[12px] text-ink-3">
             <span className="text-ink-2">{r.paper.label}</span>
             <span>·</span>
             <span>{designShort(r.study?.design ?? r.paper.design)}</span>
@@ -27,7 +27,7 @@ function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void })
             <span>·</span>
             <span>cred {r.paper.credibility ?? "…"}</span>
             {f.harm && (
-              <Badge variant="destructive" className="h-3.5 rounded-sm px-1 text-[11px]">
+              <Badge variant="destructive" className="h-3.5 rounded-sm px-1 text-[12px]">
                 harm
               </Badge>
             )}
@@ -42,7 +42,7 @@ function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void })
               )}
             </p>
           )}
-          {r.stance.rationale && <p className="mt-1 text-[11.5px] leading-snug text-ink-3">Why: {r.stance.rationale}</p>}
+          {r.stance.rationale && <p className="mt-1 text-[12.5px] leading-snug text-ink-3">Why: {r.stance.rationale}</p>}
         </div>
       </div>
     </button>
@@ -66,7 +66,7 @@ export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: strin
         return (
           <section key={st}>
             <SectionLabel className="mb-2">
-              <span style={{ color: STANCE[st].ink }}>{STANCE[st].label}</span> <span className="tabular ml-1 rounded-full bg-surface-3 px-1.5 text-[11.5px] font-medium text-ink-2">{list.length}</span>
+              <span style={{ color: STANCE[st].ink }}>{STANCE[st].label}</span> <span className="tabular ml-1 rounded-full bg-surface-3 px-1.5 text-[12.5px] font-medium text-ink-2">{list.length}</span>
             </SectionLabel>
             <div className="space-y-1.5">
               {list.map((r) => (
@@ -82,7 +82,7 @@ export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: strin
           <ul className="space-y-1 text-[12px] text-ink-2">
             {flags.map((f, i) => (
               <li key={i}>
-                <span className="text-[11px] text-ink-3">{f.code}</span> {f.detail}
+                <span className="text-[12px] text-ink-3">{f.code}</span> {f.detail}
               </li>
             ))}
           </ul>

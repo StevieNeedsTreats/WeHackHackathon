@@ -66,7 +66,7 @@ function InsightRow({ i, onRefs }: { i: Insight; onRefs: (r: string[] | null) =>
       <div className="flex items-baseline gap-2">
         <span aria-hidden className="size-2 shrink-0 translate-y-[-1px] rotate-45 rounded-[1px]" style={{ background: t.color }} />
         <span className="text-[13.5px] font-semibold text-ink">{i.title}</span>
-        {i.refs.length > 0 && <span className="tabular ml-auto shrink-0 text-[12px] text-ink-4 group-hover:text-ink-3">{i.refs.length} finding{i.refs.length > 1 ? "s" : ""}</span>}
+        {i.refs.length > 0 && <span className="tabular ml-auto shrink-0 text-[12px] text-ink-3 group-hover:text-ink-2">{i.refs.length} finding{i.refs.length > 1 ? "s" : ""}</span>}
       </div>
       <p className="mt-0.5 pl-4 text-[13px] leading-[1.55] text-ink-2">{i.body}</p>
     </li>
@@ -147,9 +147,9 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                 <li key={c.id} className="rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors" onMouseEnter={() => onRefs(c.findings)} onMouseLeave={() => onRefs(null)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[12.5px] font-medium text-ink">{c.label}</span>
-                    <span className="text-[11px] text-ink-3">{c.findings.length} findings</span>
+                    <span className="text-[12px] text-ink-3">{c.findings.length} findings</span>
                   </div>
-                  <div className="text-[11.5px] text-ink-3">{c.context}</div>
+                  <div className="text-[12.5px] text-ink-3">{c.context}</div>
                   {cb && <BalanceBar support={cb.supports / t} refute={cb.refutes / t} mixed={cb.mixed / t} className="mt-1.5 h-[5px]" />}
                 </li>
               );
@@ -175,15 +175,15 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                     className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 transition-colors text-left hover:border-line-2 hover:bg-surface-2"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px]" style={{ color: c.explained_by ? "var(--ink-3)" : "var(--neg-ink)" }}>
+                      <span className="text-[12px]" style={{ color: c.explained_by ? "var(--ink-3)" : "var(--neg-ink)" }}>
                         {c.reason}
                       </span>
-                      <span className="ml-auto text-[11px] text-ink-4">{c.severity}</span>
+                      <span className="ml-auto text-[12px] text-ink-3">{c.severity}</span>
                     </div>
                     <div className="mt-0.5 truncate text-[12px] text-ink-2">
                       {state.papers[a?.paper_id ?? ""]?.label ?? "?"} vs {state.papers[bf?.paper_id ?? ""]?.label ?? "?"}
                     </div>
-                    {c.explained_by && <div className="text-[11.5px] text-ink-3">{explanation(c) ? `Explained by: ${explanation(c)}` : "Explained by this study difference"}</div>}
+                    {c.explained_by && <div className="text-[12.5px] text-ink-3">{explanation(c) ? `Explained by: ${explanation(c)}` : "Explained by this study difference"}</div>}
                   </button>
                 </li>
               );
@@ -202,7 +202,7 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
                 <li key={type} className="flex items-center gap-2 text-[12px]">
                   <span className="w-[86px] shrink-0 capitalize text-ink-2">{type}</span>
                   <BalanceBar support={d.supports / t} refute={d.refutes / t} mixed={d.mixed / t} className="h-[6px] flex-1" />
-                  <span className="w-[28px] text-right text-[11px] text-ink-3">{t}</span>
+                  <span className="w-[28px] text-right text-[12px] text-ink-3">{t}</span>
                 </li>
               );
             })}
@@ -217,14 +217,14 @@ export function VerdictPanel({ state, hk, onRefs, onSelect }: { state: State; hk
             {papers.length < 4 && <li>Only {papers.length} relevant paper{papers.length === 1 ? "" : "s"} found.</li>}
             {v?.gaps.map((g, i) => <li key={i}>{g}</li>)}
           </ul>
-          {v?.search_note && <p className="mt-2 text-[11.5px] text-ink-3">{v.search_note}</p>}
+          {v?.search_note && <p className="mt-2 text-[12.5px] text-ink-3">{v.search_note}</p>}
         </>
       )}
 
       {state.disclaimer && (
         <Alert className="mt-6 bg-surface-2">
           <Info />
-          <AlertDescription className="text-[11.5px] text-ink-3">{state.disclaimer}</AlertDescription>
+          <AlertDescription className="text-[12.5px] text-ink-3">{state.disclaimer}</AlertDescription>
         </Alert>
       )}
     </div>
