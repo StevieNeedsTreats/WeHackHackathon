@@ -4,7 +4,7 @@ GENERAL = DomainPack(
     id="general",
     name="General research",
     disclaimer=(
-        "TruthGraph summarises published research. It is not professional advice. "
+        "Nodes Don't Lie summarises published research. It is not professional advice. "
         "Grades reflect the papers found, not the final word on the question."
     ),
     subject_label="Subject",

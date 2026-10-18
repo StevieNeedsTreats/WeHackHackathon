@@ -1,6 +1,6 @@
 """Before/after benchmark for the data model optimizations.
 
-Builds a synthetic graph shaped like TruthGraph's (20 questions × 3 hypotheses × 40
+Builds a synthetic graph shaped like the app's (20 questions × 3 hypotheses × 40
 papers, each with 3 authors, 3 funders, 2 labs, one study and 3 findings) in a separate
 graph, then times the queries that changed against their previous versions and checks
 both return the same rows. The graph is deleted afterwards.

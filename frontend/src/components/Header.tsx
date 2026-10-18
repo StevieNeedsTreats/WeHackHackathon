@@ -93,7 +93,7 @@ export function Header({
       <div className="flex items-center gap-1.5">
         <div className="flex items-center gap-2">
           <Logo size={24} />
-          <span className="hidden text-[16.5px] font-bold tracking-[-0.025em] sm:inline">TruthGraph</span>
+          <span className="hidden text-[16.5px] font-bold tracking-[-0.025em] sm:inline">{"Nodes Don't Lie"}</span>
         </div>
       </div>
 

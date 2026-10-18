@@ -33,6 +33,7 @@ def _key() -> bytes:
     s = get_settings()
     if s.auth_secret:
         return s.auth_secret.encode()
+    # The old name stays in the salt: changing it would sign everyone out and void issued MCP tokens.
     return hashlib.sha256(b"truthgraph-auth|" + s.app_password.encode()).digest()
 
 
@@ -88,4 +89,4 @@ async def require(request: Request) -> None:
         return
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not valid(token, "access"):
-        raise HTTPException(401, "Sign in to use TruthGraph", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(401, "Sign in to use Nodes Don't Lie", headers={"WWW-Authenticate": "Bearer"})

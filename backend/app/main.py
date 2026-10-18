@@ -69,7 +69,7 @@ if settings.production and not auth.enabled():
 
 # The docs routes sit outside the auth dependency, so they're switched off in production.
 _docs = {} if not settings.production else {"docs_url": None, "redoc_url": None, "openapi_url": None}
-app = FastAPI(title="TruthGraph API", version="2.0", lifespan=lifespan, dependencies=[Depends(auth.require)], **_docs)
+app = FastAPI(title="Nodes Don't Lie API", version="2.0", lifespan=lifespan, dependencies=[Depends(auth.require)], **_docs)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -618,7 +618,7 @@ class _MCPApp:
             if not allowed or (auth.enabled() and (scheme.lower() != "bearer" or not (
                     auth.valid(token, "access") or auth.valid(token, "mcp")))):
                 status, msg = (429, f"Rate limit reached. Try again in {int(retry) + 1}s.") if not allowed else \
-                    (401, "Sign in to use TruthGraph: send Authorization: Bearer <token from POST /api/mcp/token>")
+                    (401, "Sign in to use Nodes Don't Lie: send Authorization: Bearer <token from POST /api/mcp/token>")
                 body = json.dumps({"detail": msg}).encode()
                 await send({"type": "http.response.start", "status": status, "headers": [
                     (b"content-type", b"application/json"), (b"www-authenticate", b"Bearer")]})

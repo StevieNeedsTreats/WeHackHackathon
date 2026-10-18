@@ -10,7 +10,7 @@ const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-schibsted
 const code = JetBrains_Mono({ subsets: ["latin"], weight: ["400"], variable: "--font-jetbrains", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "TruthGraph: what the research actually says",
+  title: "Nodes Don't Lie: what the research actually says",
   description: "Agents read the literature on a substance, extract claims, score credibility and map contradictions into a FalkorDB graph.",
 };
 

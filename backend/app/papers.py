@@ -175,7 +175,7 @@ async def page_meta(url: str) -> dict:
     redirect), the body is capped, and nothing but those tags is read from it.
     """
     async with httpx.AsyncClient(timeout=10, follow_redirects=False,
-                                 headers={"User-Agent": "Mozilla/5.0 (TruthGraph citation lookup)",
+                                 headers={"User-Agent": "Mozilla/5.0 (Nodes Dont Lie citation lookup)",
                                           "Accept": "text/html,application/pdf;q=0.9,*/*;q=0.5"}) as http:
         for _ in range(4):
             u = urlparse(url)

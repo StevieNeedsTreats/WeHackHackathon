@@ -1,5 +1,5 @@
 /**
- * TruthGraph's mark, the same drawing as app/icon.svg (the favicon): a forest plot. Two studies,
+ * The Nodes Don't Lie mark, the same drawing as app/icon.svg (the favicon): a forest plot. Two studies,
  * each a square on its confidence line, pooled into the diamond under them; the dashed line is
  * "no effect". Drawn from the theme's tokens so it follows light and dark mode.
  */

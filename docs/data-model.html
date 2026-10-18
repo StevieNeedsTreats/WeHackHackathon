@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TruthGraph Data Model</title>
+<title>Nodes Don't Lie: data model</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -148,7 +148,7 @@ pre.cypher .rel { color: var(--code-str); }
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">TruthGraph · stored in FalkorDB</div>
+    <div class="eyebrow">Nodes Don't Lie · stored in FalkorDB</div>
     <h1>Every claim, traced back to its sources <em>in one graph</em></h1>
     <p class="lede">A question splits into hypotheses. Papers are searched for each hypothesis, and their studies and findings are extracted. Each finding then supports or refutes a hypothesis. FalkorDB stores all of it as nodes and relationships, so following evidence from a verdict back to whoever funded it is a single query.</p>
     <div class="stats">
@@ -171,7 +171,7 @@ pre.cypher .rel { color: var(--code-str); }
         </div>
       </div>
       <div class="scroll">
-        <svg class="graph" id="graph" viewBox="0 0 1000 600" role="img" aria-label="TruthGraph schema: Question, Hypothesis, Concept, Paper, Study, Finding, Cluster, Author, Lab and Funder nodes and the relationships between them">
+        <svg class="graph" id="graph" viewBox="0 0 1000 600" role="img" aria-label="Nodes Don't Lie schema: Question, Hypothesis, Concept, Paper, Study, Finding, Cluster, Author, Lab and Funder nodes and the relationships between them">
           <defs>
             <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" style="fill:var(--edge)"/>
@@ -189,7 +189,7 @@ pre.cypher .rel { color: var(--code-str); }
 
     <aside class="console">
       <h2>Ask the graph</h2>
-      <p>These queries come from TruthGraph's code. Pick one to see the path it walks through the graph.</p>
+      <p>These queries come from the app's code. Pick one to see the path it walks through the graph.</p>
       <div class="qlist" id="qlist"></div>
       <div class="qdetail" id="qdetail"></div>
     </aside>

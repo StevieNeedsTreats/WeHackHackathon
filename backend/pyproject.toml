@@ -1,5 +1,5 @@
 [project]
-name = "truthgraph-api"
+name = "nodes-dont-lie-api"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"

@@ -1,6 +1,6 @@
-# TruthGraph
+# Nodes Don't Lie
 
-TruthGraph tells you what the research says about a claim.
+Nodes Don't Lie tells you what the research says about a claim.
 
 You ask a question in plain language, for example "Does green tea help with weight loss?". AI agents then do these steps:
 
@@ -169,4 +169,4 @@ Open http://localhost:3100. To try it without an API key, click **Watch demo**. 
 
 All settings start with `TG_`. They are in `backend/app/config.py`.
 
-TruthGraph does not give medical advice. Each verdict shows its evidence grade.
+Nodes Don't Lie does not give medical advice. Each verdict shows its evidence grade.
