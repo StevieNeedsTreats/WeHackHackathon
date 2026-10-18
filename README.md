@@ -1,235 +1,172 @@
 # TruthGraph
 
-Ask about any claim in plain language, for example "effects of minoxidil on hair loss and side effects in pregnant women" or "creatine on intelligence vs muscle gain". LLM agents:
+TruthGraph tells you what the research says about a claim.
 
-- split the question into testable hypotheses;
-- search the literature for evidence that supports or refutes each one;
-- pull out every study and finding, and score how credible each source is;
-- map where the evidence agrees and where it contradicts itself.
+You ask a question in plain language, for example "Does green tea help with weight loss?". AI agents then do these steps:
 
-Everything streams live into a FalkorDB graph.
+1. They split the question into hypotheses that you can test.
+2. They find papers that support or refute each hypothesis.
+3. They read each paper and record its studies and findings.
+4. They give each paper a credibility score from 0 to 100.
+5. They find the places where the evidence disagrees.
+6. They give each hypothesis a verdict and a grade from A to D.
 
-It is tuned for medicine (Europe PMC, ClinicalTrials.gov), but the agents are domain-agnostic. The same workflow handles economics ("Does raising the minimum wage reduce employment?") and general claims through OpenAlex.
+All of this goes into one graph in FalkorDB. You see the graph grow while the agents work.
 
-- **Frontend:** Next.js 15, React Flow
-- **Backend:** FastAPI (Python 3.13), server-sent events
-- **Graph store:** FalkorDB
-- **LLMs:** Claude by default, or any OpenAI-compatible endpoint
+![The evidence graph for "Does green tea help with weight loss?"](docs/images/evidence-graph.png)
 
-## Run it
-
-```bash
-docker compose up -d                      # FalkorDB on :6380, Redis cache on :6381
-export ANTHROPIC_API_KEY=...              # or see "Swapping the LLM"
-cd backend && ./run.sh                    # API on :8100
-cd frontend && npm install && npm run dev -- -p 3100
-```
-
-Open http://localhost:3100.
-
-To use hosted services instead of the local containers, set these in `backend/.env` and skip `docker compose`:
-
-```bash
-TG_DB_INSTANCE=<public host>:<port>       # from the instance's connection details
-TG_DB_USER=...
-TG_DB_PASS=...
-TG_REDIS_URL=rediss://<user>:<pass>@<host>:<port>   # any Redis, for the side storage
-```
-
-FalkorDB holds only the evidence graph. The side storage (abstracts, verdicts, run logs, LLM and HTTP caches) lives in a separate Redis.
-
-- **Asking a question:** the question is interpreted first. You can drop a hypothesis or change its population before the research starts.
-- **Demo:** "Watch demo" replays a recorded run through the real agents, so it works without an API key.
-
-All backend settings use the `TG_` prefix; see `backend/app/config.py`.
-
-### Chat and adding papers
-
-The **Chat** tab answers questions about the open question and anything else in the graph. Answers cite the hypotheses, papers and findings they rest on; click a citation to see it on the graph.
-
-- **Context:** each message carries a compact summary of the question with short refs (`H1`, `P3`, `F12`), so most answers need no query. The summary is the cached part of the prompt.
-- **Tools over MCP:** for the rest, the chat gets its tools from TruthGraph's MCP server (below) and the model picks among whatever the server lists. Each tool call shows under the answer with its result summary and time; hover one to light up the findings it rests on.
-- **Model:** chat uses `TG_MODEL_CHAT`. If that's unset, it uses `claude-opus-5-5` on Anthropic, or the orchestrator's model on other providers.
-
-To add papers to a researched question, switch the composer to **Add paper**, or ask in the chat. You can give a DOI, a link (DOI, PubMed, PMC, arXiv, OpenAlex, a publisher page or a PDF) or a title with authors. You can also upload or drop up to 8 PDF or text files.
-
-- **Screening:** each paper is checked against the question's hypotheses and turned away if it isn't evidence on any of them. A paper already in the graph is reported as a duplicate.
-- **Graph update:** accepted papers are extracted and scored like discovered ones. Only their findings are judged and checked for contradictions, then each affected verdict is rewritten. The graph updates live.
-
-### MCP server
-
-`/mcp` serves TruthGraph's tools to any MCP client (Claude Code, Claude Desktop and others) over streamable HTTP. It lives in the same FastAPI app, so deploying needs nothing extra. The chat uses the same server through an in-process session.
-
-| Tool | What it does |
-|---|---|
-| `list_questions`, `question_overview` | The questions researched so far, and a compact digest of one: verdicts, papers, findings, contradictions |
-| `graph_query` | One read-only Cypher query (the schema and indexed keys are in its description); writes are refused |
-| `find_in_graph` | Full-text search of paper titles and topics |
-| `explain_verdict` | Multi-hop: hypothesis ← findings ← studies ← papers → funders, by stance, with the heaviest findings and unexplained contradictions |
-| `trace_path` | Shortest paths between any two nodes, in either direction (`algo.SPpaths`), spelled out hop by hop |
-| `influential_papers` | PageRank, betweenness or harmonic centrality over the citation network |
-| `contradiction_clusters` | Groups of findings joined by contradictions (`algo.WCC`): where the evidence splits |
-| `add_paper` | Adds papers to a question; they are screened for relevance, read and scored, and verdicts update |
-
-With a password set, `/mcp` needs a bearer token. Get a long-lived one (90 days, `TG_AUTH_MCP_DAYS`), then add the server to Claude Code:
-
-```bash
-ACCESS=$(curl -s -X POST $API/api/login -H 'content-type: application/json' -d '{"password":"…"}' | jq -r .access)
-TOKEN=$(curl -s -X POST $API/api/mcp/token -H "Authorization: Bearer $ACCESS" | jq -r .token)
-claude mcp add --transport http truthgraph $API/mcp --header "Authorization: Bearer $TOKEN"
-```
-
-MCP tokens only work at `/mcp`, not on the rest of the API.
-
-### Access password
-
-Set `TG_APP_PASSWORD` in `backend/.env` to require a password. The frontend shows a sign-in screen, and every API route except sign-in needs a token.
-
-| Setting | Effect |
-|---|---|
-| `TG_APP_PASSWORD` | The shared password. Leave it empty only for local development: the API is then open to anyone who can reach it. |
-| `TG_AUTH_ACCESS_MINUTES` | Lifetime of the access token sent with each request (default 30). |
-| `TG_AUTH_REFRESH_DAYS` | Lifetime of the refresh token (default 30). Each refresh issues a new one, so you stay signed in while you keep using it. |
-| `TG_AUTH_SECRET` | Optional signing key for tokens. By default it is derived from the password, so changing the password signs everyone out. |
-
-### Deploying
-
-Set `TG_ENV=production` and `TG_APP_PASSWORD` on the backend. Production mode turns off the interactive docs (`/docs`, `/redoc`, `/openapi.json`), and the API refuses to start without a password. Then run, from `backend/`:
-
-```bash
-pip install -r requirements.txt
-FORWARDED_ALLOW_IPS="*" python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-- **One worker:** keep a single worker. Live runs and rate limits are held in that process's memory.
-- **`FORWARDED_ALLOW_IPS`:** lets the rate limiter see each visitor's address behind the host's proxy. Without it, every visitor shares one limit.
-- **Frontend:** set `NEXT_PUBLIC_API_URL` to the API's URL before `npm run build && npm start`.
-- **Backend:** add the frontend's URL to `TG_CORS_ORIGINS`.
-
-### Swapping the LLM
-
-Every agent talks to one `LLMClient` interface (`backend/app/llm/`).
-
-| Setting | Effect |
-|---|---|
-| `ANTHROPIC_API_KEY` | Claude. Workers use `claude-haiku-5-5`; the orchestrator uses `claude-sonnet-5-5`. |
-| `TG_LLM_PROVIDER=openai` with `TG_LLM_BASE_URL`, `TG_LLM_API_KEY` and `TG_LLM_MODEL` | OpenAI, OpenRouter, Groq, vLLM or Ollama. |
-| `TG_MODEL_<AGENT>` | Overrides the model for one agent, e.g. `TG_MODEL_EXTRACTOR`. |
-| `TG_LLM_CONCURRENCY` | Caps requests in flight. Use 1 for a local server. |
-
-### Recording a demo
-
-```bash
-cd backend && uv run python -m app.demo record "creatine on intelligence vs muscle gain"
-```
-
-This runs the live pipeline once and saves every LLM answer, search result and citation link to `backend/app/demo_bundles/`. Replaying the bundle runs the same agents and orchestrator offline.
-
-## Agents
-
-Every agent is LLM-powered and returns schema-validated output. Code does the arithmetic (scores, weights, grades), so the numbers are reproducible and the LLM only judges what code can't.
-
-| Agent | Does | Writes |
-|---|---|---|
-| **Graph Manager** (orchestrator) | Plans the run from a compact digest, calls the other agents as tools, runs independent work in parallel, judges near-duplicate papers. Budgets cap its steps, tokens and time; the harness finishes any stage it skips. | run log in a Redis stream |
-| Intake | Turns free text into up to 3 directional hypotheses with subject / outcome / population concepts, fixes spelling, picks the domain, classifies intent | `Question`, `Hypothesis`, `Concept` |
-| Search / Discovery | One agent per hypothesis × source slice (reviews, trials, safety, registry…); writes source-specific queries with a search tool and keeps only papers that address the hypothesis | `Paper`, `Author`, `Lab`, `Funder`, `CONSIDERED`, `CITES` |
-| Structured Extractor | Per paper: its studies (design, participants, population, dose, duration) and findings (outcome, direction, effect size, verbatim quote). Cached per paper and reused across questions. | `Study`, `Finding` |
-| Credibility Enricher | Code scores the metadata (design, sample, citations, peer review, recency); the LLM judges the domain rubric (blinding, attrition, identification, conflicts) within fixed bounds. 0–100 with itemised reasons. | `Paper.credibility`, flags |
-| Stance & Grouper | Per hypothesis: whether each finding supports, refutes or is mixed, how well its population matches, and clusters of findings sharing a context | `EVIDENCE_FOR {stance, weight}`, `Cluster` |
-| Contradiction Mapper | Judges code-proposed conflicting pairs: is it a real disagreement, or explained by population, dose or measure? | `CONTRADICTS {hypothesis, reason}` |
-| Verdict | Code computes the credibility-weighted balance and an A–D grade; the LLM writes the summary, insights and gaps and may run read-only graph queries | `Hypothesis.verdict` |
-
-### Domain packs
-
-`backend/app/domains/` holds one pack per field: medical, economics and general. Each pack sets:
-
-- the search slices and sources;
-- the study designs and their weights;
-- the credibility rubric;
-- domain notes for the extractor, stance and verdict prompts.
-
-Adding a field means adding a pack, not changing the agents.
+In the graph, findings that support the hypothesis are on the left. Findings that refute it are on the right. Mixed findings are below. A thicker line shows more credible and more relevant evidence. A red dashed line shows two findings that contradict each other.
 
 ## Data model
 
-To explore the schema interactively, open [`docs/data-model.html`](docs/data-model.html) in a browser. Pick one of the app's queries and its path lights up across the graph.
+![The graph schema](docs/images/data-model.png)
+
+The graph has 10 node types:
+
+| Node | What it is |
+|---|---|
+| `Question` | The text that the user typed. |
+| `Hypothesis` | One claim from the question that we can test, for example "Green tea improves weight loss in adults". |
+| `Concept` | A subject, an outcome or a population, for example "green tea" or "body weight". |
+| `Paper` | One published paper or trial record. |
+| `Study` | One study that a paper describes: its design, size, population and dose. |
+| `Finding` | One result of a study, with a direct quote from the paper. |
+| `Cluster` | A group of findings that share a context, for example the same dose. |
+| `Author`, `Lab`, `Funder` | The people, labs and funders of a paper. |
+
+The relationships:
 
 ```
-(:Question)-[:ASKS]->(:Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(:Concept)
-(:Hypothesis)-[:CONSIDERED {relevance, slice}]->(:Paper)
-(:Paper)-[:DESCRIBES]->(:Study)-[:FOUND]->(:Finding {paper_id})-[:MEASURES]->(:Concept {synonyms})
-(:Finding)-[:MEASURES {hypothesis}]->(:Concept)   the hypothesis's outcome, under another name
-(:Finding)-[:EVIDENCE_FOR {stance, weight, rationale, same_outcome}]->(:Hypothesis)
-(:Finding)-[:IN_CLUSTER]->(:Cluster)-[:OF]->(:Hypothesis)
-(:Finding)-[:CONTRADICTS {hypothesis, reason, severity, explained_by}]->(:Finding)
-(:Paper)-[:AUTHORED_BY]->(:Author)  (:Paper)-[:AFFILIATED]->(:Lab)  (:Paper)-[:FUNDED_BY]->(:Funder)
-(:Paper)-[:CITES]->(:Paper)  (:Paper)-[:SAME_AS]->(:Paper)
+(Question)-[:ASKS]->(Hypothesis)-[:SUBJECT|OUTCOME|POPULATION]->(Concept)
+(Hypothesis)-[:CONSIDERED {relevance}]->(Paper)
+(Paper)-[:DESCRIBES]->(Study)-[:FOUND]->(Finding)-[:MEASURES]->(Concept)
+(Finding)-[:EVIDENCE_FOR {stance, weight, rationale}]->(Hypothesis)
+(Finding)-[:CONTRADICTS {hypothesis, reason, explained_by}]->(Finding)
+(Finding)-[:IN_CLUSTER]->(Cluster)-[:OF]->(Hypothesis)
+(Paper)-[:AUTHORED_BY]->(Author)
+(Paper)-[:AFFILIATED]->(Lab)
+(Paper)-[:FUNDED_BY]->(Funder)
+(Paper)-[:CITES]->(Paper)
 ```
 
-- **Stance on the edge:** stance lives on `EVIDENCE_FOR`, not on the finding. One finding can support one hypothesis and be irrelevant to another, and papers, studies and findings are shared across every question.
-- **Deterministic keys:** a hypothesis's key comes from its domain, subject, outcome and population. Differently worded questions with the same meaning reuse earlier research, and a concept named by one of an existing concept's synonyms resolves to that concept first.
-- **FalkorDB specifics:**
-  - unique constraints on ids, plus range indexes on DOI, PMID and normalised title for dedupe;
-  - full-text indexes on concept names and paper titles;
-  - relationship indexes on `CONTRADICTS.hypothesis` and `MEASURES.hypothesis`;
-  - batched `UNWIND` writes with constant parameterised queries, so the plan cache hits;
-  - `intern()` for repeated strings.
-- **Redis beside the graph:** abstracts and agent caches (HTTP responses, LLM answers, extractions) live outside the graph.
+### Why the model has this shape
 
-The **Queries** tab benchmarks five multi-hop questions on every run (funding trail, who contradicts whom, evidence reused across hypotheses, citation reach, shared researchers) and includes a read-only Cypher console.
+**The stance is on the edge, not on the finding.** A finding does not "support" by itself. It supports one hypothesis. The same finding can be irrelevant to a different hypothesis. Thus we put `stance` and `weight` on the `EVIDENCE_FOR` edge.
 
-### Optimizations
+**A contradiction belongs to one hypothesis.** Two findings can disagree about weight loss but agree about safety. Thus each `CONTRADICTS` edge records its hypothesis. We index that property, so a query for one hypothesis reads only its contradictions.
 
-Three changes to the model and its queries. [`docs/optimizations.html`](docs/optimizations.html) shows each one as a before-and-after diagram.
+**All questions share papers, studies and findings.** A paper goes into the graph one time only. When a new question needs the same paper, the agents use the stored studies and findings. They do not read the paper again. This makes later questions faster and less expensive.
 
-| Change | Before | After |
+**The same meaning gives the same key.** The key of a hypothesis comes from its subject, outcome and population. Two questions with different words but the same meaning get the same key. The second question then uses the research of the first.
+
+**Different names for one outcome go to one concept.** One paper says "lean body mass" and a different paper says "muscle mass". The Stance agent checks if a finding measures the same outcome as the hypothesis. If it does, the finding gets a `MEASURES` edge to the hypothesis's concept, and the new name goes into the concept's `synonyms`.
+
+**A finding knows its paper.** Each `Finding` has a `paper_id` property. A query can go from a finding to its paper in one step. It does not have to go through the `Study` node. This makes the most frequent queries 2 or 3 hops shorter.
+
+### What is not in the graph
+
+Paper abstracts, verdict text, run logs and caches are in Redis. The graph keeps only the evidence and its links.
+
+## The queries
+
+The **Queries** tab runs five queries on each question. It shows the result, the number of hops and the time. Each query answers a question that a reader of research asks. In a relational database, each query needs 3 to 6 joins. In the graph, each one is one pattern.
+
+### 1. Funding trail (3 hops)
+
+**The question:** Who paid for the evidence on each side?
+
+**Why:** Industry funding can change the result of a study. If most of the support for a claim comes from companies that sell the product, the reader must know this.
+
+```cypher
+MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)<-[e:EVIDENCE_FOR]-(x:Finding)
+MATCH (p:Paper {id:x.paper_id})
+OPTIONAL MATCH (p)-[:FUNDED_BY]->(f:Funder)
+RETURN h.statement AS hypothesis, coalesce(f.type, 'undisclosed') AS funder_type,
+       e.stance AS stance, count(DISTINCT p) AS papers
+```
+
+### 2. Who contradicts whom (4 hops)
+
+**The question:** Which labs get results that disagree with which other labs, and why?
+
+**Why:** A disagreement is often not an error. The two studies can use different doses or different populations. The `explained_by` field shows this difference. A disagreement with no explanation is a real gap in the research.
+
+```cypher
+MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)
+MATCH (a:Finding)-[c:CONTRADICTS]->(b:Finding) WHERE c.hypothesis = h.key
+MATCH (pa:Paper) WHERE pa.id = a.paper_id
+MATCH (pb:Paper) WHERE pb.id = b.paper_id
+OPTIONAL MATCH (pa)-[:AFFILIATED]->(la:Lab)
+OPTIONAL MATCH (pb)-[:AFFILIATED]->(lb:Lab)
+RETURN pa.label, la.name, pb.label, lb.name, c.reason, c.explained_by
+```
+
+### 3. Evidence used again across hypotheses (3 hops)
+
+**The question:** Which papers give evidence for more than one hypothesis in the graph?
+
+**Why:** This shows that the shared model works. It also shows the papers that are central to a field.
+
+```cypher
+MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(p:Paper)
+MATCH (p)<-[:CONSIDERED]-(h:Hypothesis)
+WITH p, collect(DISTINCT h.statement) AS hypotheses
+WHERE size(hypotheses) > 1
+RETURN p.label, p.title, hypotheses
+```
+
+### 4. Citation reach (up to 4 hops)
+
+**The question:** Which papers do our papers cite, directly or through a chain of up to 3 citations?
+
+**Why:** A paper that many of our papers cite is probably a key paper. If that paper is weak, much of the evidence rests on a weak base.
+
+```cypher
+MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(a:Paper)
+MATCH (a)-[:CITES*1..3]->(b:Paper)
+RETURN b.label AS paper, count(DISTINCT a) AS reached_from, max(b.credibility) AS credibility
+ORDER BY reached_from DESC
+```
+
+### 5. Shared researchers (5 hops)
+
+**The question:** Which authors also wrote papers about other hypotheses in the graph?
+
+**Why:** A small group of authors can produce much of the evidence in a field. This can be a sign of a strong research group. It can also be a sign that the evidence is less independent than it looks.
+
+```cypher
+MATCH (:Question {id:$q})-[:ASKS]->(h:Hypothesis)-[:CONSIDERED]->(:Paper)-[:AUTHORED_BY]->(a:Author)
+MATCH (a)<-[:AUTHORED_BY]-(:Paper)<-[:CONSIDERED]-(o:Hypothesis)
+WHERE o.key <> h.key
+RETURN a.name AS author, collect(DISTINCT o.statement)[..3] AS other_hypotheses
+```
+
+### Graph algorithms
+
+The chat and the MCP server (`/mcp`) also use FalkorDB's graph algorithms:
+
+| Tool | Algorithm | The question it answers |
 |---|---|---|
-| **Findings link to the hypothesis outcome** | The Intake agent named the outcome "muscle mass" and the Extractor named each paper's outcome in the paper's own words ("lean body mass"). Each name became its own `Concept`, so most findings never reached the hypothesis's concept. | The Stance agent also judges `same_outcome`. Matching findings get `MEASURES {hypothesis}` to the hypothesis's concept, and their wording is added to its `synonyms`. A later question using a synonym resolves to the same concept and key, so it reuses the research. |
-| **One row per paper in the snapshot** | Three `OPTIONAL MATCH`es for authors, funders and labs multiplied each paper into up to 3 × 3 × 2 = 18 rows, and `collect(DISTINCT …)` then dropped the duplicates. | Pattern comprehensions return each paper once, with its three lists. |
-| **Finding → Paper without the Study hop** | Queries walked `(:Finding)<-[:FOUND]-(:Study)<-[:DESCRIBES]-(:Paper)` just to reach the paper. | Findings store `paper_id`, and older findings are backfilled at startup. The funding trail drops from 5 hops to 3 and "who contradicts whom" from 7 to 4. |
+| `trace_path` | `algo.SPpaths` | How does this paper connect to that hypothesis? |
+| `influential_papers` | PageRank, betweenness, harmonic centrality on `CITES` | Which papers does the rest of the evidence depend on? |
+| `contradiction_clusters` | `algo.WCC` on `CONTRADICTS` | Where does the evidence split into groups that disagree? |
+| `explain_verdict` | A multi-hop query, grouped by stance | Why did this hypothesis get its verdict? |
 
-#### Benchmark
+All queries from the chat and the console are read-only. They use `GRAPH.RO_QUERY`, a 3-second limit and a row limit.
 
-Each changed query was timed in its old and new form on a synthetic graph shaped like the real one: 15,795 nodes and 50,002 edges, from 20 questions × 3 hypotheses × 40 papers. Times are the median of 40 runs on a local FalkorDB, measured on 17 Oct 2026. Charts are in [`docs/optimizations.html`](docs/optimizations.html#benchmark).
+## Run it
 
-| Query | Before | After | Change |
-|---|---:|---:|---|
-| Funding trail | 4.33 ms | 2.93 ms | 32% faster, same 18 rows |
-| Who contradicts whom | 8.10 ms | 5.64 ms | 30% faster, same 25 rows |
-| Canvas papers with authors, funders, labs | 40.47 ms | 42.77 ms | about the same; 2,154 raw rows → 120 |
-| Save stances for one hypothesis (120 findings) | 2.7 ms | 6.8 ms | +4 ms for the outcome links |
-| Match concepts through synonyms | – | 0.9 ms | once per question |
-| Fill in `paper_id` on old findings | – | 50 ms, then 1 ms | at startup |
+You need Docker, Python 3.13 with `uv`, Node.js and an Anthropic API key.
 
-Network time to FalkorDB Cloud is larger than any of these differences. To reproduce, run `cd backend && uv run python -m app.bench`. It builds a scratch graph (`truthgraph_bench`), checks that old and new queries return the same rows, and deletes the graph afterwards.
+```bash
+docker compose up -d                 # FalkorDB on port 6380, Redis on port 6381
+export ANTHROPIC_API_KEY=...
+cd backend && ./run.sh               # the API on port 8100
+cd frontend && npm install && npm run dev -- -p 3100
+```
 
-## The UI
+Open http://localhost:3100. To try it without an API key, click **Watch demo**. The demo plays back a recorded run.
 
-- **Hypothesis bar:** each hypothesis gets a card with live status, verdict, grade and a support / refute balance.
-- **Graph:** focusing a hypothesis lays it out as a tug of war:
-  - supporting findings and their papers pull from the left;
-  - refuting ones pull from the right;
-  - mixed findings hang below.
+All settings start with `TG_`. They are in `backend/app/config.py`.
 
-  Contradiction edges cross the middle. **All** shows the whole question, and **Compare** puts hypotheses side by side.
-- **Right panel:** scoped to the focused hypothesis. It shows the verdict and why, clusters, contradictions, who funded each side, gaps, and every finding with its quote and rationale.
-
-## Guardrails
-
-- **Input:**
-  - free text up to 400 characters;
-  - obvious harm-seeking and injection phrasing is rejected before any LLM call, and self-harm phrasing points to crisis lines;
-  - the Intake agent classifies the rest;
-  - questions about pregnancy, children and other vulnerable groups are allowed and get an extra notice.
-- **Sources:** only allow-listed hosts, with timeouts, retries and a response-size cap.
-- **Model output:**
-  - schema-validated, with bounded rubric points;
-  - paper text is treated as untrusted data;
-  - every quote is checked verbatim against the source, and findings whose quote fails count at half weight and are flagged.
-- **Budgets:** caps on orchestrator steps, tokens per run, run time and LLM concurrency.
-- **Graph:**
-  - all writes are parameterised;
-  - the Cypher console and the Verdict agent's query tool use `GRAPH.RO_QUERY` with a write-keyword denylist, a 3-second timeout and a row cap.
-- **API:** per-client rate limits, a cap on concurrent runs, and one run per question at a time.
-- **Output:** every hypothesis carries an evidence grade, and the app shows a not-medical-advice notice.
+TruthGraph does not give medical advice. Each verdict shows its evidence grade.
