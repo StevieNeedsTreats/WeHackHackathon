@@ -55,13 +55,27 @@ The relationships:
 
 **A contradiction belongs to one hypothesis.** Two findings can disagree about weight loss but agree about safety. Thus each `CONTRADICTS` edge records its hypothesis. We index that property, so a query for one hypothesis reads only its contradictions.
 
-**All questions share papers, studies and findings.** A paper goes into the graph one time only. When a new question needs the same paper, the agents use the stored studies and findings. They do not read the paper again. This makes later questions faster and less expensive.
+**All questions share papers, studies and findings.** A paper goes into the graph one time only. When a new question finds the same paper, the graph gives it the existing id. The agents then use the stored extraction of that paper. They do not read it again. This makes later questions faster and less expensive.
 
 **The same meaning gives the same key.** The key of a hypothesis comes from its subject, outcome and population. Two questions with different words but the same meaning get the same key. The second question then uses the research of the first.
 
 **Different names for one outcome go to one concept.** One paper says "lean body mass" and a different paper says "muscle mass". The Stance agent checks if a finding measures the same outcome as the hypothesis. If it does, the finding gets a `MEASURES` edge to the hypothesis's concept, and the new name goes into the concept's `synonyms`.
 
 **A finding knows its paper.** Each `Finding` has a `paper_id` property. A query can go from a finding to its paper in one step. It does not have to go through the `Study` node. This makes the most frequent queries 2 or 3 hops shorter.
+
+### How the graph drives the agents
+
+The graph is not only the output of the agents. The agents read it to make decisions. This table shows each decision and the graph read that controls it:
+
+| Decision | Who makes it | What it reads in the graph | Code |
+|---|---|---|---|
+| Is this hypothesis already researched? | Orchestrator | The `Hypothesis` node with the same key. If it is complete and recent, the agents skip all research and show the stored evidence. | `check_reuse` in `agents/orchestrator.py` |
+| Is this paper new, or do we know it? | Discovery agent | `Paper` nodes with the same DOI, PMID or normalised title. A known paper keeps its id, so its studies, findings and credibility score stay attached. | `resolve_papers` in `graph.py` |
+| What does the verdict say? | Verdict agent | The agent can run up to two read-only Cypher queries on the graph, for example to follow funders or citations, before it writes the summary and insights. | `write_verdict` in `agents/orchestrator.py` |
+| What changes when a user adds a paper? | Ingest | The full state of the question: papers, findings, stances, clusters and contradictions. The agents judge only the new findings and check only the pairs that involve them. | `hydrate` in `agents/ingest.py` |
+| How does the chat answer? | Chat agent | A digest of the question from one graph read. For more, it calls the MCP tools: read-only Cypher, full-text search, shortest paths, PageRank and WCC. | `agents/chat.py`, `mcp_server.py` |
+
+The verdict label and grade do not come from the LLM. Code calculates them from the stance and the weight on each `EVIDENCE_FOR` edge. Each weight includes the credibility score of the paper. Thus the same evidence always gives the same verdict. The LLM writes only the summary text.
 
 ### What is not in the graph
 
