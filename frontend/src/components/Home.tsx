@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleAlert, ShieldAlert, X } from "lucide-react";
+import { ArrowLeft, Check, CircleAlert, ShieldAlert, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRail } from "@/components/AgentRail";
 import { CompareView } from "@/components/CompareView";
@@ -58,6 +58,10 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
   const [focus, setFocus] = useState<Focus>("all");
   const [tab, setTab] = useState<Tab>("verdict");
   const [selected, setSelected] = useState<string | null>(null);
+  // The tab a click on a paper or finding came from, so Details can lead back to it.
+  const [from, setFrom] = useState<Tab | null>(null);
+  // Where each tab was scrolled to, kept while the same question stays open.
+  const scrollAt = useRef<Partial<Record<Tab, number>>>({});
   const [refs, setRefs] = useState<string[] | null>(null);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [trail, setTrail] = useState<Trail | null>(null);
@@ -125,10 +129,33 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
 
   const hk = focus !== "all" && focus !== "compare" ? focus : (state.hypOrder[0] ?? null);
 
-  const select = useCallback((id: string | null) => {
+  const select = useStableCallback((id: string | null) => {
     setSelected(id);
-    if (id) setTab("details");
+    if (id && tab !== "details") {
+      setFrom(tab);
+      setTab("details");
+    }
+  });
+  const changeTab = useCallback((v: string) => {
+    setTab(v as Tab);
+    setFrom(null);
   }, []);
+  useEffect(() => {
+    scrollAt.current = {};
+    setFrom(null);
+  }, [qid]);
+  // Each tab's scroll area mounts afresh (keyed by tab): put it back where the reader left it.
+  // Details always opens at the top, since it shows whatever was just clicked.
+  const keepScroll = useCallback(
+    (root: HTMLDivElement | null) => {
+      const vp = root?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
+      if (!vp) return;
+      const top = tab === "details" ? 0 : (scrollAt.current[tab] ?? 0);
+      if (top) requestAnimationFrame(() => (vp.scrollTop = top));
+      vp.addEventListener("scroll", () => (scrollAt.current[tab] = vp.scrollTop), { passive: true });
+    },
+    [tab],
+  );
   // Chat citations select on the graph without leaving the conversation.
   const peek = useCallback((id: string) => setSelected(id), []);
 
@@ -345,7 +372,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
           </div>
         }
         right={(collapse) => (
-          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="h-full min-h-0 gap-0" aria-label="Analysis">
+          <Tabs value={tab} onValueChange={changeTab} className="h-full min-h-0 gap-0" aria-label="Analysis">
             <div className="flex h-12 shrink-0 items-center border-b pl-3 pr-2">
               <TabsList variant="line" className="h-full flex-1 justify-start rounded-none p-0">
                 {TABS.map((t) => (
@@ -362,7 +389,7 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
                 <ChatTab state={state} hk={focus === "all" || focus === "compare" ? null : focus} selected={selected} onPeek={peek} onFocus={focusHyp} onRefs={setRefs} onTrail={showTrail} />
               </TabsContent>
             ) : (
-              <ScrollArea key={tab} className="min-h-0 flex-1">
+              <ScrollArea key={tab} ref={keepScroll} className="min-h-0 flex-1">
                 <TabsContent value="verdict">
                   <VerdictTab state={state} hk={hk} onRefs={setRefs} onSelect={select} />
                 </TabsContent>
@@ -373,6 +400,12 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
                   <QueriesTab state={state} />
                 </TabsContent>
                 <TabsContent value="details">
+                  {from && selected && (
+                    <Button variant="ghost" size="sm" className="-mb-2 ml-3 mt-3 gap-1.5 px-2 text-[12.5px] text-ink-3 hover:text-ink" onClick={() => changeTab(from)}>
+                      <ArrowLeft className="size-3.5" />
+                      Back to {TABS.find((t) => t.id === from)?.label}
+                    </Button>
+                  )}
                   <DetailsTab state={state} id={selected} hk={hk} onSelect={select} />
                 </TabsContent>
               </ScrollArea>
