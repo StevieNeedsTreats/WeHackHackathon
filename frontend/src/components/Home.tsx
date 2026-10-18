@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, ShieldAlert } from "lucide-react";
+import { Check, CircleAlert, ShieldAlert, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRail } from "@/components/AgentRail";
 import { CompareView } from "@/components/CompareView";
@@ -308,8 +308,9 @@ export default function Home({ defaultLayout }: { defaultLayout?: Record<string,
             {guard?.checks && (
               <AlertDescription className="flex flex-wrap gap-x-3 text-[12px] text-ink-2">
                 {guard.checks.map((c) => (
-                  <span key={c.name}>
-                    {c.passed ? "✓" : "✗"} {c.name}
+                  <span key={c.name} className="flex items-center gap-1">
+                    {c.passed ? <Check className="size-3.5 text-ok" aria-label="passed" /> : <X className="size-3.5 text-neg-ink" aria-label="failed" />}
+                    {c.name}
                   </span>
                 ))}
               </AlertDescription>

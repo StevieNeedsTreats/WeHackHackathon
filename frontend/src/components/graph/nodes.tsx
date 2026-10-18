@@ -5,7 +5,7 @@ import { memo } from "react";
 import { balance } from "@/lib/store";
 import type { Stance } from "@/lib/types";
 import { useGraph } from "./context";
-import { designShort, DIRECTION, Icon, STANCE, StanceGlyph, TONE } from "./glyphs";
+import { designShort, DirectionIcon, Icon, STANCE, StanceGlyph, TONE } from "./glyphs";
 
 type Data = { w: number; h: number; id?: string; key?: string; side?: Stance | null; shared?: boolean; stance?: string; count?: number; align?: string };
 
@@ -133,13 +133,13 @@ export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: D
     <div className={`${cls} ${industry ? "tg-hatch" : ""}`} style={{ width: data.w, height: data.h }}>
       <Handles />
       {(also.length > 0 || data.shared) && (
-        <span className="absolute -top-2 right-2 rounded-full border border-line-2 bg-surface px-1.5 text-[10px] font-medium text-ink-2">
+        <span className="absolute -top-2 right-2 rounded-full border border-line-2 bg-surface px-1.5 text-[11px] font-medium text-ink-2">
           {data.shared ? "shared" : `also ${also.map((k) => `H${ctx.hNum[k]}`).join(" ")}`}
         </span>
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 truncate text-[13px] font-semibold leading-5 text-ink">{p.label}</div>
-        <span className="mt-[2px] shrink-0 rounded-full bg-surface-3 px-1.5 text-[10.5px] font-medium leading-4 text-ink-2">{designShort(p.design)}</span>
+        <span className="mt-[2px] shrink-0 rounded-full bg-surface-3 px-1.5 text-[11px] font-medium leading-4 text-ink-2">{designShort(p.design)}</span>
       </div>
       <div className="mt-0.5 flex items-center gap-2.5 overflow-hidden whitespace-nowrap text-[11px] text-ink-3">
         {p.year && <span>{p.year}</span>}
@@ -182,11 +182,11 @@ export const FindingNode = memo(function FindingNode({ data }: NodeProps & { dat
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-medium leading-4 text-ink">{f.text}</div>
           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-3">
-            <span className="tabular">{DIRECTION[f.direction]?.arrow}</span>
+            <DirectionIcon direction={f.direction} size={11} />
             <span className="truncate">{f.outcome.name}</span>
-            {cluster && <span className="shrink-0 truncate rounded-full bg-surface-3 px-1.5 text-[10.5px]">{cluster.label}</span>}
+            {cluster && <span className="shrink-0 truncate rounded-full bg-surface-3 px-1.5 text-[11px]">{cluster.label}</span>}
             {f.harm && (
-              <span className="shrink-0 rounded-full bg-neg-soft px-1.5 text-[10.5px] font-medium text-neg-ink">Harm</span>
+              <span className="shrink-0 rounded-full bg-neg-soft px-1.5 text-[11px] font-medium text-neg-ink">Harm</span>
             )}
             {f.quote_verified === false && (
               <span className="ml-auto flex shrink-0 items-center text-ink-3" title="Quote not found verbatim in the source">
