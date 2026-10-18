@@ -9,12 +9,12 @@ import { SectionLabel } from "../Tip";
 function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void }) {
   const f = r.finding;
   return (
-    <button type="button" onClick={() => onSelect(`f:${f.id}`)} className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left hover:border-ink-3">
+    <button type="button" onClick={() => onSelect(`f:${f.id}`)} className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-left transition-[border-color,box-shadow] hover:border-line-2 hover:shadow-[var(--shadow-sm)]">
       <div className="flex items-start gap-2">
         <StanceGlyph stance={r.stance.stance} size={15} />
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-medium leading-snug text-ink">{f.text}</div>
-          <div className="mono mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10.5px] text-ink-3">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-3">
             <span className="text-ink-2">{r.paper.label}</span>
             <span>·</span>
             <span>{designShort(r.study?.design ?? r.paper.design)}</span>
@@ -27,13 +27,13 @@ function FindingRow({ r, onSelect }: { r: Row; onSelect: (id: string) => void })
             <span>·</span>
             <span>cred {r.paper.credibility ?? "…"}</span>
             {f.harm && (
-              <Badge variant="destructive" className="h-3.5 rounded-sm px-1 text-[9px] uppercase">
+              <Badge variant="destructive" className="h-3.5 rounded-sm px-1 text-[11px]">
                 harm
               </Badge>
             )}
           </div>
           {f.quote && (
-            <p className="mt-1.5 border-l-2 border-line-2 pl-2 font-serif text-[12px] italic leading-snug text-ink-2">
+            <p className="mt-1.5 rounded-lg bg-surface-2 px-2.5 py-1.5 text-[12.5px] leading-snug text-ink-2">
               “{f.quote.length > 220 ? f.quote.slice(0, 217) + "…" : f.quote}”
               {f.quote_verified === false && (
                 <span className="ml-1 inline-flex items-center gap-0.5 not-italic text-ink-3" title="Not found verbatim in the source">
@@ -66,7 +66,7 @@ export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: strin
         return (
           <section key={st}>
             <SectionLabel className="mb-2">
-              <span style={{ color: STANCE[st].ink }}>{STANCE[st].label}</span> · {list.length}
+              <span style={{ color: STANCE[st].ink }}>{STANCE[st].label}</span> <span className="tabular ml-1 rounded-full bg-surface-3 px-1.5 text-[11.5px] font-medium text-ink-2">{list.length}</span>
             </SectionLabel>
             <div className="space-y-1.5">
               {list.map((r) => (
@@ -82,7 +82,7 @@ export function EvidencePanel({ state, hk, onSelect }: { state: State; hk: strin
           <ul className="space-y-1 text-[12px] text-ink-2">
             {flags.map((f, i) => (
               <li key={i}>
-                <span className="mono text-[10.5px] text-ink-3">{f.code}</span> {f.detail}
+                <span className="text-[11px] text-ink-3">{f.code}</span> {f.detail}
               </li>
             ))}
           </ul>

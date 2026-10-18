@@ -90,7 +90,7 @@ function Body({
                 <CommandItem key={x.id} value={`${x.text} ${x.id}`} onSelect={() => run(() => onOpenQuestion(x.id))}>
                   <History className="text-muted-foreground" />
                   <span className="truncate">{x.text}</span>
-                  <CommandShortcut className="mono">{x.hypotheses.length} hyp</CommandShortcut>
+                  <CommandShortcut className="tabular">{x.hypotheses.length} hyp</CommandShortcut>
                 </CommandItem>
               ))}
             </CommandGroup>

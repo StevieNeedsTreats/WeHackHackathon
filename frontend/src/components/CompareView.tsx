@@ -25,13 +25,13 @@ export function CompareView({ state, onFocus }: { state: State; onFocus: (key: s
           return (
             <Card key={k} className="gap-3 p-4">
               <button type="button" onClick={() => onFocus(k)} className="text-left">
-                <span className="mono text-[10.5px] text-ink-3">H{i + 1}</span>
+                <span className="text-[11px] text-ink-3">H{i + 1}</span>
                 <h3 className="text-[15px] font-semibold leading-snug text-ink hover:underline">{h.statement}</h3>
               </button>
-              <div>{v ? <GradeBadge v={v} /> : <span className="mono text-[12px] text-ink-3">{state.status === "streaming" ? "Researching…" : "No verdict"}</span>}</div>
+              <div>{v ? <GradeBadge v={v} /> : <span className="text-[12px] text-ink-3">{state.status === "streaming" ? "Researching…" : "No verdict"}</span>}</div>
               <div>
                 <BalanceBar support={b.support} refute={b.refute} mixed={b.mixed} className="h-[10px]" />
-                <div className="mono mt-1 flex justify-between text-[11px]">
+                <div className="mt-1 flex justify-between text-[11px]">
                   <span style={{ color: STANCE.supports.ink }}>{Math.round(b.support * 100)}% supports</span>
                   <span style={{ color: STANCE.refutes.ink }}>{Math.round(b.refute * 100)}% refutes</span>
                 </div>
@@ -45,7 +45,7 @@ export function CompareView({ state, onFocus }: { state: State; onFocus: (key: s
                 <dd className="text-ink-2">
                   {best ? (
                     <>
-                      <span className="mono text-[10.5px]">{designShort(best.study?.design ?? best.paper.design)}</span> {best.paper.label}: {best.finding.text}
+                      <span className="text-[11px]">{designShort(best.study?.design ?? best.paper.design)}</span> {best.paper.label}: {best.finding.text}
                     </>
                   ) : (
                     "—"

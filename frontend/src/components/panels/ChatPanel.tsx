@@ -376,7 +376,7 @@ function describeItem(state: State, id: string): string {
   const rest = id.slice(2);
   if (id.startsWith("h:")) {
     const hyp = state.hyps[rest];
-    return hyp ? `H${state.hypOrder.indexOf(rest) + 1} · ${hyp.statement}` : "Hypothesis";
+    return hyp ? `H${state.hypOrder.indexOf(rest) + 1}: ${hyp.statement}` : "Hypothesis";
   }
   if (id.startsWith("p:")) return state.papers[rest]?.label ?? "Paper";
   if (id.startsWith("f:")) return state.findings[rest]?.text ?? "Finding";
@@ -403,7 +403,7 @@ function ContextPicker({ state, exclude, onPick }: { state: State; exclude: stri
           <CommandGroup heading="Hypotheses">
             {hyps.map((k) => (
               <CommandItem key={k} value={`h:${k} ${state.hyps[k].statement}`} onSelect={() => onPick(`h:${k}`)} className="text-[12.5px]">
-                <span className="mono shrink-0 text-[10.5px] text-ink-3">H{state.hypOrder.indexOf(k) + 1}</span>
+                <span className="shrink-0 text-[11px] text-ink-3">H{state.hypOrder.indexOf(k) + 1}</span>
                 <span className="line-clamp-2">{state.hyps[k].statement}</span>
               </CommandItem>
             ))}
@@ -504,7 +504,7 @@ function PartView({ p, jobs, h, onRetry }: { p: Part; jobs: Record<string, Job>;
     return (
       <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
         <Search className="size-3" />
-        Looked up “{p.text}” · {p.papers} paper{p.papers === 1 ? "" : "s"}, {p.concepts} topic{p.concepts === 1 ? "" : "s"} · {p.ms} ms
+        Looked up “{p.text}”: {p.papers} paper{p.papers === 1 ? "" : "s"}, {p.concepts} topic{p.concepts === 1 ? "" : "s"} in {p.ms} ms
       </div>
     );
   if (p.kind === "query")
@@ -513,10 +513,10 @@ function PartView({ p, jobs, h, onRetry }: { p: Part; jobs: Record<string, Job>;
         <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-muted-foreground hover:text-ink">
           <ChevronRight className="size-3 transition-transform group-data-[state=open]/q:rotate-90" />
           <Database className="size-3" />
-          {p.error ? <span className="truncate text-neg-ink">Query failed: {p.error}</span> : <span>Queried the graph · {p.rows} row{p.rows === 1 ? "" : "s"} · {p.ms} ms</span>}
+          {p.error ? <span className="truncate text-neg-ink">Query failed: {p.error}</span> : <span>Queried the graph: {p.rows} row{p.rows === 1 ? "" : "s"} in {p.ms} ms</span>}
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <pre className="mono max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">{p.cypher}</pre>
+          <pre className="code max-h-56 overflow-auto whitespace-pre-wrap break-words border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">{p.cypher}</pre>
         </CollapsibleContent>
       </Collapsible>
     );
@@ -563,15 +563,15 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
         ) : (
           <span className="truncate">
             {t.label}
-            {p.summary ? ` · ${p.summary}` : ""}
-            {p.ms != null ? ` · ${Math.round(p.ms)} ms` : ""}
+            {p.summary ? `: ${p.summary}` : ""}
+            {p.ms != null ? ` in ${Math.round(p.ms)} ms` : ""}
           </span>
         )}
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="space-y-1 border-t px-2.5 py-2 text-[11px] leading-[1.55] text-ink-2">
           <div className="flex items-center gap-2">
-            <span className="mono text-ink-3">mcp · {p.name}</span>
+            <span className="code text-ink-3">{p.name}</span>
             {(findings.length > 0 || !!p.paths?.length) && h.onTrail && (
               <Button variant="outline" size="sm" className="ml-auto h-6 gap-1 px-2 text-[11px]" onClick={() => h.onTrail?.(trailOf(p, t.label))}>
                 <Waypoints className="size-3" /> Show on graph
@@ -579,7 +579,7 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
             )}
           </div>
           {args.map(([k, v]) => (
-            <div key={k} className="mono break-words">
+            <div key={k} className="code break-words">
               <span className="text-ink-3">{k}:</span> {typeof v === "string" ? v : JSON.stringify(v)}
             </div>
           ))}
@@ -648,7 +648,7 @@ function JobCard({ job, h, onRetry }: { job: Job; h: CiteHandlers; onRetry: (ref
                       >
                         <span className="min-w-0">
                           {s.title}
-                          <span className="text-muted-foreground"> · {[s.label, s.doi].filter(Boolean).join(" · ")}</span>
+                          <span className="text-muted-foreground">, {[s.label, s.doi].filter(Boolean).join(", ")}</span>
                         </span>
                       </Button>
                     ))}

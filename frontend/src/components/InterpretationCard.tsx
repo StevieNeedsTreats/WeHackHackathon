@@ -14,7 +14,7 @@ import { SectionLabel } from "./Tip";
 function Chip({ role, value }: { role: string; value: string }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-line-2 bg-surface px-2 py-0.5 text-[12px]">
-      <span className="mono text-[9.5px] uppercase tracking-[0.08em] text-ink-3">{role}</span>
+      <span className="text-[11px] text-ink-3">{role}</span>
       <span className="text-ink">{value}</span>
     </span>
   );
@@ -65,7 +65,7 @@ export function InterpretationCard({
         <div className="flex flex-wrap gap-1.5 text-[11.5px] text-ink-3">
           Corrected:
           {q.corrections.map((c) => (
-            <Badge key={c} variant="secondary" className="mono rounded-sm font-normal">
+            <Badge key={c} variant="secondary" className="rounded-sm font-normal">
               {c}
             </Badge>
           ))}
@@ -84,7 +84,7 @@ export function InterpretationCard({
                 aria-label={`Include hypothesis ${i + 1}`}
               />
               <span className="min-w-0 flex-1">
-                <span className="mono mr-1.5 text-[10.5px] text-ink-3">H{i + 1}</span>
+                <span className="mr-1.5 text-[11px] text-ink-3">H{i + 1}</span>
                 <span className="text-[14px] font-medium text-ink">{h.statement}</span>
               </span>
             </label>

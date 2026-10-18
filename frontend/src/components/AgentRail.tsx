@@ -27,7 +27,7 @@ const fmtTok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 
 export function HChip({ n, onClick }: { n: number | undefined; onClick?: () => void }) {
   if (!n) return null;
   return (
-    <button type="button" onClick={onClick} className="mono shrink-0 rounded-sm border border-line-2 bg-surface px-1 text-[9.5px] leading-[14px] text-ink-2 hover:border-ink-3">
+    <button type="button" onClick={onClick} className="shrink-0 rounded-sm border border-line-2 bg-surface px-1 text-[11px] leading-[14px] text-ink-2 hover:border-ink-3">
       H{n}
     </button>
   );
@@ -59,7 +59,7 @@ export function AgentRail({
     <aside className="flex h-full flex-col" aria-label="Agents">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b pl-4 pr-2">
         <SectionLabel>Agents</SectionLabel>
-        {state.status !== "idle" && engine && <span className="mono text-[10px] text-muted-foreground">{engine}</span>}
+        {state.status !== "idle" && engine && <span className="text-[11px] text-muted-foreground">{engine}</span>}
         {onCollapse && (
           <span className="ml-auto">
             <CollapseButton side="left" onClick={onCollapse} />
@@ -84,9 +84,9 @@ export function AgentRail({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className={`text-[13px] font-medium ${ag.status === "queued" ? "text-muted-foreground" : "text-foreground"}`}>{a.name}</span>
-                    <span className="mono tabular flex shrink-0 gap-1.5 text-[10.5px] text-muted-foreground">
+                    <span className="tabular flex shrink-0 gap-1.5 text-[11px] text-muted-foreground">
                       {u && u.input_tokens + u.output_tokens > 0 && (
-                        <Tip label={`${u.calls} LLM call${u.calls === 1 ? "" : "s"} · ${u.input_tokens.toLocaleString()} in / ${u.output_tokens.toLocaleString()} out`}>
+                        <Tip label={`${u.calls} LLM call${u.calls === 1 ? "" : "s"}, ${u.input_tokens.toLocaleString()} in / ${u.output_tokens.toLocaleString()} out`}>
                           <span>{fmtTok(u.input_tokens + u.output_tokens)} tok</span>
                         </Tip>
                       )}
@@ -105,7 +105,7 @@ export function AgentRail({
         </ol>
 
         {total.input_tokens + total.output_tokens > 0 && (
-          <div className="mono mx-4 mb-3 flex justify-between rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[10.5px] text-ink-2">
+          <div className="mx-4 mb-3 flex justify-between rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[11px] text-ink-2">
             <span>{fmtTok(total.input_tokens + total.output_tokens)} tokens</span>
             {total.cost_usd > 0 && <span>${total.cost_usd.toFixed(3)}</span>}
           </div>
@@ -113,8 +113,8 @@ export function AgentRail({
 
         {state.steps.length > 0 && (
           <Card size="sm" className="mx-4 mb-4 gap-1.5 bg-surface-2 px-3 shadow-none">
-            <SectionLabel className="text-[10.5px]">Activity</SectionLabel>
-            <ul className="mono space-y-1 text-[10.5px] leading-snug text-ink-2">
+            <SectionLabel className="text-[11px]">Activity</SectionLabel>
+            <ul className="space-y-1 text-[11px] leading-snug text-ink-2">
               {state.steps.slice(-12).map((l, i) => (
                 <li key={i} className="flex items-start gap-1.5">
                   <span className="tabular w-[34px] shrink-0 text-right text-ink-4">{fmtMs(l.t ?? 0)}</span>
@@ -149,12 +149,12 @@ export function AgentRail({
                   >
                     <span className="line-clamp-2 min-w-0 whitespace-normal">{q.text}</span>
                     {q.running ? (
-                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 gap-1 rounded-sm px-1 text-[9.5px] font-normal">
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 gap-1 rounded-sm px-1 text-[11px] font-normal">
                         <LoaderCircle className="size-2.5 animate-spin" />
                         running
                       </Badge>
                     ) : q.id.startsWith("demo-") ? (
-                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[9.5px] font-normal">
+                      <Badge variant="secondary" className="ml-auto h-4 shrink-0 rounded-sm px-1 text-[11px] font-normal">
                         demo
                       </Badge>
                     ) : null}
@@ -179,7 +179,7 @@ export function AgentRail({
                     <li key={h.key}>
                       <button type="button" onClick={() => onOpen(q.id, h.key)} className="flex w-full items-center gap-1.5 py-0.5 text-left text-[11px] text-ink-3 hover:text-ink">
                         <span className="min-w-0 flex-1 truncate">{h.statement}</span>
-                        {h.verdict && <span className="mono shrink-0 text-[9.5px]">{h.grade}</span>}
+                        {h.verdict && <span className="shrink-0 text-[11px]">{h.grade}</span>}
                       </button>
                     </li>
                   ))}
