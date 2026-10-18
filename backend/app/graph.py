@@ -110,6 +110,10 @@ class GraphStore:
     async def ro(self, query: str, params: dict | None = None, timeout: int | None = None):
         return await self.graph.ro_query(query, params or {}, timeout=timeout or self.settings.query_timeout_ms)
 
+    async def explain(self, query: str, params: dict | None = None) -> list[str]:
+        """GRAPH.EXPLAIN: the execution plan FalkorDB would run, one operation per line, without running it."""
+        return (await self.graph.explain(query, params or {})).plan
+
     # ================================================================== writes
 
     async def upsert_question(self, qid: str, text: str, domain: str) -> None:

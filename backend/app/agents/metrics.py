@@ -1,8 +1,9 @@
 """Multi-hop query benchmarks.
 
 These are the questions the graph model exists to answer. Each one crosses several
-relationship types; in a relational store they would be 3–6 joins. We run each a few
-times on FalkorDB and report rows, hop count and median / p95 latency.
+relationship types; in a relational store they would be 3–6 joins. The last two run
+FalkorDB's built-in graph algorithms (algo.*) inside the query. We run each a few times
+on FalkorDB and report rows, hop count, median / p95 latency and the execution plan.
 """
 
 from __future__ import annotations
@@ -75,6 +76,32 @@ WHERE o.key <> h.key
 RETURN a.name AS author, collect(DISTINCT o.statement)[..3] AS other_hypotheses
 LIMIT 15""",
     },
+    {
+        "id": "influential-papers",
+        "title": "Most influential papers",
+        "question": "Which of this question's papers does the literature lean on most, by PageRank over every citation in the graph?",
+        "hops": "algo.pageRank",
+        "cypher": """CALL algo.pageRank('Paper', 'CITES') YIELD node, score
+MATCH (:Question {id:$q})-[:ASKS]->(:Hypothesis)-[:CONSIDERED]->(node)
+WITH DISTINCT node, score
+RETURN node.label AS paper, round(score * 1000000) / 1000000.0 AS pagerank, node.credibility AS credibility,
+       size([(node)<-[:CITES]-(:Paper) | 1]) AS cited_by
+ORDER BY pagerank DESC
+LIMIT 15""",
+    },
+    {
+        "id": "contradiction-camps",
+        "title": "Contradiction camps",
+        "question": "Where does the evidence split into groups of findings joined by contradictions (connected components)?",
+        "hops": "algo.WCC",
+        "cypher": """CALL algo.WCC({nodeLabels: ['Finding'], relationshipTypes: ['CONTRADICTS']}) YIELD node, componentId
+MATCH (node)-[e:EVIDENCE_FOR]->(h:Hypothesis)<-[:ASKS]-(:Question {id:$q})
+WITH h, componentId, count(DISTINCT node) AS findings, collect(DISTINCT e.stance) AS stances
+WHERE findings > 1
+RETURN h.statement AS hypothesis, componentId AS camp, findings, stances
+ORDER BY findings DESC
+LIMIT 15""",
+    },
 ]
 
 
@@ -88,6 +115,7 @@ async def run_benchmarks(store: GraphStore, qid: str, repeats: int = 7) -> list[
             timings.append((time.perf_counter() - t0) * 1000)
             rows, header = res.result_set, res.header
         timings.sort()
+        plan = await store.explain(q["cypher"], {"q": qid})
         out.append({
             **q,
             "rows": len(rows),
@@ -95,5 +123,6 @@ async def run_benchmarks(store: GraphStore, qid: str, repeats: int = 7) -> list[
             "sample": to_jsonable(rows[:8]),
             "median_ms": round(statistics.median(timings), 2),
             "p95_ms": round(timings[min(len(timings) - 1, int(len(timings) * 0.95))], 2),
+            "plan": plan,
         })
     return out
