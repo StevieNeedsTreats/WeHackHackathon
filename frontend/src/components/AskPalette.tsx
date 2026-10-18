@@ -1,12 +1,14 @@
 "use client";
 
-import { CornerDownLeft, History, PlayCircle, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { CornerDownLeft, FileText, History, PlayCircle, Sparkles, Tag } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { searchGraph, type SearchHits } from "@/lib/api";
 import type { QuestionSummary } from "@/lib/types";
 
-/** ⌘K palette: type a claim and press Enter, or pick an example, a past question or a demo. */
+/** ⌘K palette: type a claim and press Enter, or pick an example, a past question, a demo, or a paper or topic
+ * already in the graph (FalkorDB full-text search). */
 export function AskPalette({
   open,
   onOpenChange,
@@ -52,6 +54,9 @@ function Body({
 }: Omit<React.ComponentProps<typeof AskPalette>, "open" | "onOpenChange"> & { done: () => void }) {
   const [q, setQ] = useState(initial);
   const text = q.trim();
+  const hits = useGraphSearch(text);
+  const papers = hits?.papers.filter((p) => p.questions.length > 0) ?? [];
+  const concepts = hits?.concepts.filter((c) => c.hypotheses.length > 0) ?? [];
   const run = (f: () => void) => {
     done();
     f();
@@ -72,6 +77,26 @@ function Body({
                 <CornerDownLeft className="size-3.5" />
               </CommandShortcut>
             </CommandItem>
+          </CommandGroup>
+        )}
+        {(papers.length > 0 || concepts.length > 0) && (
+          <CommandGroup heading="In the graph">
+            {concepts.slice(0, 3).map((c) => (
+              <CommandItem key={`c:${c.id}`} value={`concept ${c.id}`} forceMount onSelect={() => run(() => onOpenQuestion(c.hypotheses[0].question))}>
+                <Tag className="text-muted-foreground" />
+                <span className="truncate">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted-foreground"> · {c.hypotheses[0].statement}</span>
+                </span>
+              </CommandItem>
+            ))}
+            {papers.slice(0, 5).map((p) => (
+              <CommandItem key={`p:${p.id}`} value={`paper ${p.id}`} forceMount onSelect={() => run(() => onOpenQuestion(p.questions[0]))}>
+                <FileText className="text-muted-foreground" />
+                <span className="truncate">{p.title}</span>
+                {p.year && <CommandShortcut className="mono">{p.year}</CommandShortcut>}
+              </CommandItem>
+            ))}
           </CommandGroup>
         )}
         <CommandGroup heading="Examples">
@@ -112,4 +137,28 @@ function Body({
       </CommandList>
     </Command>
   );
+}
+
+/** Papers and topics already in the graph that match the text, through FalkorDB's full-text indexes. */
+function useGraphSearch(text: string) {
+  const [hits, setHits] = useState<SearchHits | null>(null);
+  useEffect(() => {
+    if (text.length < 3) {
+      setHits(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      searchGraph(text, ctrl.signal)
+        .then(setHits)
+        .catch(() => {
+          // Search is a convenience: the palette still works without it.
+        });
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [text]);
+  return hits;
 }
