@@ -2,7 +2,6 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { balance } from "@/lib/store";
 import type { Stance } from "@/lib/types";
 import { useGraph } from "./context";
@@ -54,11 +53,11 @@ export function BalanceBar({ support, refute, mixed, className = "h-[6px]" }: { 
 }
 
 const STAGE: Record<string, string> = {
-  discovery: "searching",
-  stance: "judging stance",
-  contradictions: "mapping conflicts",
-  verdict: "writing verdict",
-  done: "done",
+  discovery: "Searching…",
+  stance: "Judging stance…",
+  contradictions: "Mapping conflicts…",
+  verdict: "Writing verdict…",
+  done: "Done",
 };
 
 export const HypothesisNode = memo(function HypothesisNode({ data }: NodeProps & { data: Data }) {
@@ -68,23 +67,26 @@ export const HypothesisNode = memo(function HypothesisNode({ data }: NodeProps &
   const v = ctx.state.verdicts[key];
   const b = balance(ctx.state, key);
   const tone = v ? TONE[v.tone] : null;
-  const cls = nodeClass("rounded-xl border-2 bg-card px-4 py-3 shadow-[var(--shadow-md)]");
+  const cls = nodeClass("rounded-2xl border border-line-2 bg-card px-4 py-3 shadow-[var(--shadow-md)]");
   return (
-    <div className={cls} style={{ width: data.w, height: data.h, borderColor: tone?.color ?? "var(--ink)" }}>
+    <div className={cls} style={{ width: data.w, height: data.h }}>
       <Handles />
       <div className="flex items-center justify-between gap-2">
-        <span className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">Hypothesis H{ctx.hNum[key]}</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
+          <span aria-hidden className="size-[7px] rotate-45 rounded-[1px]" style={{ background: tone?.color ?? "var(--ink-4)" }} />
+          Hypothesis {ctx.hNum[key]}
+        </span>
         {v ? (
-          <Badge className="mono h-5 rounded-sm px-1.5 text-[10.5px]" style={{ background: tone!.color }}>
-            {v.verdict} · {v.grade}
-          </Badge>
+          <span className="rounded-full px-2 py-px text-[11px] font-semibold" style={{ background: tone!.soft, color: tone!.ink }}>
+            {v.verdict}, grade {v.grade}
+          </span>
         ) : (
-          <span className="mono text-[10.5px] text-ink-3">{h?.reused ? "reused" : STAGE[h?.stage ?? "discovery"]}</span>
+          <span className="text-[11px] text-ink-3">{h?.reused ? "Reused" : STAGE[h?.stage ?? "discovery"]}</span>
         )}
       </div>
-      <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-ink">{h?.statement}</div>
+      <div className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.015em] text-ink">{h?.statement}</div>
       <BalanceBar support={b.support} refute={b.refute} mixed={b.mixed} className="mt-2.5 h-[7px]" />
-      <div className="mono mt-1 flex justify-between text-[10.5px] text-ink-3">
+      <div className="tabular mt-1 flex justify-between text-[11px] font-medium">
         <span style={{ color: STANCE.supports.ink }}>{Math.round(b.support * 100)}% supports</span>
         <span style={{ color: STANCE.refutes.ink }}>{Math.round(b.refute * 100)}% refutes</span>
       </div>
@@ -95,11 +97,11 @@ export const HypothesisNode = memo(function HypothesisNode({ data }: NodeProps &
 export const OtherHypNode = memo(function OtherHypNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const h = ctx.state.hyps[data.key!];
-  const cls = nodeClass("flex items-center gap-2 rounded-lg border border-dashed border-line-2 bg-surface-2 px-3 opacity-70 hover:opacity-100");
+  const cls = nodeClass("flex items-center gap-2 rounded-xl border border-dashed border-line-2 bg-surface-2 px-3 text-ink-3 opacity-80 transition-opacity hover:opacity-100");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }} title="Click to focus this hypothesis">
       <Handles />
-      <span className="mono shrink-0 text-[10px] text-ink-3">H{ctx.hNum[data.key!]}</span>
+      <span className="shrink-0 text-[11px] font-medium">H{ctx.hNum[data.key!]}</span>
       <span className="truncate text-[12px] text-ink-2">{h?.statement}</span>
     </div>
   );
@@ -107,11 +109,11 @@ export const OtherHypNode = memo(function OtherHypNode({ data }: NodeProps & { d
 
 export const QuestionNode = memo(function QuestionNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
-  const cls = nodeClass("rounded-lg bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-md)]");
+  const cls = nodeClass("rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-[var(--shadow-md)]");
   return (
     <div className={cls} style={{ width: data.w, height: data.h }}>
       <Handles />
-      <div className="mono text-[10px] uppercase tracking-[0.14em] text-primary-foreground/60">Question</div>
+      <div className="text-[11px] text-primary-foreground/60">Question</div>
       <div className="line-clamp-2 text-[14px] font-medium leading-tight">{ctx.state.question?.text}</div>
     </div>
   );
@@ -120,7 +122,7 @@ export const QuestionNode = memo(function QuestionNode({ data }: NodeProps & { d
 export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const p = ctx.state.papers[data.id!];
-  const cls = nodeClass("relative rounded-lg border bg-card px-3 pb-2.5 pt-2.5 border-input shadow-[var(--shadow-sm)] hover:border-ink-3");
+  const cls = nodeClass("relative rounded-xl border border-line bg-card px-3 pb-2.5 pt-2.5 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-150 hover:border-line-2 hover:shadow-[var(--shadow-md)]");
   if (!p) return null;
   const cred = p.credibility;
   const industry = p.funders.some((f) => f.type === "industry");
@@ -131,38 +133,30 @@ export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: D
     <div className={`${cls} ${industry ? "tg-hatch" : ""}`} style={{ width: data.w, height: data.h }}>
       <Handles />
       {(also.length > 0 || data.shared) && (
-        <span className="mono absolute -top-2 right-2 rounded-full border border-ink-3 bg-surface px-1.5 text-[9px] text-ink-2">
+        <span className="absolute -top-2 right-2 rounded-full border border-line-2 bg-surface px-1.5 text-[10px] font-medium text-ink-2">
           {data.shared ? "shared" : `also ${also.map((k) => `H${ctx.hNum[k]}`).join(" ")}`}
         </span>
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 truncate text-[13px] font-semibold leading-5 text-ink">{p.label}</div>
-        <Badge variant="outline" className="mono mt-[2px] h-[15px] shrink-0 rounded-sm px-1 text-[9.5px] font-normal tracking-[0.04em] text-ink-2">
-          {designShort(p.design)}
-        </Badge>
+        <span className="mt-[2px] shrink-0 rounded-full bg-surface-3 px-1.5 text-[10.5px] font-medium leading-4 text-ink-2">{designShort(p.design)}</span>
       </div>
-      <div className="mono mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10.5px] text-ink-3">
-        <span className="tabular">{sample}</span>
-        <span aria-hidden>·</span>
-        <span className="tabular">{(p.citations ?? 0).toLocaleString()} cites</span>
-        {p.year && (
-          <>
-            <span aria-hidden>·</span>
-            <span>{p.year}</span>
-          </>
-        )}
+      <div className="mt-0.5 flex items-center gap-2.5 overflow-hidden whitespace-nowrap text-[11px] text-ink-3">
+        {p.year && <span>{p.year}</span>}
+        <span>{sample}</span>
+        <span>{(p.citations ?? 0).toLocaleString()} cites</span>
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <div className="relative h-[5px] flex-1 overflow-hidden rounded-full bg-surface-3">
           {cred == null ? (
             <div className="tg-shimmer absolute inset-0" />
           ) : (
-            <div className="absolute inset-y-0 left-0 rounded-full bg-ink-2 transition-[width] duration-700 ease-out" style={{ width: `${cred}%` }} />
+            <div className="absolute inset-y-0 left-0 rounded-full bg-ink-2 transition-[width] duration-700 ease-[var(--ease-out)]" style={{ width: `${cred}%` }} />
           )}
         </div>
-        <span className="mono tabular w-[22px] text-right text-[12px] font-medium text-ink">{cred ?? "··"}</span>
+        <span className="tabular w-[22px] text-right text-[12.5px] font-semibold text-ink">{cred ?? "–"}</span>
         {flags > 0 && (
-          <span className="mono flex items-center gap-0.5 text-[10px] text-ink-3" title={`${flags} flag${flags > 1 ? "s" : ""}`}>
+          <span className="flex items-center gap-0.5 text-[11px] text-ink-3" title={`${flags} flag${flags > 1 ? "s" : ""}`}>
             <Icon name="flag" size={10} />
             {flags}
           </span>
@@ -175,27 +169,24 @@ export const PaperNode = memo(function PaperNode({ data }: NodeProps & { data: D
 export const FindingNode = memo(function FindingNode({ data }: NodeProps & { data: Data }) {
   const ctx = useGraph();
   const f = ctx.state.findings[data.id!];
-  const cls = nodeClass("relative overflow-hidden rounded-md border bg-surface pl-3 pr-2.5 py-2 shadow-[var(--shadow-sm)]");
+  const cls = nodeClass("relative overflow-hidden rounded-xl border bg-surface px-2.5 py-2 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-150 hover:shadow-[var(--shadow-md)]");
   if (!f) return null;
   const e = ctx.focus ? f.evidence[ctx.focus] : null;
   const stance = (e?.stance ?? data.side ?? "mixed") as Stance;
   const cluster = e?.cluster ? ctx.state.clusters[e.cluster] : null;
   return (
-    <div className={cls} style={{ width: data.w, height: data.h, borderColor: "var(--line-2)" }} title={f.quote}>
-      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: STANCE[stance].color }} />
+    <div className={cls} style={{ width: data.w, height: data.h, borderColor: `color-mix(in oklab, ${STANCE[stance].color} 28%, var(--line))` }} title={f.quote}>
       <Handles />
       <div className="flex items-start gap-2">
         <StanceGlyph stance={stance} size={16} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12.5px] font-medium leading-4 text-ink">{f.text}</div>
-          <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-ink-3">
-            <span className="mono">{DIRECTION[f.direction]?.arrow}</span>
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-3">
+            <span className="tabular">{DIRECTION[f.direction]?.arrow}</span>
             <span className="truncate">{f.outcome.name}</span>
-            {cluster && <span className="mono shrink-0 truncate rounded-sm bg-surface-3 px-1 text-[9.5px]">{cluster.label}</span>}
+            {cluster && <span className="shrink-0 truncate rounded-full bg-surface-3 px-1.5 text-[10.5px]">{cluster.label}</span>}
             {f.harm && (
-              <Badge variant="destructive" className="mono h-3.5 shrink-0 rounded-sm px-1 text-[9px] uppercase tracking-wider">
-                harm
-              </Badge>
+              <span className="shrink-0 rounded-full bg-neg-soft px-1.5 text-[10.5px] font-medium text-neg-ink">Harm</span>
             )}
             {f.quote_verified === false && (
               <span className="ml-auto flex shrink-0 items-center text-ink-3" title="Quote not found verbatim in the source">
@@ -211,7 +202,7 @@ export const FindingNode = memo(function FindingNode({ data }: NodeProps & { dat
 
 const LABELS: Record<string, { title: string; hint: string; color: string }> = {
   supports: { title: "Supports", hint: "evidence the hypothesis is true", color: STANCE.supports.ink },
-  refutes: { title: "Refutes", hint: "evidence it is false, incl. null results", color: STANCE.refutes.ink },
+  refutes: { title: "Refutes", hint: "evidence it's false, including null results", color: STANCE.refutes.ink },
   mixed: { title: "Mixed", hint: "partly supports, partly refutes", color: STANCE.mixed.ink },
   pending: { title: "Being read", hint: "found, not yet judged", color: "var(--ink-3)" },
   unused: { title: "No usable findings", hint: "read, but nothing measured for this hypothesis", color: "var(--ink-3)" },
@@ -222,10 +213,11 @@ export const LabelNode = memo(function LabelNode({ data }: NodeProps & { data: D
   const align = data.align === "right" ? "items-start" : data.align === "left" ? "items-end" : "items-center";
   return (
     <div className={`pointer-events-none flex flex-col ${align}`} style={{ width: data.w, height: data.h }}>
-      <div className="text-[11.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: l.color }}>
-        {l.title} <span className="mono font-normal">· {data.count}</span>
+      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: l.color }}>
+        {l.title}
+        <span className="tabular rounded-full bg-surface-3 px-1.5 text-[11px] font-medium text-ink-2">{data.count}</span>
       </div>
-      <div className="text-[10.5px] text-ink-3">{l.hint}</div>
+      <div className="mt-0.5 text-[11px] text-ink-3">{l.hint}</div>
     </div>
   );
 }, sameNode);

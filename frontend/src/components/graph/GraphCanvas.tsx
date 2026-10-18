@@ -512,7 +512,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
                 onSelect={onSelect}
               />
             )}
-            <Card size="sm" className="absolute bottom-4 left-4 flex-row items-center gap-1 p-1 shadow-[var(--shadow-sm)]">
+            <Card size="sm" className="tg-float absolute bottom-4 left-4 flex-row items-center gap-0.5 rounded-xl p-1">
               <Tip label="Zoom in">
                 <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => rf.zoomIn({ duration: 200 })}>
                   <Plus />
@@ -538,8 +538,8 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
               </Tip>
               <Separator orientation="vertical" className="mx-0.5 h-4 self-center" />
               <Tip label="Keep the whole graph in view while it builds">
-                <Toggle size="sm" pressed={follow} onPressedChange={setFollow} className="mono text-[10.5px] aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/85">
-                  follow build
+                <Toggle size="sm" pressed={follow} onPressedChange={setFollow} className="rounded-lg px-2.5 text-[12px] aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/85">
+                  Follow build
                 </Toggle>
               </Tip>
             </Card>
@@ -581,13 +581,13 @@ function TrailBar({
     return i < 0 ? 1 : i + 1;
   })();
   return (
-    <Card size="sm" className="absolute inset-x-4 bottom-16 z-10 mx-auto max-w-[680px] gap-2 bg-card/95 p-2.5 shadow-[var(--shadow-md)] backdrop-blur">
+    <Card size="sm" className="tg-float tg-enter absolute inset-x-4 bottom-16 z-10 mx-auto max-w-[680px] gap-2 rounded-xl p-2.5">
       <div className="flex items-center gap-2 text-[12px]">
         <Waypoints className="size-3.5 shrink-0 text-ink-3" />
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{trail.title}</span>
         {(trail.paths?.length ?? 0) > 1 &&
           trail.paths!.map((_, i) => (
-            <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="mono h-6 px-2 text-[11px]" onClick={() => setPathIx(i)}>
+            <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[11px]" onClick={() => setPathIx(i)}>
               {i + 1}
             </Button>
           ))}
@@ -619,11 +619,11 @@ function TrailBar({
                   title={n.name}
                   className={`flex min-w-0 max-w-[190px] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11.5px] ${on ? "bg-card text-ink hover:border-ring" : "border-dashed text-ink-2"}`}
                 >
-                  <span className="mono shrink-0 text-[9.5px] uppercase text-ink-3">{n.kind}</span>
+                  <span className="shrink-0 text-[11px] text-ink-3">{n.kind}</span>
                   <span className="truncate">{n.name}</span>
                 </button>
                 {rel && (
-                  <span className="mono shrink-0 text-[9.5px] text-ink-3">
+                  <span className="shrink-0 text-[11px] text-ink-3">
                     {rel.startsWith("<") ? "←" : ""}
                     {rel.replace(/[<>\[\]-]/g, "").toLowerCase().replace(/_/g, " ")}
                     {rel.startsWith("<") ? "" : "→"}
@@ -647,22 +647,22 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
   const [open, setOpen] = useLegend();
   if (!open)
     return (
-      <Button variant="outline" size="sm" className="absolute left-4 top-4 h-7 gap-1.5 bg-card/95 px-2.5 text-[12px] font-normal shadow-[var(--shadow-sm)] backdrop-blur" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="tg-float absolute left-4 top-4 h-8 gap-1.5 rounded-xl px-3 text-[12.5px] font-normal" onClick={() => setOpen(true)}>
         <Info className="size-3.5" />
         Legend
       </Button>
     );
   return (
-    <Card size="sm" className="absolute left-4 top-4 max-w-[max(14rem,calc(100%-22rem))] gap-2 bg-card/95 py-2.5 pl-3 pr-9 shadow-[var(--shadow-sm)] backdrop-blur">
+    <Card size="sm" className="tg-float tg-enter absolute left-4 top-4 max-w-[max(14rem,calc(100%-22rem))] gap-2.5 rounded-xl py-3 pl-3.5 pr-9">
       <Tip label="Hide legend">
         <Button variant="ghost" size="icon-xs" aria-label="Hide legend" className="absolute right-1.5 top-1.5 text-muted-foreground" onClick={() => setOpen(false)}>
           <X />
         </Button>
       </Tip>
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[11.5px] text-ink-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-ink-2">
         {(["supports", "mixed", "refutes"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">
-            <span className="mono flex size-3.5 items-center justify-center rounded-full text-[9px] text-card" style={{ background: STANCE[d].color }}>
+            <span className="flex size-3.5 items-center justify-center rounded-full text-[11px] text-card" style={{ background: STANCE[d].color }}>
               {STANCE[d].glyph}
             </span>
             {STANCE[d].label}
@@ -672,7 +672,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
           <span className="tg-hatch h-3 w-4 rounded-[3px] border border-ink-3" />
           Industry funded
         </span>
-        <span className="text-ink-3">edge width = credibility × relevance</span>
+        <span className="text-ink-3">Thicker lines carry more credible, more relevant evidence</span>
       </div>
       <ToggleGroup
         type="multiple"
@@ -690,7 +690,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
             <ToggleGroupItem
               key={t.kind}
               value={t.kind}
-              className="h-6 rounded-full px-2 text-[11px] font-normal text-muted-foreground data-[state=on]:bg-card data-[state=on]:text-foreground"
+              className="h-7 rounded-full px-2.5 text-[12px] font-normal text-ink-3 transition-colors data-[state=on]:border-line-2 data-[state=on]:bg-card data-[state=on]:text-ink"
             >
               <svg width="18" height="6" aria-hidden>
                 <line x1="1" y1="3" x2="17" y2="3" stroke={st.stroke} strokeWidth={Math.max(1.4, st.width)} strokeDasharray={st.dash} opacity={show[t.kind] ? 1 : 0.35} />

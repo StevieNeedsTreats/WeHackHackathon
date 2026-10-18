@@ -16,16 +16,16 @@ export function PaperPreview({ state, id, focus }: { state: State; id: string; f
   }
   const reasons = [...(p.reasons ?? [])].sort((a, b) => Math.abs(b.points) - Math.abs(a.points)).slice(0, 3);
   const authors = p.authors.slice(0, 3).map((a) => a.name);
-  const meta = [p.journal, p.year].filter(Boolean).join(" · ");
+  const meta = [p.journal, p.year].filter(Boolean).join(", ");
   const facts = [p.design?.replace(/_/g, " "), p.n ? `n=${p.n.toLocaleString()}` : null, p.citations ? `${p.citations.toLocaleString()} citations` : null].filter(Boolean);
 
   return (
     <Card size="sm" className="tg-enter gap-2.5 p-3.5 shadow-[var(--shadow-md)]">
       <div>
-        <div className="font-serif text-[14px] font-semibold leading-snug text-ink line-clamp-3">{p.title}</div>
+        <div className="text-[14px] font-semibold leading-snug tracking-[-0.01em] text-ink line-clamp-3">{p.title}</div>
         <div className="mt-1 text-[11.5px] text-muted-foreground">
           {p.label}
-          {meta && ` · ${meta}`}
+          {meta && `, ${meta}`}
         </div>
       </div>
 
@@ -47,12 +47,12 @@ export function PaperPreview({ state, id, focus }: { state: State; id: string; f
           <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
             <div className="absolute inset-y-0 left-0 rounded-full bg-ink-2" style={{ width: `${p.credibility ?? 0}%` }} />
           </div>
-          <span className="mono tabular w-6 text-right font-medium text-ink">{p.credibility ?? "··"}</span>
+          <span className="tabular w-6 text-right font-medium text-ink">{p.credibility ?? "–"}</span>
         </div>
         {reasons.map((r) => (
           <div key={r.id} className="flex justify-between gap-2 text-[11px] text-ink-3">
             <span className="truncate">{r.label}</span>
-            <span className={`mono tabular ${r.points >= 0 ? "text-pos-ink" : "text-neg-ink"}`}>
+            <span className={`tabular ${r.points >= 0 ? "text-pos-ink" : "text-neg-ink"}`}>
               {r.points > 0 ? "+" : ""}
               {r.points}
             </span>

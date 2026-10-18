@@ -26,7 +26,7 @@ export function StanceGlyph({ stance, size = 18 }: { stance: Stance; size?: numb
   return (
     <span
       aria-label={d.label}
-      className="mono inline-flex shrink-0 items-center justify-center rounded-full font-medium"
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-medium"
       style={{ width: size, height: size, fontSize: size * 0.68, color: "var(--card)", background: d.color, lineHeight: 1 }}
     >
       {d.glyph}
@@ -51,32 +51,32 @@ export function Icon({ name, size = 12, className = "" }: { name: keyof typeof I
 }
 
 export const DESIGN_SHORT: Record<string, string> = {
-  "Meta-analysis": "META",
-  "Systematic review": "SYS REV",
+  "Meta-analysis": "Meta",
+  "Systematic review": "Review",
   RCT: "RCT",
-  "Clinical trial": "TRIAL",
-  "Registered trial": "REGISTRY",
-  Cohort: "COHORT",
-  "Case-control": "CASE-CTRL",
-  "Cross-sectional": "X-SECT",
-  "Case series": "SERIES",
-  "Case report": "CASE",
-  "Animal or lab study": "ANIMAL",
-  "Field experiment": "FIELD EXP",
-  "Natural experiment": "NAT EXP",
+  "Clinical trial": "Trial",
+  "Registered trial": "Registry",
+  Cohort: "Cohort",
+  "Case-control": "Case-control",
+  "Cross-sectional": "Cross-sect.",
+  "Case series": "Case series",
+  "Case report": "Case report",
+  "Animal or lab study": "Lab study",
+  "Field experiment": "Field exp.",
+  "Natural experiment": "Natural exp.",
   "Regression discontinuity": "RDD",
-  "Difference-in-differences": "DID",
-  "Synthetic control": "SYNTH",
+  "Difference-in-differences": "Diff-in-diff",
+  "Synthetic control": "Synth. control",
   "Instrumental variables": "IV",
-  "Panel / observational": "PANEL",
-  "Controlled experiment": "EXPERIMENT",
-  "Quasi-experiment": "QUASI",
-  Observational: "OBS",
-  Review: "REVIEW",
-  "Theory or simulation": "THEORY",
-  "Case study": "CASE",
-  "Opinion or commentary": "OPINION",
-  Other: "OTHER",
+  "Panel / observational": "Panel",
+  "Controlled experiment": "Experiment",
+  "Quasi-experiment": "Quasi-exp.",
+  Observational: "Obs.",
+  Review: "Review",
+  "Theory or simulation": "Theory",
+  "Case study": "Case study",
+  "Opinion or commentary": "Opinion",
+  Other: "Other",
 };
 
-export const designShort = (d?: string | null) => (d ? DESIGN_SHORT[d] ?? d.slice(0, 10).toUpperCase() : "…");
+export const designShort = (d?: string | null) => (d ? DESIGN_SHORT[d] ?? d.slice(0, 14) : "…");
