@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Play, RotateCw, SquareTerminal } from "lucide-react";
+import { CircleAlert, ListTree, Play, RotateCw, SquareTerminal } from "lucide-react";
 import { useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { getBenchmarks, runQuery, type QueryResult } from "@/lib/api";
+import { explainQuery, getBenchmarks, runQuery, type QueryResult } from "@/lib/api";
 import type { State } from "@/lib/store";
 import type { Metric } from "@/lib/types";
 import { SectionLabel } from "../Tip";
@@ -49,6 +49,30 @@ function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+/** A GRAPH.EXPLAIN plan as FalkorDB prints it, with index lookups and algorithm calls marked. */
+function Plan({ lines }: { lines: string[] }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10.5px] font-medium text-muted-foreground">
+        Execution plan <span className="mono">(GRAPH.EXPLAIN)</span>
+      </div>
+      <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md border bg-card p-2 text-[10.5px] leading-relaxed text-ink-3">
+        {lines.map((l, i) => {
+          const hit = /Index Scan|Index Seek|Full Text|ProcedureCall/i.test(l);
+          return (
+            <div key={i} className={hit ? "font-semibold text-pos" : undefined}>
+              {l}
+            </div>
+          );
+        })}
+      </pre>
+      <p className="mt-1 text-[10.5px] text-muted-foreground">
+        <span className="font-semibold text-pos">Highlighted</span> steps use an index or run a built-in algorithm instead of scanning.
+      </p>
     </div>
   );
 }
@@ -123,6 +147,7 @@ export function QueriesPanel({ state }: { state: State }) {
   const [cypher, setCypher] = useState(EXAMPLE);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [plan, setPlan] = useState<string[] | null>(null);
   const consoleRef = useRef<HTMLElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const list = metrics ?? state.metrics;
@@ -140,8 +165,20 @@ export function QueriesPanel({ state }: { state: State }) {
   const exec = async (query = cypher) => {
     setErr(null);
     setResult(null);
+    setPlan(null);
     try {
       setResult(await runQuery(query, state.question?.id));
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const explain = async () => {
+    setErr(null);
+    setResult(null);
+    setPlan(null);
+    try {
+      setPlan((await explainQuery(cypher, state.question?.id)).plan);
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -192,7 +229,7 @@ export function QueriesPanel({ state }: { state: State }) {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[13px] font-semibold text-foreground">{m.title}</span>
                           <Badge variant="outline" className="mono h-4 shrink-0 rounded-sm px-1 text-[10px] font-normal">
-                            {m.hops} hops
+                            {typeof m.hops === "number" ? `${m.hops} hops` : m.hops}
                           </Badge>
                         </div>
                         <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{m.question}</p>
@@ -211,6 +248,7 @@ export function QueriesPanel({ state }: { state: State }) {
                         <div className="space-y-2 border-t p-3">
                           <pre className="mono scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[10.5px] leading-relaxed text-ink-2">{m.cypher}</pre>
                           {m.sample.length > 0 && <ResultTable columns={m.columns} rows={m.sample} />}
+                          {m.plan && m.plan.length > 0 && <Plan lines={m.plan} />}
                           <Button variant="outline" size="xs" onClick={() => openInConsole(m.cypher)}>
                             <SquareTerminal />
                             Run in console
@@ -231,7 +269,8 @@ export function QueriesPanel({ state }: { state: State }) {
       <section ref={consoleRef} className="scroll-mt-4">
         <SectionLabel className="mb-1">Cypher console</SectionLabel>
         <p className="mb-2 text-[11.5px] text-muted-foreground">
-          Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$q</span> is the current question.
+          Read-only (<span className="mono">GRAPH.RO_QUERY</span>), 3 s timeout, 500-row cap. <span className="mono">$q</span> is the current question. Graph
+          algorithms (<span className="mono">CALL algo.*</span>) and full-text search (<span className="mono">db.idx.fulltext.queryNodes</span>) work here too.
         </p>
         <Textarea
           ref={editorRef}
@@ -247,16 +286,27 @@ export function QueriesPanel({ state }: { state: State }) {
         />
         <div className="mt-2 flex items-center justify-between">
           <span className="mono text-[10.5px] text-muted-foreground">⌘ ↵ to run</span>
-          <Button size="sm" onClick={() => exec()}>
-            <Play />
-            Run query
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={explain}>
+              <ListTree />
+              Explain
+            </Button>
+            <Button size="sm" onClick={() => exec()}>
+              <Play />
+              Run query
+            </Button>
+          </div>
         </div>
         {err && (
           <Alert variant="destructive" className="mt-2 border-destructive/40 bg-neg-soft/40">
             <CircleAlert />
             <AlertDescription className="text-[12px] text-foreground">{err}</AlertDescription>
           </Alert>
+        )}
+        {plan && (
+          <div className="mt-2">
+            <Plan lines={plan} />
+          </div>
         )}
         {result && (
           <div className="mt-2 space-y-1">

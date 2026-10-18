@@ -130,6 +130,9 @@ export interface QueryResult {
 }
 export const runQuery = (cypher: string, qid?: string) =>
   json<QueryResult>("/api/query", { method: "POST", body: JSON.stringify({ cypher, qid }) });
+export const explainQuery = (cypher: string, qid?: string) =>
+  json<{ plan: string[] }>("/api/explain", { method: "POST", body: JSON.stringify({ cypher, qid }) });
+
 
 export interface Edits {
   keep?: string[];
