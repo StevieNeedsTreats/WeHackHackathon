@@ -14,12 +14,13 @@ You ask a question in plain language, for example "Does green tea help with weig
 All of this goes into one graph in FalkorDB. You see the graph grow while the agents work.
 
 [![Watch a two-minute walkthrough: a question researched live, then its verdict, evidence, graph queries and chat](docs/images/demo-poster.png)](docs/demo.mp4)
-
 If the live app is down, watch [this walkthrough](docs/demo.mp4) of a recorded run instead.
 
 ![The evidence graph for "Does green tea help with weight loss?"](docs/images/evidence-graph.png)
 
 In the graph, findings that support the hypothesis are on the left. Findings that refute it are on the right. Mixed findings are below. A thicker line shows more credible and more relevant evidence. A red dashed line shows two findings that contradict each other.
+
+Its also deployed [here](https://we-hack-hackathon.vercel.app/).
 
 ## Data model
 
