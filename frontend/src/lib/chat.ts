@@ -24,6 +24,7 @@ export type Part =
 export interface TracePath {
   nodes: { kind: string; id: string; name: string }[];
   rels: string[]; // "-[FUNDED_BY]->" / "<-[FOUND]-", one per hop
+  stance?: string; // follow_evidence: the finding's stance on the hypothesis it ends at
 }
 
 /** Reasoning to draw on the canvas: a route hop by hop, or the set of papers and findings a tool rests on. */
@@ -187,7 +188,8 @@ export async function send(qid: string, text: string, ctx: ChatContext) {
       else if (ev.event === "tool") {
         const part = { kind: "tool" as const, name: d.name, args: d.args ?? {}, summary: d.summary ?? undefined, error: d.error ?? undefined, ms: d.ms, nodes: d.nodes ?? [], paths: d.paths };
         append(part);
-        if (part.paths?.length) sink?.trail(qid, trailOf(part, "Traced connections")); // routes are drawn as they're found
+        // Routes are drawn as they're found.
+        if (part.paths?.length) sink?.trail(qid, trailOf(part, part.name === "follow_evidence" ? "Followed the evidence" : "Traced connections"));
       }
       else if (ev.event === "ingest") {
         append({ kind: "job", job: d.job });

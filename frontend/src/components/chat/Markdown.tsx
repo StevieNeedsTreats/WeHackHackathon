@@ -22,6 +22,7 @@ export interface CiteHandlers {
   onFocus: (key: string) => void;
   onRefs: (ids: string[] | null) => void;
   onTrail?: (t: Trail | null) => void;
+  hidePaths?: boolean; // the reply shows its routes elsewhere, so path blocks in its text are skipped
 }
 
 type Target = { kind: "paper" | "finding" | "hypothesis"; id: string };
@@ -35,7 +36,7 @@ function resolve(raw: string, aliases: Record<string, string> = {}): Target | nu
   return { kind: s[0] === "P" ? "paper" : s[0] === "F" ? "finding" : "hypothesis", id };
 }
 
-function Cite({ raw, h }: { raw: string; h: CiteHandlers }) {
+export function Cite({ raw, h }: { raw: string; h: CiteHandlers }) {
   const t = resolve(raw, h.aliases);
   const { state } = h;
   const base =
@@ -165,8 +166,13 @@ function PathNode({ text, h }: { text: string; h: CiteHandlers }) {
   let ref: string | null = null;
   if (!/\[\[/.test(rest)) {
     const low = rest.toLowerCase();
-    if (kind === "paper") ref = Object.values(state.papers).find((p) => p.label.toLowerCase() === low)?.id ?? null;
-    if (kind === "hypothesis") {
+    // A raw id, maybe followed by a gloss: "doi:10.1111/dom.14091 (Arnott 2020)".
+    const id = rest.split(/\s+\(/)[0].trim();
+    if (kind === "paper" && state.papers[id]) ref = id;
+    if (kind === "finding" && state.findings[id]) ref = id;
+    if (kind === "hypothesis" && state.hyps[id]) ref = id;
+    if (kind === "paper" && !ref) ref = Object.values(state.papers).find((p) => p.label.toLowerCase() === low)?.id ?? null;
+    if (kind === "hypothesis" && !ref) {
       const k = state.hypOrder.find((x) => state.hyps[x].statement.toLowerCase().replace(/\.$/, "") === low);
       if (k) ref = k;
     }
@@ -208,6 +214,7 @@ export const Markdown = memo(function Markdown({ text, h }: { text: string; h: C
         b.kind === "code" ? (
           (() => {
             const steps = walk(b.lines);
+            if (steps && h.hidePaths) return null;
             return steps ? (
               <Path key={i} steps={steps} h={h} />
             ) : (

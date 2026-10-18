@@ -284,6 +284,62 @@ async def trace_path(
             "ms": _ms(t0)}
 
 
+SOURCES = {"funder": ("Funder", "FUNDED_BY"), "author": ("Author", "AUTHORED_BY"), "lab": ("Lab", "AFFILIATED")}
+
+
+@server.tool(annotations=READ)
+async def follow_evidence(
+    question_id: Annotated[str, Field(max_length=64)],
+    source: Annotated[str, Field(max_length=200, description="funder:ID / author:ID / lab:ID, or part of a name, "
+                                                             "e.g. 'Janssen'; empty with funder_type for every such funder")] = "",
+    kind: Literal["funder", "author", "lab"] = "funder",
+    funder_type: Annotated[Literal["industry", "public", "academic", "other"] | None, Field(
+        description="Every funder of this type, e.g. industry, to see what companies paid for")] = None,
+    hypothesis_key: Annotated[str | None, Field(max_length=64, description="Only evidence on this hypothesis")] = None,
+    limit: Annotated[int, Field(ge=1, le=40)] = 25,
+) -> dict[str, Any]:
+    """Every route from a funder, author or lab (or every funder of a type, such as industry) to a question's
+    hypotheses: source <- paper -> study -> finding -> hypothesis, one route per finding, with its stance. Use
+    it for "what did X pay for / write" or "trace the industry funding", where trace_path would return only the
+    few shortest routes. The app draws the routes as a tree under your answer."""
+    label, rel = SOURCES[kind]
+    ref_kind, _, ident = source.partition(":")
+    by_id = ref_kind == kind and bool(ident)
+    typed = kind == "funder" and funder_type is not None
+    if not source.strip() and not typed:
+        raise ToolError("Name a source, or give funder_type to follow every funder of that type")
+    where = ["s.id = $s" if by_id else "toLower(s.name) CONTAINS toLower($s)"] if source.strip() else []
+    if typed:
+        where.append("s.type = $t")
+    t0 = time.perf_counter()
+    res = await _ro(
+        f"MATCH (s:{label}) WHERE " + " AND ".join(where) + f"""
+        MATCH (s)<-[:{rel}]-(p:Paper)-[:DESCRIBES]->(st:Study)-[:FOUND]->(f:Finding)-[e:EVIDENCE_FOR]->(h:Hypothesis)
+        MATCH (:Question {{id:$q}})-[:ASKS]->(h)
+        WHERE $k = '' OR h.key = $k
+        RETURN s.id, s.name, p.id, p.label, st.id, st.design, f.id, f.text, e.stance, h.key, h.statement
+        ORDER BY e.stance, p.label LIMIT $n""",
+        {"s": ident if by_id else source.strip(), "t": funder_type or "", "q": question_id, "k": hypothesis_key or "",
+         "n": limit})
+    rels = [f"<-[{rel}]-", "-[DESCRIBES]->", "-[FOUND]->", "-[EVIDENCE_FOR]->"]
+    paths, nodes, sources, stances = [], [], {}, Counter()
+    for sid, sname, pid, plabel, stid, design, fid, ftext, stance, hk, hstmt in res.result_set:
+        sources[sid] = sname
+        stances[stance] += 1
+        paths.append({"stance": stance, "rels": rels, "nodes": [
+            {"kind": kind, "id": sid, "name": _short(sname, 80)}, {"kind": "paper", "id": pid, "name": plabel},
+            {"kind": "study", "id": stid, "name": design}, {"kind": "finding", "id": fid, "name": _short(ftext, 120)},
+            {"kind": "hypothesis", "id": hk, "name": _short(hstmt, 120)}]})
+        nodes += [f"paper:{pid}", f"finding:{fid}"]
+    papers = len({p["nodes"][1]["id"] for p in paths})
+    return {"sources": [{"id": i, "name": n} for i, n in sources.items()], "paths": paths,
+            "nodes": list(dict.fromkeys(nodes)),
+            "summary": f"{len(paths)} findings from {papers} papers, " + ", ".join(f"{n} {s}" for s, n in stances.items())
+                       if paths else f"no evidence on this question from {funder_type or 'a'} {kind}s"
+                                     + (f" matching {source!r}" if source.strip() else ""),
+            "ms": _ms(t0)}
+
+
 CENTRALITY = {
     "pagerank": "CALL algo.pageRank('Paper', 'CITES') YIELD node, score",
     "betweenness": "CALL algo.betweenness({nodeLabels: ['Paper'], relationshipTypes: ['CITES']}) YIELD node, score",

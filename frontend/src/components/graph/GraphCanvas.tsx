@@ -1,7 +1,7 @@
 "use client";
 
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, type Edge, type Node, type NodeChange } from "@xyflow/react";
-import { Info, Maximize, Minus, Plus, RotateCcw, Waypoints, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, Maximize, Minus, Plus, RotateCcw, Waypoints, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -178,13 +178,15 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
     [adjacency, target],
   );
 
-  // ---- reasoning trail from the chat: a route drawn hop by hop, or a set of findings lit at once
-  const [pathIx, setPathIx] = useState(0);
+  // ---- reasoning trail from the chat: a route drawn hop by hop, or a set of findings lit at once.
+  // Several routes open on all of them lit together (pathIx -1); picking one draws it hop by hop.
+  const allFirst = (t: Trail | null) => ((t?.paths?.length ?? 0) > 1 ? -1 : 0);
+  const [pathIx, setPathIx] = useState(() => allFirst(trail));
   const [step, setStep] = useState(0);
   const [trailFor, setTrailFor] = useState(trail);
   if (trailFor !== trail) {
     setTrailFor(trail);
-    setPathIx(0);
+    setPathIx(allFirst(trail));
     setStep(0);
   }
   const route = useMemo(() => {
@@ -588,12 +590,30 @@ function TrailBar({
       <div className="flex items-center gap-2 text-[12px]">
         <Waypoints className="size-3.5 shrink-0 text-ink-3" />
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{trail.title}</span>
-        {(trail.paths?.length ?? 0) > 1 &&
-          trail.paths!.map((_, i) => (
-            <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[12px]" onClick={() => setPathIx(i)}>
-              {i + 1}
+        {(trail.paths?.length ?? 0) > 1 && (
+          <>
+            <Button variant={pathIx < 0 ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[12px]" onClick={() => setPathIx(-1)}>
+              All
             </Button>
-          ))}
+            {trail.paths!.length <= 5 ? (
+              trail.paths!.map((_, i) => (
+                <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[12px]" onClick={() => setPathIx(i)}>
+                  {i + 1}
+                </Button>
+              ))
+            ) : (
+              <span className="flex items-center">
+                <Button variant="ghost" size="icon-xs" aria-label="Previous route" onClick={() => setPathIx(pathIx <= 0 ? trail.paths!.length - 1 : pathIx - 1)}>
+                  <ChevronLeft />
+                </Button>
+                <span className="tabular min-w-[3.5rem] text-center text-ink-3">{pathIx < 0 ? `${trail.paths!.length} routes` : `${pathIx + 1} of ${trail.paths!.length}`}</span>
+                <Button variant="ghost" size="icon-xs" aria-label="Next route" onClick={() => setPathIx((pathIx + 1) % trail.paths!.length)}>
+                  <ChevronRight />
+                </Button>
+              </span>
+            )}
+          </>
+        )}
         {route.ordered && (
           <Tip label="Draw it again">
             <Button variant="ghost" size="icon-xs" aria-label="Replay" onClick={onReplay}>

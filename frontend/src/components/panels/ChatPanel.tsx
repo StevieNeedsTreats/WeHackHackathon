@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Ban,
   Check,
+  Coins,
   ChevronRight,
   CircleAlert,
   Copy,
@@ -35,9 +36,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { addPapers, clearConversation, send, stopAnswer, trailOf, useConversation, type Job, type Msg, type Part, type Trail } from "@/lib/chat";
+import { addPapers, clearConversation, send, stopAnswer, trailOf, useConversation, type Job, type Msg, type Part, type TracePath, type Trail } from "@/lib/chat";
 import type { State } from "@/lib/store";
-import { Markdown, type CiteHandlers } from "../chat/Markdown";
+import { Cite, Markdown, type CiteHandlers } from "../chat/Markdown";
 import { Tip } from "../Tip";
 
 const SUGGESTIONS = [
@@ -457,7 +458,9 @@ const Message = memo(function Message({ m, jobs, h, onRetry }: { m: Msg; jobs: R
       </div>
     );
   }
-  const hh = { ...h, aliases: m.aliases };
+  // A reply whose tools returned routes already shows them (as a tree, and on the graph), so path blocks the
+  // model writes out anyway are left out of its text.
+  const hh = { ...h, aliases: m.aliases, hidePaths: m.parts.some((p) => p.kind === "tool" && !!p.paths?.length) };
   const empty = m.parts.every((p) => p.kind === "text" && !p.text.trim());
   return (
     <div className="group/msg space-y-2">
@@ -528,6 +531,7 @@ function PartView({ p, jobs, h, onRetry }: { p: Part; jobs: Record<string, Job>;
 const TOOLS: Record<string, { label: string; icon: React.ReactNode }> = {
   explain_verdict: { label: "Explained the verdict", icon: <Scale className="size-3" /> },
   trace_path: { label: "Traced connections", icon: <Waypoints className="size-3" /> },
+  follow_evidence: { label: "Followed the evidence", icon: <Coins className="size-3" /> },
   influential_papers: { label: "Ranked papers by citation influence", icon: <Network className="size-3" /> },
   contradiction_clusters: { label: "Found where the evidence splits", icon: <GitFork className="size-3" /> },
   question_overview: { label: "Read a question overview", icon: <Info className="size-3" /> },
@@ -568,6 +572,7 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
           </span>
         )}
       </CollapsibleTrigger>
+      {p.name === "follow_evidence" && !!p.paths?.length && <EvidenceTree paths={p.paths} h={h} />}
       <CollapsibleContent>
         <div className="space-y-1 border-t px-2.5 py-2 text-[12px] leading-[1.55] text-ink-2">
           <div className="flex items-center gap-2">
@@ -586,6 +591,51 @@ function ToolCard({ p, h }: { p: Extract<Part, { kind: "tool" }>; h: CiteHandler
         </div>
       </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+/**
+ * follow_evidence's routes (source <- paper -> study -> finding -> hypothesis) folded into the tree they
+ * are: each funder, author or lab, the papers it is behind, and each paper's findings with their stance.
+ */
+function EvidenceTree({ paths, h }: { paths: TracePath[]; h: CiteHandlers }) {
+  const sources = new Map<string, { name: string; kind: string; papers: Map<string, { name: string; findings: { id: string; name: string; hyp: string }[] }> }>();
+  for (const p of paths) {
+    const [src, paper, , finding, hyp] = p.nodes;
+    if (!src || !paper || !finding) continue;
+    const s = sources.get(src.id) ?? sources.set(src.id, { name: src.name, kind: src.kind, papers: new Map() }).get(src.id)!;
+    const pp = s.papers.get(paper.id) ?? s.papers.set(paper.id, { name: paper.name, findings: [] }).get(paper.id)!;
+    pp.findings.push({ id: finding.id, name: finding.name, hyp: hyp?.id ?? "" });
+  }
+  const hyps = new Set(paths.map((p) => p.nodes[4]?.id));
+  const ref = (kind: "paper" | "finding", id: string, name: string) =>
+    (kind === "paper" ? h.state.papers[id] : h.state.findings[id]) ? <Cite raw={`${kind}:${id}`} h={h} /> : <span className="text-ink-2">{name}</span>;
+  return (
+    <div className="space-y-2.5 border-t px-2.5 py-2.5">
+      {[...sources.entries()].map(([sid, s]) => (
+        <div key={sid}>
+          <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink">
+            <Coins className="size-3 text-ink-3" />
+            {s.name}
+          </div>
+          <ul className="ml-[5px] mt-1.5 space-y-2 border-l border-line-2 pl-3">
+            {[...s.papers.entries()].map(([pid, pp]) => (
+              <li key={pid}>
+                {ref("paper", pid, pp.name)}
+                <ul className="mt-1 space-y-1 pl-3">
+                  {pp.findings.map((f) => (
+                    <li key={f.id} className="flex items-center gap-1 text-[12px] text-ink-3">
+                      {ref("finding", f.id, f.name)}
+                      {hyps.size > 1 && h.state.hyps[f.hyp] && <span>on H{h.state.hypOrder.indexOf(f.hyp) + 1}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
