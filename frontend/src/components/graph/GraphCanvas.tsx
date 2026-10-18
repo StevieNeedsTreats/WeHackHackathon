@@ -342,10 +342,27 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
   useLayoutEffect(() => {
     boundsRef.current = layout.bounds;
   }, [layout.bounds]);
+  const box = useRef<HTMLDivElement>(null);
   const fit = useCallback(
     (duration: number) => {
       const b = boundsRef.current;
-      rf.fitBounds({ x: b.x - 30, y: b.y - 30, width: b.w + 60, height: b.h + 60 }, { padding: 0.04, duration });
+      const el = box.current;
+      if (!el || !b.w || !b.h) {
+        rf.fitBounds({ x: b.x - 30, y: b.y - 30, width: b.w + 60, height: b.h + 60 }, { padding: 0.04, duration });
+        return;
+      }
+      // Fit into the space the floating legend, search and controls leave free, so no node starts under them.
+      const r = el.getBoundingClientRect();
+      const under = (side: "top" | "bottom") =>
+        Math.max(0, ...[...el.querySelectorAll<HTMLElement>(`[data-overlay="${side}"]`)].map((o) => (side === "top" ? o.getBoundingClientRect().bottom - r.top : r.bottom - o.getBoundingClientRect().top)));
+      const top = under("top") + 16;
+      const bottom = under("bottom") + 12;
+      const side = 24;
+      const zoom = Math.max(0.1, Math.min(1, (r.width - side * 2) / b.w, (r.height - top - bottom) / b.h));
+      rf.setViewport(
+        { x: side + (r.width - side * 2 - b.w * zoom) / 2 - b.x * zoom, y: top + (r.height - top - bottom - b.h * zoom) / 2 - b.y * zoom, zoom },
+        { duration },
+      );
     },
     [rf],
   );
@@ -384,7 +401,6 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
   }
 
   // Refit when the canvas itself resizes (side panels collapsing, window resize) while following.
-  const box = useRef<HTMLDivElement>(null);
   const followRef = useRef(follow);
   useLayoutEffect(() => {
     followRef.current = follow;
@@ -512,7 +528,7 @@ function Canvas({ state, focus, selected, onSelect, onFocus, highlight, trail, o
                 onSelect={onSelect}
               />
             )}
-            <Card size="sm" className="tg-float absolute bottom-4 left-4 flex-row items-center gap-0.5 rounded-xl p-1">
+            <Card size="sm" data-overlay="bottom" className="tg-float absolute bottom-4 left-4 flex-row items-center gap-0.5 rounded-xl p-1">
               <Tip label="Zoom in">
                 <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => rf.zoomIn({ duration: 200 })}>
                   <Plus />
@@ -587,7 +603,7 @@ function TrailBar({
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{trail.title}</span>
         {(trail.paths?.length ?? 0) > 1 &&
           trail.paths!.map((_, i) => (
-            <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[11px]" onClick={() => setPathIx(i)}>
+            <Button key={i} variant={i === pathIx ? "secondary" : "ghost"} size="sm" className="h-6 px-2 text-[12px]" onClick={() => setPathIx(i)}>
               {i + 1}
             </Button>
           ))}
@@ -617,13 +633,13 @@ function TrailBar({
                   disabled={!on}
                   onClick={() => id && onSelect(id)}
                   title={n.name}
-                  className={`flex min-w-0 max-w-[190px] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11.5px] ${on ? "bg-card text-ink hover:border-ring" : "border-dashed text-ink-2"}`}
+                  className={`flex min-w-0 max-w-[190px] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12.5px] ${on ? "bg-card text-ink hover:border-ring" : "border-dashed text-ink-2"}`}
                 >
-                  <span className="shrink-0 text-[11px] text-ink-3">{n.kind}</span>
+                  <span className="shrink-0 text-[12px] text-ink-3">{n.kind}</span>
                   <span className="truncate">{n.name}</span>
                 </button>
                 {rel && (
-                  <span className="shrink-0 text-[11px] text-ink-3">
+                  <span className="shrink-0 text-[12px] text-ink-3">
                     {rel.startsWith("<") ? "←" : ""}
                     {rel.replace(/[<>\[\]-]/g, "").toLowerCase().replace(/_/g, " ")}
                     {rel.startsWith("<") ? "" : "→"}
@@ -634,7 +650,7 @@ function TrailBar({
           })}
         </div>
       ) : (
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-[12.5px] text-muted-foreground">
           {route.ids.length ? `${route.ids.length} papers and findings lit on the graph.` : "None of these are on this hypothesis's graph."} Esc to clear.
         </p>
       )}
@@ -647,13 +663,13 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
   const [open, setOpen] = useLegend();
   if (!open)
     return (
-      <Button variant="outline" size="sm" className="tg-float absolute left-4 top-4 h-8 gap-1.5 rounded-xl px-3 text-[12.5px] font-normal" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" data-overlay="top" className="tg-float absolute left-4 top-4 max-sm:top-[4.25rem] h-8 gap-1.5 rounded-xl px-3 text-[12.5px] font-normal" onClick={() => setOpen(true)}>
         <Info className="size-3.5" />
         Legend
       </Button>
     );
   return (
-    <Card size="sm" className="tg-float tg-enter absolute left-4 top-4 max-w-[max(14rem,calc(100%-22rem))] gap-2.5 rounded-xl py-3 pl-3.5 pr-9">
+    <Card size="sm" data-overlay="top" className="tg-float tg-enter absolute left-4 top-4 max-w-[max(14rem,calc(100%-22rem))] max-sm:right-4 max-sm:top-[4.25rem] max-sm:max-w-none gap-2.5 rounded-xl py-3 pl-3.5 pr-9">
       <Tip label="Hide legend">
         <Button variant="ghost" size="icon-xs" aria-label="Hide legend" className="absolute right-1.5 top-1.5 text-muted-foreground" onClick={() => setOpen(false)}>
           <X />
@@ -662,7 +678,7 @@ function Legend({ show, setShow }: { show: Record<Toggleable, boolean>; setShow:
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-ink-2">
         {(["supports", "mixed", "refutes"] as const).map((d) => (
           <span key={d} className="flex items-center gap-1.5">
-            <span className="flex size-3.5 items-center justify-center rounded-full text-[11px] text-card" style={{ background: STANCE[d].color }}>
+            <span className="flex size-3.5 items-center justify-center rounded-full text-[12px] text-card" style={{ background: STANCE[d].color }}>
               {STANCE[d].glyph}
             </span>
             {STANCE[d].label}
