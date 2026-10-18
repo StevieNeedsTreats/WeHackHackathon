@@ -233,7 +233,8 @@ KINDS = {"question": ("Question", "id"), "hypothesis": ("Hypothesis", "key"), "p
 REL_TYPES = ["ASKS", "SUBJECT", "OUTCOME", "POPULATION", "CONSIDERED", "DESCRIBES", "FOUND", "MEASURES", "EVIDENCE_FOR",
              "IN_CLUSTER", "OF", "CONTRADICTS", "AUTHORED_BY", "AFFILIATED", "FUNDED_BY", "CITES", "SAME_AS"]
 NodeRef = Annotated[str, Field(max_length=300, description="kind:id, e.g. paper:ID, finding:ID, hypothesis:KEY, "
-                                                           "funder:ID, author:ID, concept:ID, question:ID")]
+                                                           "funder:ID, author:ID, concept:ID, question:ID. A name "
+                                                           "works in place of the id, e.g. funder:Janssen")]
 
 
 def _node(ref: str) -> tuple[str, str, str]:
@@ -242,6 +243,17 @@ def _node(ref: str) -> tuple[str, str, str]:
         raise ToolError(f"{ref!r} isn't kind:id; kinds are {', '.join(KINDS)}")
     label, key = KINDS[kind.lower()]
     return label, key, ident
+
+
+async def _resolve(label: str, key: str, ident: str) -> str:
+    """The node's own id, or the id of the node whose name or label contains it: the model often has only a name
+    ("funder:Janssen", "paper:Ryan 2018") for things the lookup tools don't return."""
+    if (await _ro(f"MATCH (n:{label} {{{key}: $i}}) RETURN 1 LIMIT 1", {"i": ident})).result_set:
+        return ident
+    rows = (await _ro(
+        f"MATCH (n:{label}) WHERE toLower(coalesce(n.name, n.label, n.statement, n.text, '')) CONTAINS toLower($i) "
+        f"RETURN n.{key} ORDER BY size(coalesce(n.name, n.label, n.statement, n.text)) LIMIT 1", {"i": ident})).result_set
+    return rows[0][0] if rows else ident
 
 
 @server.tool(annotations=READ)
@@ -260,14 +272,19 @@ async def trace_path(
     one paper to another through citations."""
     (la, ka, a), (lb, kb, b) = _node(source), _node(target)
     t0 = time.perf_counter()
-    found = await _ro(
+    a, b = await _resolve(la, ka, a), await _resolve(lb, kb, b)
+    query = (
         f"MATCH (a:{la} {{{ka}: $a}}), (b:{lb} {{{kb}: $b}}) "
-        "CALL algo.SPpaths({sourceNode: a, targetNode: b, maxLen: $hops, relDirection: 'both', pathCount: $n"
-        + (", relTypes: $via" if via else "") + "}) YIELD path "
+        "CALL algo.SPpaths({sourceNode: a, targetNode: b, maxLen: $hops, relDirection: 'both', pathCount: $n%s}) "
+        "YIELD path "
         "RETURN [n IN nodes(path) | [id(n), toLower(labels(n)[0]), coalesce(n.id, n.key), "
         "coalesce(n.label, n.name, n.statement, n.text, n.title, n.design)]], "
-        "[r IN relationships(path) | [type(r), id(startNode(r))]]",
-        {"a": a, "b": b, "hops": max_hops, "n": paths, "via": list(via)})
+        "[r IN relationships(path) | [type(r), id(startNode(r))]]")
+    params = {"a": a, "b": b, "hops": max_hops, "n": paths, "via": list(via)}
+    found = await _ro(query % (", relTypes: $via" if via else ""), params)
+    widened = bool(via) and not found.result_set
+    if widened:  # the chosen relationships don't connect them; any route beats none
+        found = await _ro(query % "", params)
     out, nodes = [], []
     for ns, rs in found.result_set:
         steps = [f"{ns[0][1]} {_short(ns[0][3], 80)}"]
@@ -278,9 +295,11 @@ async def trace_path(
         out.append({"hops": len(rs), "path": " ".join(steps), "rels": arrows,
                     "nodes": [{"kind": k, "id": ident, "name": _short(name, 120)} for _, k, ident, name in ns]})
         nodes += [f"{k}:{ident}" for _, k, ident, _ in ns if k in ("paper", "finding")]
+    out.sort(key=lambda p: p["hops"])
     return {"paths": out, "nodes": list(dict.fromkeys(nodes)),
             "summary": f"{len(out)} path{'' if len(out) == 1 else 's'}" + (f", shortest {out[0]['hops']} hops" if out else
-                                                                           f" within {max_hops} hops"),
+                                                                           f" within {max_hops} hops")
+                       + (" (over any relationship: none used only the ones asked for)" if widened else ""),
             "ms": _ms(t0)}
 
 
