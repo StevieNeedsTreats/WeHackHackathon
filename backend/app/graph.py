@@ -244,7 +244,11 @@ class GraphStore:
                 """,
                 {"rows": labs},
             )
-        if funders:
+        await self.add_funders(funders)
+
+    async def add_funders(self, rows: list[dict]) -> None:
+        """rows: {pid, id, name, type}. Funders from metadata, or named in the paper's text."""
+        if rows:
             await self.q(
                 """
                 UNWIND $rows AS r
@@ -253,7 +257,7 @@ class GraphStore:
                 SET f.type=intern(r.type)
                 MERGE (p)-[:FUNDED_BY]->(f)
                 """,
-                {"rows": funders},
+                {"rows": rows},
             )
 
     async def add_same_as(self, pairs: list[tuple[str, str]]) -> None:

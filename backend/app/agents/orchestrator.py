@@ -24,10 +24,10 @@ from redis.exceptions import RedisError
 
 from ..config import get_settings
 from ..domains import DomainPack, get_domain
-from ..graph import GraphStore, title_norm
+from ..graph import GraphStore, slug, title_norm
 from ..guardrails import screen_cypher
 from ..llm import LLMError, LLMRouter, ToolSpec, UsageMeter
-from ..sources import SourceError, Sources
+from ..sources import SourceError, Sources, classify_funder, clean_funder_name
 from . import credibility as cred_mod
 from .base import Agent, AgentContext, BudgetExceeded
 from .contradictions import ContradictionAgent, candidates, severity
@@ -523,6 +523,7 @@ class Run:
                         if self.mode != "demo":
                             await self.sources.redis.set(cache_key, json.dumps(ex), ex=self.settings.cache_ttl_s)
                     await self.store.write_extraction(pid, ex["design"], ex["n"], ex["studies"], ex["findings"])
+                    await self.add_stated_funders(pid, ex.get("funders_stated") or [])
                     self.extractions[pid] = ex
                     for f in ex["findings"]:
                         self.findings[f["id"]] = self.finding_view(f, pid)
@@ -548,6 +549,24 @@ class Run:
         await self.agent("extractor", "done", f"{n_find} findings from {total} papers", total, total)
         return {"extracted": len([p for p in todo if p in self.extractions]), "failed": len([p for p in todo if p in self.extract_failed]),
                 "findings": n_find}
+
+    async def add_stated_funders(self, pid: str, names: list[str]) -> None:
+        """Funders named in the paper's text (a Lancet abstract ends with "Funding GlaxoSmithKline", for
+        example) join the metadata funders, which often miss them."""
+        p = self.papers[pid]
+        known = {slug(f["name"]) for f in p.get("funders", [])}
+        rows = []
+        for raw in names[:3]:
+            name = clean_funder_name(raw)
+            if len(name) < 3 or slug(name) in known:
+                continue
+            known.add(slug(name))
+            f = {"id": f"name:{slug(name)}", "name": name, "type": classify_funder(name)}
+            p.setdefault("funders", []).append(f)
+            rows.append({"pid": pid, **f})
+        if rows:
+            await self.store.add_funders(rows)
+            await self.emit("paper", {"paper": self.paper_view(pid)})
 
     async def score(self, ids: list[str]) -> dict:
         todo = [p for p in ids if p in self.extractions and p not in self.cred]

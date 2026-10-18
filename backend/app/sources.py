@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html
 import json
 import logging
 import re
@@ -277,16 +278,26 @@ def _surname(name: str) -> str:
 # ---------------------------------------------------------------------- Europe PMC
 
 _INDUSTRY = re.compile(
-    r"\b(inc|ltd|llc|gmbh|corp|corporation|co\.|company|pharma|pharmaceuticals?|ag|s\.a\.|plc|nutrition(al)? (products|ltd)|labs?|industries|biotech|alzchem|glanbia|nestl[eé]|abbott|pfizer|novartis|bayer|merck|roche|gsk|sanofi)\b",
+    r"\b(inc|ltd|llc|gmbh|corp|corporation|co\.|company|pharma|pharmaceuticals?|ag|s\.a\.|plc|nutrition(al)? (products|ltd)|labs?|industries|biotech|alzchem|glanbia|nestl[eé]|abbott|pfizer|novartis|bayer|merck|roche|gsk|glaxo\w*|sanofi|astrazeneca|amgen|novo nordisk|eli lilly|servier|esperion|regeneron|boehringer|takeda|daiichi|astellas|bristol[- ]myers|squibb|johnson & johnson|janssen|abbvie|gilead|biogen|teva|mylan|viatris|kowa|monsanto|syngenta|coca[- ]cola|pepsico|ajinomoto|unilever|danone|philip morris|british american tobacco|juul|altria)\b",
     re.I,
 )
 _PUBLIC = re.compile(
     r"\b(nih|national|ministry|council|government|federal|department of|nhmrc|nsf|wellcome|eu|european|research council|veterans|cdc|fapesp|cnpq|capes|jsps|nsfc|commission)\b",
     re.I,
 )
-_NONPROFIT = re.compile(r"\b(university|universit|college|foundation|institute|society|trust|charity|hospital|association|center|centre)\b", re.I)
+_NONPROFIT = re.compile(r"\b(university|universit|college|foundation|institute|society|trust|charity|hospital|association|center|centre|research uk)\b", re.I)
 # Industry-funded trade bodies are classified as industry.
-_TRADE = re.compile(r"\b(council for responsible nutrition|dairy council|sugar association|beverage association|chamber of commerce|restaurant association)\b", re.I)
+_TRADE = re.compile(r"\b(council for responsible nutrition|applied science & performance institute|dairy council|sugar association|beverage association|chamber of commerce|restaurant association)\b", re.I)
+
+
+_FUNDED_BY = re.compile(r"^.*?\b(?:supported|funded|sponsored|financed)\s+(?:in part\s+)?by\s+(?:a grant from\s+|grants? from\s+)?(?:the\s+)?", re.I)
+
+
+def clean_funder_name(name: str) -> str:
+    """'These studies were supported by Janssen Research &amp; Development, LLC.' -> 'Janssen Research & Development, LLC'."""
+    name = html.unescape(name).strip()
+    name = _FUNDED_BY.sub("", name, count=1)
+    return name.strip(" .;:,")[:80]
 
 
 def classify_funder(name: str) -> str:
@@ -370,7 +381,7 @@ def parse_epmc(r: dict, strict: bool = True) -> dict | None:
                         "name": a["fullName"]})
     funders, seen = [], set()
     for g in (r.get("grantsList") or {}).get("grant", []):
-        name = (g.get("agency") or "").strip()
+        name = clean_funder_name(g.get("agency") or "")
         if name and name.lower() not in seen:
             seen.add(name.lower())
             funders.append({"id": f"name:{slug(name)}", "name": name[:80], "type": classify_funder(name)})
