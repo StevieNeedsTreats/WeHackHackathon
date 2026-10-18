@@ -134,18 +134,19 @@ function blocks(text: string): Block[] {
 
 type Step = { kind: "node"; text: string } | { kind: "rel"; rel: string; back: boolean };
 
-// "-[DESCRIBES]->", "<-[:CITES]-", "-[EVIDENCE_FOR {stance}]->", optionally followed by the next node.
-const REL = /^\s*(<)?-\[:?\s*([A-Za-z_|]+)[^\]]*\]-(>)?\s*(.*)$/;
+// "-[DESCRIBES]->", "<-[:CITES]-", "-[EVIDENCE_FOR {stance}]->", "- [CITES]←", optionally followed by the next node.
+const REL = /^\s*(<-|←|-)\s*\[:?\s*([A-Za-z_|]+)[^\]]*\](?!\()\s*(->|→|←|-)?\s*(.*)$/;
 
 /** A block's lines as a walk through the graph, or null when it isn't one. */
 function walk(lines: string[]): Step[] | null {
   const steps: Step[] = [];
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = raw.replace(/\s+#.*$/, "").trim(); // drop "# comment" glosses
     if (!line) continue;
     const m = REL.exec(line);
     if (m) {
-      steps.push({ kind: "rel", rel: m[2].toUpperCase(), back: !!m[1] && !m[3] });
+      const fwd = m[3] === "->" || m[3] === "→";
+      steps.push({ kind: "rel", rel: m[2].toUpperCase(), back: (m[1] !== "-" && !fwd) || m[3] === "←" });
       if (m[4]) steps.push({ kind: "node", text: m[4] });
     } else steps.push({ kind: "node", text: line });
   }
