@@ -24,10 +24,10 @@ from redis.exceptions import RedisError
 
 from ..config import get_settings
 from ..domains import DomainPack, get_domain
-from ..graph import GraphStore, slug, title_norm
+from ..graph import GraphStore, title_norm
 from ..guardrails import screen_cypher
 from ..llm import LLMError, LLMRouter, ToolSpec, UsageMeter
-from ..sources import SourceError, Sources, classify_funder, clean_funder_name
+from ..sources import SourceError, Sources, classify_funder, clean_funder_name, funder_id
 from . import credibility as cred_mod
 from .base import Agent, AgentContext, BudgetExceeded
 from .contradictions import ContradictionAgent, candidates, severity
@@ -554,14 +554,14 @@ class Run:
         """Funders named in the paper's text (a Lancet abstract ends with "Funding GlaxoSmithKline", for
         example) join the metadata funders, which often miss them."""
         p = self.papers[pid]
-        known = {slug(f["name"]) for f in p.get("funders", [])}
+        known = {funder_id(f["name"]) for f in p.get("funders", [])}
         rows = []
         for raw in names[:3]:
             name = clean_funder_name(raw)
-            if len(name) < 3 or slug(name) in known:
+            if len(name) < 3 or funder_id(name) in known:
                 continue
-            known.add(slug(name))
-            f = {"id": f"name:{slug(name)}", "name": name, "type": classify_funder(name)}
+            known.add(funder_id(name))
+            f = {"id": funder_id(name), "name": name, "type": classify_funder(name)}
             p.setdefault("funders", []).append(f)
             rows.append({"pid": pid, **f})
         if rows:

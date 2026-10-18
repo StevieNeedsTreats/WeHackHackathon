@@ -304,6 +304,20 @@ def clean_funder_name(name: str) -> str:
     return name.strip(" .;:,")[:80]
 
 
+_CORPORATE = re.compile(r"\b(the|inc|llc|ltd|limited|corp|corporation|co|company|plc|gmbh|ag|sa|s\.a|bv|n\.v|nv)\b\.?", re.I)
+
+
+def funder_id(name: str) -> str:
+    """One id per organisation, however a source spells it: "Janssen Research & Development, LLC" and
+    "Janssen Research and Development" are the same funder, as are "GlaxoSmithKline plc, UK" and
+    "GlaxoSmithKline"."""
+    n = clean_funder_name(name).lower().replace("&", " and ")
+    n = re.sub(r",\s*(uk|usa|us|u\.s\.a?|united kingdom|united states|japan|germany|france|switzerland)\.?$", "", n)
+    n = _CORPORATE.sub(" ", n)
+    n = re.sub(r"\band\b", " ", n)
+    return f"name:{slug(n)}"
+
+
 def classify_funder(name: str) -> str:
     if _TRADE.search(name) or _INDUSTRY.search(name):
         return "industry"
@@ -388,7 +402,7 @@ def parse_epmc(r: dict, strict: bool = True) -> dict | None:
         name = clean_funder_name(g.get("agency") or "")
         if name and name.lower() not in seen:
             seen.add(name.lower())
-            funders.append({"id": f"name:{slug(name)}", "name": name[:80], "type": classify_funder(name)})
+            funders.append({"id": funder_id(name), "name": name[:80], "type": classify_funder(name)})
     first_author = ((r.get("authorList") or {}).get("author") or [{}])[0]
     aff_list = (first_author.get("authorAffiliationDetailsList") or {}).get("authorAffiliation") or []
     lab, country = parse_affiliation((aff_list[0].get("affiliation") if aff_list else None) or r.get("affiliation", ""))
@@ -439,7 +453,7 @@ def parse_openalex(w: dict, strict: bool = True) -> dict | None:
             if inst.get("display_name"):
                 labs.append({"id": f"oa:{inst['id'].rsplit('/', 1)[-1]}" if inst.get("id") else f"name:{slug(inst['display_name'])}",
                              "name": inst["display_name"][:90], "country": inst.get("country_code") or ""})
-    funders = [{"id": f"oa:{f['id'].rsplit('/', 1)[-1]}", "name": f["display_name"][:80], "type": classify_funder(f["display_name"])}
+    funders = [{"id": funder_id(f["display_name"]), "name": clean_funder_name(f["display_name"]), "type": classify_funder(f["display_name"])}
                for f in (w.get("funders") or []) if f.get("id") and f.get("display_name")]
     src = (w.get("primary_location") or {}).get("source") or {}
     designs = [_OA_DESIGNS.get(d["id"].rsplit("/", 1)[-1]) for d in (w.get("study_designs") or []) if d.get("id")]
@@ -489,7 +503,7 @@ def parse_ctgov(s: dict) -> dict | None:
         nct=nct, title=ident.get("briefTitle") or nct, year=year, journal="ClinicalTrials.gov",
         design="Registered trial", sample_size=enrol, citations=0, peer_reviewed=False, kind="registry",
         authors=[{"id": f"name:{slug(sname)}", "name": sname}] if sname else [],
-        funders=[{"id": f"name:{slug(sname)}", "name": sname[:80],
+        funders=[{"id": funder_id(sname), "name": sname[:80],
                   "type": "industry" if sponsor.get("class") == "INDUSTRY" else classify_funder(sname)}] if sname else [],
         url=f"https://clinicaltrials.gov/study/{nct}", abstract=summary[:6000], has_results=bool(s.get("hasResults")),
         source="clinicaltrials",
