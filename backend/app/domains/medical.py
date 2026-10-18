@@ -13,10 +13,10 @@ MEDICAL = DomainPack(
     slices=[
         Slice("reviews", "Reviews & meta-analyses",
               "Systematic reviews and meta-analyses that pool many studies on this question.",
-              ("europepmc",)),
+              ("europepmc", "openalex")),
         Slice("trials", "Randomised trials",
               "Randomised controlled trials and other controlled clinical trials that test the outcome directly.",
-              ("europepmc",)),
+              ("europepmc", "openalex")),
         Slice("safety", "Safety & harms",
               "Adverse events, side effects, toxicity, pharmacovigilance, case series and case reports.",
               ("europepmc",)),

@@ -146,6 +146,10 @@ class Sources:
     async def search_epmc(self, query: str, size: int) -> list[dict]:
         # Default (relevance) order. Europe PMC matches full text, so sorting by citations
         # floats famous papers that merely mention a term (e.g. DrugBank) above on-topic ones.
+        # A plain query would also match the full text, so recent papers that only mention the terms
+        # outrank the papers about them. Fielded queries (TITLE:, PUB_TYPE: …) are left as written.
+        if ":" not in query:
+            query = f"TITLE_ABS:({query})"
         url = f"{EPMC}/search?query={quote(query + ' AND HAS_ABSTRACT:y')}&resultType=core&format=json&pageSize={size}"
         data = await self.fetch(url)
         return [p for p in (parse_epmc(r) for r in data.get("resultList", {}).get("result", [])) if p]
