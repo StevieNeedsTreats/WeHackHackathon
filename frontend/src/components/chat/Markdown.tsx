@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { Fragment, memo } from "react";
 import type { Trail } from "@/lib/chat";
 import type { State } from "@/lib/store";
@@ -7,8 +8,10 @@ import { StanceGlyph } from "../graph/glyphs";
 
 /*
  * The small subset of Markdown the assistant is asked to write (paragraphs, "-" and "1." lists,
- * **bold**, *italic*, `code`), plus citations: [[P3]] / [[F12]] / [[H1]] refs from the context
- * digest, or [[paper:ID]] / [[finding:ID]] / [[hypothesis:KEY]] for ids seen in query results.
+ * **bold**, *italic*, `code`, fenced code), plus citations: [[P3]] / [[F12]] / [[H1]] refs from the
+ * context digest, or [[paper:ID]] / [[finding:ID]] / [[hypothesis:KEY]] for ids seen in query results.
+ * A fenced block shaped like a walk through the graph (nodes, with "-[REL]->" steps between them)
+ * is drawn as a chain.
  */
 
 export interface CiteHandlers {
@@ -96,11 +99,21 @@ function Inline({ text, h }: { text: string; h: CiteHandlers }) {
   return <>{out}</>;
 }
 
-type Block = { kind: "p"; lines: string[] } | { kind: "ul" | "ol"; items: string[] };
+type Block = { kind: "p"; lines: string[] } | { kind: "ul" | "ol"; items: string[] } | { kind: "code"; lines: string[] };
 
 function blocks(text: string): Block[] {
   const out: Block[] = [];
+  let fence: Block | null = null;
   for (const line of text.replace(/\r/g, "").split("\n")) {
+    if (/^\s*```/.test(line)) {
+      fence = fence ? null : { kind: "code", lines: [] };
+      if (fence) out.push(fence);
+      continue;
+    }
+    if (fence?.kind === "code") {
+      fence.lines.push(line);
+      continue;
+    }
     const bullet = /^\s*[-*•]\s+(.*)$/.exec(line);
     const num = /^\s*\d+[.)]\s+(.*)$/.exec(line);
     const prev = out[out.length - 1];
@@ -112,17 +125,98 @@ function blocks(text: string): Block[] {
     } else if (!line.trim()) {
       if (prev && !(prev.kind === "p" && prev.lines.length === 0)) out.push({ kind: "p", lines: [] });
     } else if (prev?.kind === "p") prev.lines.push(line.replace(/^#+\s*/, ""));
-    else if (prev && /^\s{2,}/.test(line)) prev.items[prev.items.length - 1] += " " + line.trim(); // a wrapped list item
+    else if ((prev?.kind === "ul" || prev?.kind === "ol") && /^\s{2,}/.test(line)) prev.items[prev.items.length - 1] += " " + line.trim(); // a wrapped list item
     else out.push({ kind: "p", lines: [line.replace(/^#+\s*/, "")] });
   }
-  return out.filter((b) => (b.kind === "p" ? b.lines.length > 0 : b.items.length > 0));
+  return out.filter((b) => ("items" in b ? b.items.length > 0 : b.lines.length > 0));
+}
+
+type Step = { kind: "node"; text: string } | { kind: "rel"; rel: string; back: boolean };
+
+// "-[DESCRIBES]->", "<-[:CITES]-", "-[EVIDENCE_FOR {stance}]->", optionally followed by the next node.
+const REL = /^\s*(<)?-\[:?\s*([A-Za-z_|]+)[^\]]*\]-(>)?\s*(.*)$/;
+
+/** A block's lines as a walk through the graph, or null when it isn't one. */
+function walk(lines: string[]): Step[] | null {
+  const steps: Step[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = REL.exec(line);
+    if (m) {
+      steps.push({ kind: "rel", rel: m[2].toUpperCase(), back: !!m[1] && !m[3] });
+      if (m[4]) steps.push({ kind: "node", text: m[4] });
+    } else steps.push({ kind: "node", text: line });
+  }
+  const rels = steps.filter((s) => s.kind === "rel").length;
+  return rels > 0 && steps[0]?.kind === "node" && steps.length > rels ? steps : null;
+}
+
+const KINDS = ["paper", "study", "finding", "hypothesis", "question", "concept", "author", "lab", "funder", "cluster"];
+
+/** "paper Heyward 2020" -> a citation of that paper when it is loaded, else its kind and text. */
+function PathNode({ text, h }: { text: string; h: CiteHandlers }) {
+  const m = new RegExp(`^\\(?(${KINDS.join("|")})\\b[:\\s]*`, "i").exec(text);
+  const kind = m?.[1].toLowerCase() ?? null;
+  // "(paper Heyward 2020)" is Cypher-style; drop that wrapping bracket, not one that belongs to the text.
+  const body = m ? text.slice(m[0].length) : text;
+  const rest = (m?.[0].startsWith("(") ? body.replace(/\)$/, "") : body).replace(/^["“]|["”.]+$/g, "").trim();
+  const { state } = h;
+  let ref: string | null = null;
+  if (!/\[\[/.test(rest)) {
+    const low = rest.toLowerCase();
+    if (kind === "paper") ref = Object.values(state.papers).find((p) => p.label.toLowerCase() === low)?.id ?? null;
+    if (kind === "hypothesis") {
+      const k = state.hypOrder.find((x) => state.hyps[x].statement.toLowerCase().replace(/\.$/, "") === low);
+      if (k) ref = k;
+    }
+  }
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="size-[7px] shrink-0 rounded-full border-[1.5px] border-ink-3 bg-card" />
+      {kind && <span className="w-[4.5rem] shrink-0 text-[12px] text-ink-3 first-letter:uppercase">{kind}</span>}
+      <span className="min-w-0 text-ink">
+        {ref ? <Cite raw={`${kind}:${ref}`} h={h} /> : <Inline text={rest} h={h} />}
+      </span>
+    </span>
+  );
+}
+
+function Path({ steps, h }: { steps: Step[]; h: CiteHandlers }) {
+  return (
+    <ol className="rounded-lg border bg-card px-3 py-2.5" aria-label="Path through the graph">
+      {steps.map((s, i) =>
+        s.kind === "node" ? (
+          <li key={i}>
+            <PathNode text={s.text} h={h} />
+          </li>
+        ) : (
+          <li key={i} className="ml-[3px] flex items-center gap-1.5 border-l border-line-2 py-1.5 pl-[13px] text-[12px] text-ink-3">
+            {s.back ? <ArrowUp className="size-3" aria-label="from" /> : <ArrowDown className="size-3" aria-label="to" />}
+            <span className="code">{s.rel}</span>
+          </li>
+        ),
+      )}
+    </ol>
+  );
 }
 
 export const Markdown = memo(function Markdown({ text, h }: { text: string; h: CiteHandlers }) {
   return (
     <div className="space-y-2 text-[13px] leading-[1.6] text-ink-2">
       {blocks(text).map((b, i) =>
-        b.kind === "p" ? (
+        b.kind === "code" ? (
+          (() => {
+            const steps = walk(b.lines);
+            return steps ? (
+              <Path key={i} steps={steps} h={h} />
+            ) : (
+              <pre key={i} className="code scroll-thin overflow-x-auto whitespace-pre rounded-md bg-muted/60 p-2 text-[12px] leading-relaxed text-ink-2">
+                {b.lines.join("\n")}
+              </pre>
+            );
+          })()
+        ) : b.kind === "p" ? (
           <p key={i}>
             {b.lines.map((l, j) => (
               <Fragment key={j}>
