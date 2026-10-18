@@ -555,7 +555,15 @@ class GraphStore:
         words = re.findall(r"[A-Za-z0-9]{2,}", text)[:12]
         if not words:
             return {"papers": [], "concepts": []}
-        term = " | ".join(words)
+        # Every word must match, and the last one may be half typed. A long question rarely has
+        # all its words in one title, so it falls back to any word.
+        every = " ".join(words[:-1] + [words[-1] + "*" if len(words[-1]) >= 3 else words[-1]])
+        hits = await self._find(every, limit)
+        if not hits["papers"] and not hits["concepts"] and len(words) > 1:
+            hits = await self._find(" | ".join(words), limit)
+        return hits
+
+    async def _find(self, term: str, limit: int) -> dict:
         papers, concepts = await asyncio.gather(
             self.ro(
                 """

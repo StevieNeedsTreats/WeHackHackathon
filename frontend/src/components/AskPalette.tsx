@@ -66,8 +66,10 @@ function Body({
       <CommandInput value={q} onValueChange={setQ} placeholder="Ask about any claim, e.g. does creatine improve memory?" maxLength={400} />
       <CommandList className="max-h-[min(60vh,420px)]">
         <CommandEmpty>Type at least 3 characters to research your own question.</CommandEmpty>
+        {/* cmdk hides a group whose items all miss its text filter, even force-mounted ones, so these
+            groups are force-mounted too. */}
         {text.length >= 3 && (
-          <CommandGroup>
+          <CommandGroup forceMount>
             <CommandItem value={`ask ${text}`} forceMount onSelect={() => run(() => onAsk(text))}>
               <Sparkles />
               <span className="truncate">
@@ -80,7 +82,7 @@ function Body({
           </CommandGroup>
         )}
         {(papers.length > 0 || concepts.length > 0) && (
-          <CommandGroup heading="In the graph">
+          <CommandGroup heading="In the graph" forceMount>
             {concepts.slice(0, 3).map((c) => (
               <CommandItem key={`c:${c.id}`} value={`concept ${c.id}`} forceMount onSelect={() => run(() => onOpenQuestion(c.hypotheses[0].question))}>
                 <Tag className="text-muted-foreground" />
